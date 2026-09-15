@@ -26,8 +26,6 @@ export default function RegisterSchoolPage() {
   const handleNameChange = (value: string) => {
     setName(value);
 
-    // Automatically create slug only while the user has not
-    // manually started changing it.
     if (!slug) {
       setSlug(makeSlug(value));
     }
@@ -73,8 +71,6 @@ export default function RegisterSchoolPage() {
         description: description.trim(),
       });
 
-      // Registration creates a PENDING_PAYMENT school.
-      // Payment/recharge is the next step.
       navigate(`/payment/recharge?schoolId=${school.id}`, {
         replace: true,
       });
@@ -112,6 +108,7 @@ export default function RegisterSchoolPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-2xl">
+
         {/* Header */}
         <div className="mb-6 text-center text-white">
           <div className="mb-3 text-5xl">🏫</div>
@@ -127,152 +124,210 @@ export default function RegisterSchoolPage() {
 
         {/* Main Card */}
         <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
-          {/* Login status */}
-          {user ? (
-            <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4">
-              <div className="font-bold text-green-800">
-                ✅ Google Account Connected
-              </div>
 
-              <div className="mt-1 break-all text-sm text-green-700">
-                {user.email}
-              </div>
-            </div>
-          ) : (
-            <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-4">
-              <div className="font-bold text-orange-800">
+          {/* =====================================================
+              NOT LOGGED IN
+              ===================================================== */}
+
+          {!user && (
+            <div className="rounded-2xl border-2 border-orange-200 bg-orange-50 p-6 text-center">
+
+              <div className="text-5xl">🔐</div>
+
+              <h2 className="mt-3 text-2xl font-black text-orange-900">
                 Google Login Required
-              </div>
+              </h2>
 
-              <p className="mt-1 text-sm text-orange-700">
-                Please sign in with your Google account before registering a
-                school.
+              <p className="mt-2 text-sm text-orange-700">
+                Please sign in with your Google account before registering
+                your school.
               </p>
+
+              {error && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+                  ❌ {error}
+                </div>
+              )}
 
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="mt-4 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-3 font-bold text-white shadow-[0_5px_0_rgb(154,52,18)] transition hover:brightness-110 active:translate-y-1 active:shadow-none"
+                className="mt-5 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-4 font-extrabold text-white shadow-[0_6px_0_rgb(154,52,18)] transition hover:brightness-110 active:translate-y-1 active:shadow-none"
               >
                 🔐 Continue with Google
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/schools')}
+                className="mt-4 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 active:translate-y-1 active:shadow-none"
+              >
+                ← Back to Schools
               </button>
             </div>
           )}
 
-          {/* Information */}
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-            <h2 className="font-bold text-blue-900">
-              📌 Registration Information
-            </h2>
+          {/* =====================================================
+              LOGGED IN
+              ===================================================== */}
 
-            <ul className="mt-2 space-y-1 text-sm text-blue-800">
-              <li>• No school recognition document is required.</li>
-              <li>• Registration first creates a pending school.</li>
-              <li>• Payment/recharge comes after registration.</li>
-              <li>• School becomes LIVE only after payment approval.</li>
-              <li>• Management features unlock after approval.</li>
-            </ul>
-          </div>
+          {user && (
+            <>
+              {/* Login Status */}
+              <div className="mb-6 rounded-2xl border-2 border-green-200 bg-green-50 p-4">
+                <div className="font-bold text-green-800">
+                  ✅ Google Account Connected
+                </div>
 
-          <form onSubmit={handleRegister} className="space-y-5">
-            {/* School Name */}
-            <div>
-              <label className="mb-2 block font-bold text-gray-800">
-                School Name *
-              </label>
-
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Example: Sunrise Public School"
-                disabled={loading}
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                required
-              />
-            </div>
-
-            {/* School Slug */}
-            <div>
-              <label className="mb-2 block font-bold text-gray-800">
-                School Website URL *
-              </label>
-
-              <input
-                type="text"
-                value={slug}
-                onChange={(e) => setSlug(makeSlug(e.target.value))}
-                placeholder="sunrise-public-school"
-                disabled={loading}
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                required
-              />
-
-              <p className="mt-2 text-xs text-gray-500">
-                Example: yoursite.com/school/
-                {slug || 'your-school'}
-              </p>
-            </div>
-
-            {/* Tagline */}
-            <div>
-              <label className="mb-2 block font-bold text-gray-800">
-                School Tagline
-              </label>
-
-              <input
-                type="text"
-                value={tagline}
-                onChange={(e) => setTagline(e.target.value)}
-                placeholder="Education • Discipline • Excellence"
-                disabled={loading}
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-              />
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="mb-2 block font-bold text-gray-800">
-                School Description
-              </label>
-
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter a short description about your school..."
-                rows={5}
-                disabled={loading}
-                className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-              />
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                ❌ {error}
+                <div className="mt-1 break-all text-sm text-green-700">
+                  {user.email}
+                </div>
               </div>
-            )}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading || !user}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 px-5 py-4 text-lg font-extrabold text-white shadow-[0_6px_0_rgb(67,56,202)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
-            >
-              {loading
-                ? '⏳ Creating School...'
-                : '🏫 Register School & Continue to Payment'}
-            </button>
-          </form>
+              {/* Registration Information */}
+              <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <h2 className="font-bold text-blue-900">
+                  📌 Registration Information
+                </h2>
 
-          {/* Back */}
-          <button
-            type="button"
-            onClick={() => navigate('/schools')}
-            className="mt-5 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 active:translate-y-1 active:shadow-none"
-          >
-            ← Back to Schools
-          </button>
+                <ul className="mt-2 space-y-1 text-sm text-blue-800">
+                  <li>
+                    • No school recognition document is required.
+                  </li>
+
+                  <li>
+                    • Registration first creates a pending school.
+                  </li>
+
+                  <li>
+                    • Payment/recharge comes after registration.
+                  </li>
+
+                  <li>
+                    • School becomes LIVE only after payment approval.
+                  </li>
+
+                  <li>
+                    • Management features unlock after approval.
+                  </li>
+                </ul>
+              </div>
+
+              {/* Registration Form */}
+              <form
+                onSubmit={handleRegister}
+                className="space-y-5"
+              >
+
+                {/* School Name */}
+                <div>
+                  <label className="mb-2 block font-bold text-gray-800">
+                    School Name *
+                  </label>
+
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) =>
+                      handleNameChange(e.target.value)
+                    }
+                    placeholder="Example: Sunrise Public School"
+                    disabled={loading}
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* School URL */}
+                <div>
+                  <label className="mb-2 block font-bold text-gray-800">
+                    School Website URL *
+                  </label>
+
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) =>
+                      setSlug(makeSlug(e.target.value))
+                    }
+                    placeholder="sunrise-public-school"
+                    disabled={loading}
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                    required
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    Example: yoursite.com/school/
+                    {slug || 'your-school'}
+                  </p>
+                </div>
+
+                {/* Tagline */}
+                <div>
+                  <label className="mb-2 block font-bold text-gray-800">
+                    School Tagline
+                  </label>
+
+                  <input
+                    type="text"
+                    value={tagline}
+                    onChange={(e) =>
+                      setTagline(e.target.value)
+                    }
+                    placeholder="Education • Discipline • Excellence"
+                    disabled={loading}
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="mb-2 block font-bold text-gray-800">
+                    School Description
+                  </label>
+
+                  <textarea
+                    value={description}
+                    onChange={(e) =>
+                      setDescription(e.target.value)
+                    }
+                    placeholder="Enter a short description about your school..."
+                    rows={5}
+                    disabled={loading}
+                    className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Error */}
+                {error && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                    ❌ {error}
+                  </div>
+                )}
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 px-5 py-4 text-lg font-extrabold text-white shadow-[0_6px_0_rgb(67,56,202)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                >
+                  {loading
+                    ? '⏳ Creating School...'
+                    : '🏫 Register School & Continue to Payment'}
+                </button>
+              </form>
+
+              {/* Back */}
+              <button
+                type="button"
+                onClick={() => navigate('/schools')}
+                disabled={loading}
+                className="mt-5 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 active:translate-y-1 active:shadow-none"
+              >
+                ← Back to Schools
+              </button>
+            </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-xs text-white/80">
