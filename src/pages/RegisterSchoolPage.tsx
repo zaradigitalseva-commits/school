@@ -1,0 +1,284 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { registerSchool } from '@/firebase/firestore';
+
+export default function RegisterSchoolPage() {
+  const navigate = useNavigate();
+  const { user, signInWithGoogle } = useAuth();
+
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const makeSlug = (value: string) => {
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+
+    // Automatically create slug only while the user has not
+    // manually started changing it.
+    if (!slug) {
+      setSlug(makeSlug(value));
+    }
+  };
+
+  const handleRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+
+    if (!user) {
+      setError('Please sign in with Google first.');
+      return;
+    }
+
+    const cleanName = name.trim();
+    const cleanSlug = makeSlug(slug);
+
+    if (!cleanName) {
+      setError('Please enter school name.');
+      return;
+    }
+
+    if (!cleanSlug) {
+      setError('Please enter a valid school URL/slug.');
+      return;
+    }
+
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
+      setError(
+        'School URL can contain only lowercase letters, numbers and hyphens.'
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const school = await registerSchool(user.uid, {
+        name: cleanName,
+        slug: cleanSlug,
+        ownerEmail: user.email ?? '',
+        tagline: tagline.trim(),
+        description: description.trim(),
+      });
+
+      // Registration creates a PENDING_PAYMENT school.
+      // Payment/recharge is the next step.
+      navigate(`/payment/recharge?schoolId=${school.id}`, {
+        replace: true,
+      });
+    } catch (err) {
+      console.error('School registration failed:', err);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'School registration failed. Please try again.';
+
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error('Google sign-in failed:', err);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Google sign-in failed. Please try again.';
+
+      setError(message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
+      <div className="mx-auto max-w-2xl">
+        {/* Header */}
+        <div className="mb-6 text-center text-white">
+          <div className="mb-3 text-5xl">🏫</div>
+
+          <h1 className="text-3xl font-extrabold md:text-4xl">
+            Register Your School
+          </h1>
+
+          <p className="mt-2 text-sm text-white/90 md:text-base">
+            Create your school website and management account
+          </p>
+        </div>
+
+        {/* Main Card */}
+        <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
+          {/* Login status */}
+          {user ? (
+            <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4">
+              <div className="font-bold text-green-800">
+                ✅ Google Account Connected
+              </div>
+
+              <div className="mt-1 break-all text-sm text-green-700">
+                {user.email}
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <div className="font-bold text-orange-800">
+                Google Login Required
+              </div>
+
+              <p className="mt-1 text-sm text-orange-700">
+                Please sign in with your Google account before registering a
+                school.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="mt-4 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-3 font-bold text-white shadow-[0_5px_0_rgb(154,52,18)] transition hover:brightness-110 active:translate-y-1 active:shadow-none"
+              >
+                🔐 Continue with Google
+              </button>
+            </div>
+          )}
+
+          {/* Information */}
+          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <h2 className="font-bold text-blue-900">
+              📌 Registration Information
+            </h2>
+
+            <ul className="mt-2 space-y-1 text-sm text-blue-800">
+              <li>• No school recognition document is required.</li>
+              <li>• Registration first creates a pending school.</li>
+              <li>• Payment/recharge comes after registration.</li>
+              <li>• School becomes LIVE only after payment approval.</li>
+              <li>• Management features unlock after approval.</li>
+            </ul>
+          </div>
+
+          <form onSubmit={handleRegister} className="space-y-5">
+            {/* School Name */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-800">
+                School Name *
+              </label>
+
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Example: Sunrise Public School"
+                disabled={loading}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                required
+              />
+            </div>
+
+            {/* School Slug */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-800">
+                School Website URL *
+              </label>
+
+              <input
+                type="text"
+                value={slug}
+                onChange={(e) => setSlug(makeSlug(e.target.value))}
+                placeholder="sunrise-public-school"
+                disabled={loading}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+                required
+              />
+
+              <p className="mt-2 text-xs text-gray-500">
+                Example: yoursite.com/school/
+                {slug || 'your-school'}
+              </p>
+            </div>
+
+            {/* Tagline */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-800">
+                School Tagline
+              </label>
+
+              <input
+                type="text"
+                value={tagline}
+                onChange={(e) => setTagline(e.target.value)}
+                placeholder="Education • Discipline • Excellence"
+                disabled={loading}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-800">
+                School Description
+              </label>
+
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter a short description about your school..."
+                rows={5}
+                disabled={loading}
+                className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
+              />
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                ❌ {error}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading || !user}
+              className="w-full rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 px-5 py-4 text-lg font-extrabold text-white shadow-[0_6px_0_rgb(67,56,202)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
+            >
+              {loading
+                ? '⏳ Creating School...'
+                : '🏫 Register School & Continue to Payment'}
+            </button>
+          </form>
+
+          {/* Back */}
+          <button
+            type="button"
+            onClick={() => navigate('/schools')}
+            className="mt-5 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 active:translate-y-1 active:shadow-none"
+          >
+            ← Back to Schools
+          </button>
+        </div>
+
+        <p className="mt-6 text-center text-xs text-white/80">
+          School registration • Google Login • Secure Firebase Database
+        </p>
+      </div>
+    </div>
+  );
+}
