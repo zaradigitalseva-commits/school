@@ -427,6 +427,29 @@ export async function fetchMySchools(
 
 
 /* =========================================================
+   SCHOOL STATUS
+   Used by Platform Admin
+========================================================= */
+
+export async function updateSchoolStatus(
+  schoolId: string,
+  status: School['status']
+): Promise<void> {
+  if (!schoolId) {
+    throw new Error('School ID is required.');
+  }
+
+  await updateDoc(
+    doc(db, 'schools', schoolId),
+    {
+      status,
+      updatedAt: serverTimestamp(),
+    }
+  );
+}
+
+
+/* =========================================================
    SCHOOL MEMBERSHIPS
 ========================================================= */
 
