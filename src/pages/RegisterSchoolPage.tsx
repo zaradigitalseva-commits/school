@@ -14,21 +14,39 @@ export default function RegisterSchoolPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  /*
+   * Convert school name into a safe URL slug.
+   *
+   * IMPORTANT:
+   * A full website URL is NOT accepted as a school slug.
+   */
   const makeSlug = (value: string) => {
     return value
       .toLowerCase()
       .trim()
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .replace(/\.vercel\.app.*$/i, '')
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
   };
 
   const handleNameChange = (value: string) => {
     setName(value);
 
+    /*
+     * Only automatically create slug if the user
+     * has not manually entered one.
+     */
     if (!slug) {
       setSlug(makeSlug(value));
     }
+  };
+
+  const handleSlugChange = (value: string) => {
+    setSlug(makeSlug(value));
   };
 
   const handleRegister = async (event: React.FormEvent) => {
@@ -53,6 +71,12 @@ export default function RegisterSchoolPage() {
       return;
     }
 
+    /*
+     * Only simple URL slugs are allowed.
+     *
+     * Example:
+     * sunrise-public-school
+     */
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
       setError(
         'School URL can contain only lowercase letters, numbers and hyphens.'
@@ -112,7 +136,6 @@ export default function RegisterSchoolPage() {
 
       await signOut();
 
-      // Clear registration form after logout
       setName('');
       setSlug('');
       setTagline('');
@@ -151,10 +174,7 @@ export default function RegisterSchoolPage() {
         {/* Main Card */}
         <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
 
-          {/* =====================================================
-              NOT LOGGED IN
-              ===================================================== */}
-
+          {/* NOT LOGGED IN */}
           {!user && (
             <div className="rounded-2xl border-2 border-orange-200 bg-orange-50 p-6 text-center">
 
@@ -181,7 +201,9 @@ export default function RegisterSchoolPage() {
                 disabled={loading}
                 className="mt-5 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-4 font-extrabold text-white shadow-[0_6px_0_rgb(154,52,18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
               >
-                {loading ? '⏳ Signing in...' : '🔐 Continue with Google'}
+                {loading
+                  ? '⏳ Signing in...'
+                  : '🔐 Continue with Google'}
               </button>
 
               <button
@@ -195,13 +217,10 @@ export default function RegisterSchoolPage() {
             </div>
           )}
 
-          {/* =====================================================
-              LOGGED IN
-              ===================================================== */}
-
+          {/* LOGGED IN */}
           {user && (
             <>
-              {/* Login Status + Logout */}
+              {/* Login Status */}
               <div className="mb-6 rounded-2xl border-2 border-green-200 bg-green-50 p-4">
 
                 <div className="font-bold text-green-800">
@@ -224,6 +243,7 @@ export default function RegisterSchoolPage() {
 
               {/* Registration Information */}
               <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+
                 <h2 className="font-bold text-blue-900">
                   📌 Registration Information
                 </h2>
@@ -286,7 +306,7 @@ export default function RegisterSchoolPage() {
                     type="text"
                     value={slug}
                     onChange={(e) =>
-                      setSlug(makeSlug(e.target.value))
+                      handleSlugChange(e.target.value)
                     }
                     placeholder="sunrise-public-school"
                     disabled={loading}
@@ -295,8 +315,18 @@ export default function RegisterSchoolPage() {
                   />
 
                   <p className="mt-2 text-xs text-gray-500">
-                    Example: yoursite.com/school/
-                    {slug || 'your-school'}
+                    Your school page:
+                  </p>
+
+                  <p className="mt-1 break-all rounded-lg bg-gray-50 p-2 text-xs font-semibold text-blue-700">
+                    /school/{slug || 'your-school'}
+                  </p>
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    केवल school का नाम/slug डालें, जैसे:
+                    <span className="font-bold text-gray-700">
+                      sunrise-public-school
+                    </span>
                   </p>
                 </div>
 
