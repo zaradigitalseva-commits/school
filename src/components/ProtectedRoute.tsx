@@ -2,22 +2,47 @@ import { type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import type { UserRole } from '@/firebase/types';
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  allowedRoles?: UserRole[];
   adminOnly?: boolean;
 }
 
-export default function ProtectedRoute({ children, adminOnly }: ProtectedRouteProps) {
-  const { user, loading, isAdmin, isFaculty } = useAuth();
+export default function ProtectedRoute({
+  children,
+  allowedRoles,
+  adminOnly,
+}: ProtectedRouteProps) {
+  const { user, loading, role } = useAuth();
 
-  if (loading) return <LoadingSpinner fullScreen label="Checking access..." />;
+  if (loading) {
+    return (
+      <LoadingSpinner
+        fullScreen
+        label="Checking access..."
+      />
+    );
+  }
 
-  if (!user) return <Navigate to="/login" replace />;
+  // Login नहीं है
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
-  if (adminOnly && !isAdmin) return <Navigate to="/dashboard" replace />;
+  // New multi-school role system
+  // adminOnly पुरानी compatibility के लिए रखा गया है
+  const allowed =
+    allowedRoles ??
+    (adminOnly
+      ? ['platform_admin']
+      : ['platform_admin', 'school_admin', 'teacher']);
 
-  if (!isAdmin && !isFaculty) return <Navigate to="/login" replace />;
+  // Role की अनुमति नहीं है
+  if (!allowed.includes(role)) {
+    return <Navigate to="/" replace />;
+  }
 
   return <>{children}</>;
 }
