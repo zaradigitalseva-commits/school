@@ -5,7 +5,7 @@ import { registerSchool } from '@/firebase/firestore';
 
 export default function RegisterSchoolPage() {
   const navigate = useNavigate();
-  const { user, signInWithGoogle } = useAuth();
+  const { user, signInWithGoogle, signOut } = useAuth();
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -105,6 +105,32 @@ export default function RegisterSchoolPage() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      setError('');
+      setLoading(true);
+
+      await signOut();
+
+      // Clear registration form after logout
+      setName('');
+      setSlug('');
+      setTagline('');
+      setDescription('');
+    } catch (err) {
+      console.error('Logout failed:', err);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Logout failed. Please try again.';
+
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-2xl">
@@ -152,15 +178,17 @@ export default function RegisterSchoolPage() {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="mt-5 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-4 font-extrabold text-white shadow-[0_6px_0_rgb(154,52,18)] transition hover:brightness-110 active:translate-y-1 active:shadow-none"
+                disabled={loading}
+                className="mt-5 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-4 font-extrabold text-white shadow-[0_6px_0_rgb(154,52,18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
               >
-                🔐 Continue with Google
+                {loading ? '⏳ Signing in...' : '🔐 Continue with Google'}
               </button>
 
               <button
                 type="button"
                 onClick={() => navigate('/schools')}
-                className="mt-4 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 active:translate-y-1 active:shadow-none"
+                disabled={loading}
+                className="mt-4 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 disabled:opacity-60 active:translate-y-1 active:shadow-none"
               >
                 ← Back to Schools
               </button>
@@ -173,8 +201,9 @@ export default function RegisterSchoolPage() {
 
           {user && (
             <>
-              {/* Login Status */}
+              {/* Login Status + Logout */}
               <div className="mb-6 rounded-2xl border-2 border-green-200 bg-green-50 p-4">
+
                 <div className="font-bold text-green-800">
                   ✅ Google Account Connected
                 </div>
@@ -182,6 +211,15 @@ export default function RegisterSchoolPage() {
                 <div className="mt-1 break-all text-sm text-green-700">
                   {user.email}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loading}
+                  className="mt-4 w-full rounded-xl bg-gradient-to-r from-gray-700 to-gray-900 px-5 py-3 font-extrabold text-white shadow-[0_5px_0_rgb(31,41,55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                >
+                  {loading ? '⏳ Logging out...' : '🔓 Logout'}
+                </button>
               </div>
 
               {/* Registration Information */}
@@ -322,7 +360,7 @@ export default function RegisterSchoolPage() {
                 type="button"
                 onClick={() => navigate('/schools')}
                 disabled={loading}
-                className="mt-5 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 active:translate-y-1 active:shadow-none"
+                className="mt-5 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 disabled:opacity-60 active:translate-y-1 active:shadow-none"
               >
                 ← Back to Schools
               </button>
