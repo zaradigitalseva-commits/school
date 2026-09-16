@@ -38,6 +38,9 @@ export interface School {
   slug: string;
 
   ownerUid: string;
+
+  // Google Login email - automatically saved,
+  // not entered manually in registration form.
   ownerEmail: string;
 
   status: SchoolStatus;
@@ -67,19 +70,22 @@ export interface School {
   customDomain?: string;
   customDomainStatus?: 'NONE' | 'PENDING' | 'VERIFIED';
 
-  // Optional subscription/payment information
+  // Subscription / Payment
   subscriptionPlan?: string;
   subscriptionStatus?: string;
+
   paymentStatus?: string;
   paymentId?: string;
   paymentAmount?: number;
   paymentDate?: string;
 
-  // Optional platform/admin information
+  // Platform / Admin
   approvedByUid?: string;
   approvedAt?: string;
+
   suspendedAt?: string;
   archivedAt?: string;
+
   suspensionReason?: string;
 }
 
@@ -92,7 +98,8 @@ export interface SchoolRegistrationInput {
   name: string;
   slug: string;
 
-  ownerEmail: string;
+  // Email is NOT entered in the form.
+  // It is automatically taken from Google Login.
   phone: string;
 
   tagline?: string;
@@ -108,6 +115,7 @@ export interface AppUser {
   uid: string;
 
   email: string;
+
   displayName?: string;
   photoURL?: string;
 
@@ -119,6 +127,9 @@ export interface AppUser {
 
   createdAt?: string;
   updatedAt?: string;
+
+  // Last Google login time
+  lastLoginAt?: string;
 
   active?: boolean;
 }
@@ -143,7 +154,9 @@ export interface SchoolMembership {
   schoolId: string;
   uid: string;
 
+  // Automatically taken from Google Login.
   email: string;
+
   displayName?: string;
   photoURL?: string;
 
@@ -151,7 +164,7 @@ export interface SchoolMembership {
 
   status: SchoolMembershipStatus;
 
-  // For teachers
+  // Teacher class assignments
   assignments?: string[];
 
   createdAt: string;
@@ -207,7 +220,7 @@ export interface SchoolClass {
   name: string;
   className?: string;
 
-  // Example: 1, 2, 3 ... 12
+  // 1, 2, 3 ... 12
   classNumber?: number;
 
   section?: string;
@@ -503,6 +516,7 @@ export interface Announcement {
   published?: boolean;
 
   createdByUid?: string;
+
   createdAt?: string;
   updatedAt?: string;
 }
