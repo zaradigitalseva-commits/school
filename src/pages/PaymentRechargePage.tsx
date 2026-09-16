@@ -3,7 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { fetchMyRechargeRequests } from '@/firebase/payment';
 import type { RechargeRequest } from '@/firebase/payment';
-import { doc, getDoc } from 'firebase/firestore';
+
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  where,
+} from 'firebase/firestore';
+
 import { db } from '@/firebase/config';
 
 const BILLING_PACKAGES = [
@@ -19,6 +29,11 @@ export default function PaymentRechargePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  /*
+   * School ID URL से लिया जा रहा है।
+   * यह केवल Firebase school lookup के लिए है।
+   * इसे WhatsApp message में नहीं दिखाया जाएगा।
+   */
   const schoolId = searchParams.get('schoolId') || '';
 
   const [selectedPackage, setSelectedPackage] = useState(
@@ -31,10 +46,14 @@ export default function PaymentRechargePage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadSchoolData() {
       if (!schoolId) {
-        setError('School ID is missing.');
-        setLoadingSchool(false);
+        if (!cancelled) {
+          setError('School ID is missing.');
+          setLoadingSchool(false);
+        }
         return;
       }
 
@@ -42,46 +61,160 @@ export default function PaymentRechargePage() {
         setLoadingSchool(true);
         setError('');
 
+        /*
+         * STEP 1:
+         * schools/{schoolId} से school data निकालें
+         */
         const schoolRef = doc(db, 'schools', schoolId);
         const schoolSnap = await getDoc(schoolRef);
 
         if (!schoolSnap.exists()) {
-          setError('School registration was not found.');
+          if (!cancelled) {
+            setError('School registration was not found.');
+            setSchoolName('');
+          }
           return;
         }
 
         const data = schoolSnap.data();
 
-        setSchoolName(data.name || '');
+        /*
+         * STEP 2:
+         * सबसे पहले name field देखें।
+         */
+        let resolvedSchoolName =
+          typeof data.name === 'string'
+            ? data.name.trim()
+            : '';
 
+        /*
+         * STEP 3:
+         * पुराने/अलग data structure के लिए fallback।
+         */
+        if (!resolvedSchoolName) {
+          if (typeof data.schoolName === 'string') {
+            resolvedSchoolName = data.schoolName.trim();
+          }
+        }
+
+        if (!resolvedSchoolName) {
+          if (typeof data.title === 'string') {
+            resolvedSchoolName = data.title.trim();
+          }
+        }
+
+        /*
+         * STEP 4:
+         * अगर schools document में नाम नहीं मिला,
+         * तो slugReservations collection में schoolId से खोजें।
+         */
+        if (!resolvedSchoolName) {
+          try {
+            const reservationQuery = query(
+              collection(db, 'slugReservations'),
+              where('schoolId', '==', schoolId),
+              limit(1)
+            );
+
+            const reservationSnapshot =
+              await getDocs(reservationQuery);
+
+            if (!reservationSnapshot.empty) {
+              const reservationData =
+                reservationSnapshot.docs[0].data();
+
+              if (
+                typeof reservationData.schoolName === 'string'
+              ) {
+                resolvedSchoolName =
+                  reservationData.schoolName.trim();
+              }
+
+              if (
+                !resolvedSchoolName &&
+                typeof reservationData.name === 'string'
+              ) {
+                resolvedSchoolName =
+                  reservationData.name.trim();
+              }
+            }
+          } catch (reservationError) {
+            /*
+             * School name fallback fail होने पर
+             * पूरा payment page बंद नहीं होगा।
+             */
+            console.error(
+              'Unable to load school name from slug reservation:',
+              reservationError
+            );
+          }
+        }
+
+        if (!cancelled) {
+          setSchoolName(
+            resolvedSchoolName || 'Not available'
+          );
+        }
+
+        /*
+         * STEP 5:
+         * Login user की payment history load करें।
+         */
         if (user) {
           try {
             const history = await fetchMyRechargeRequests();
-            setRequests(history);
+
+            if (!cancelled) {
+              setRequests(history);
+            }
           } catch (historyError) {
             console.error(
               'Unable to load payment history:',
               historyError
             );
+
+            if (!cancelled) {
+              setRequests([]);
+            }
+          }
+        } else {
+          if (!cancelled) {
+            setRequests([]);
           }
         }
       } catch (err) {
         console.error('Unable to load school:', err);
 
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Unable to load school information.'
-        );
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Unable to load school information.'
+          );
+        }
       } finally {
-        setLoadingSchool(false);
+        if (!cancelled) {
+          setLoadingSchool(false);
+        }
       }
     }
 
     loadSchoolData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [schoolId, user]);
 
+  /*
+   * WhatsApp Payment Request
+   *
+   * IMPORTANT:
+   * School ID यहाँ जानबूझकर नहीं भेजा जा रहा है।
+   */
   const openWhatsApp = () => {
+    setError('');
+
     if (!user) {
       setError('Please sign in with Google first.');
       return;
@@ -98,7 +231,6 @@ export default function PaymentRechargePage() {
       '🏫 SCHOOL WEBSITE PAYMENT REQUEST',
       '',
       `School Name: ${schoolName || 'Not available'}`,
-    
       `Admin Email: ${user.email || 'Not available'}`,
       '',
       `Selected Package: ₹${selectedPackage.amount}`,
@@ -110,22 +242,34 @@ export default function PaymentRechargePage() {
       'Thank you.',
     ].join('\n');
 
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
-      message
-    )}`;
+    const whatsappUrl =
+      `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
+        message
+      )}`;
 
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    window.open(
+      whatsappUrl,
+      '_blank',
+      'noopener,noreferrer'
+    );
   };
 
+  /*
+   * Loading Screen
+   */
   if (loadingSchool) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4">
-        <div className="rounded-3xl bg-white p-10 text-center shadow-2xl">
-          <div className="text-5xl">🏫</div>
+        <div className="w-full max-w-md rounded-3xl bg-white p-10 text-center shadow-2xl">
+          <div className="text-6xl">🏫</div>
 
           <p className="mt-4 text-xl font-extrabold text-gray-800">
             Loading payment page...
           </p>
+
+          <div className="mx-auto mt-5 h-2 w-48 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" />
+          </div>
         </div>
       </div>
     );
@@ -161,8 +305,8 @@ export default function PaymentRechargePage() {
 
             <p className="mt-2 text-sm leading-6 text-green-800">
               आपकी school registration Firebase में submit हो गई है।
-              अब नीचे से अपना subscription package चुनें और payment के
-              लिए WhatsApp पर संपर्क करें।
+              अब नीचे से अपना subscription package चुनें और payment
+              के लिए WhatsApp पर संपर्क करें।
             </p>
 
             {schoolName && (
@@ -171,7 +315,7 @@ export default function PaymentRechargePage() {
                   School Name
                 </p>
 
-                <p className="mt-1 text-xl font-black text-gray-900">
+                <p className="mt-1 break-words text-xl font-black text-gray-900">
                   {schoolName}
                 </p>
               </div>
@@ -208,7 +352,7 @@ export default function PaymentRechargePage() {
 
                 return (
                   <button
-                    key={pkg.amount}
+                    key={`${pkg.amount}-${pkg.days}`}
                     type="button"
                     onClick={() => setSelectedPackage(pkg)}
                     className={`rounded-2xl p-5 text-center transition active:translate-y-1 ${
@@ -261,9 +405,9 @@ export default function PaymentRechargePage() {
             </h2>
 
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-green-800 md:text-base">
-              नीचे दिए गए button पर क्लिक करें। आपके school की details
-              और selected package के साथ WhatsApp message अपने आप तैयार
-              हो जाएगा।
+              नीचे दिए गए button पर क्लिक करें। आपके school का नाम,
+              admin email और selected package के साथ WhatsApp message
+              अपने आप तैयार हो जाएगा।
             </p>
 
             <div className="mx-auto mt-5 max-w-md rounded-2xl bg-white p-4 shadow-lg">
@@ -297,60 +441,75 @@ export default function PaymentRechargePage() {
 
             <div className="mt-5 space-y-4">
 
+              {/* Step 1 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
                 <div className="text-3xl">1️⃣</div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     Package Select करें
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     ऊपर से अपना subscription package चुनें।
                   </p>
                 </div>
               </div>
 
+              {/* Step 2 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
                 <div className="text-3xl">2️⃣</div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     WhatsApp पर Contact करें
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     WhatsApp button दबाकर payment request भेजें।
                   </p>
                 </div>
               </div>
 
+              {/* Step 3 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
                 <div className="text-3xl">3️⃣</div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     UPI QR से Payment करें
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     आपको WhatsApp पर UPI ID या QR code दिया जाएगा।
                   </p>
                 </div>
               </div>
 
+              {/* Step 4 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
                 <div className="text-3xl">4️⃣</div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     Admin Verification
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     Payment verify होने के बाद Admin approval करेगा।
                   </p>
                 </div>
               </div>
 
+              {/* Step 5 */}
               <div className="flex gap-4 rounded-2xl bg-green-50 p-4 shadow">
                 <div className="text-3xl">5️⃣</div>
+
                 <div>
                   <p className="font-black text-green-900">
                     School LIVE
                   </p>
+
                   <p className="mt-1 text-sm text-green-700">
                     Approval के बाद school LIVE हो जाएगा।
                   </p>
@@ -366,7 +525,6 @@ export default function PaymentRechargePage() {
               ❌ {error}
             </div>
           )}
-
         </div>
 
         {/* Payment History */}
@@ -428,7 +586,7 @@ export default function PaymentRechargePage() {
           <button
             type="button"
             onClick={() => navigate('/schools')}
-            className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] active:translate-y-1 active:shadow-none"
+            className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none"
           >
             🔎 Schools
           </button>
@@ -436,7 +594,7 @@ export default function PaymentRechargePage() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] active:translate-y-1 active:shadow-none"
+            className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none"
           >
             🏠 Home
           </button>
