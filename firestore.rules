@@ -60,14 +60,9 @@ function schoolIsLive(schoolId) {
     ).data.status == 'LIVE';
 }
 
-
 service cloud.firestore {
 
   match /databases/{database}/documents {
-
-    /* =====================================================
-       SCHOOLS
-       ===================================================== */
 
     match /schools/{schoolId} {
 
@@ -77,7 +72,9 @@ service cloud.firestore {
 
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.status == 'PENDING_PAYMENT';
+        && request.resource.data.status == 'PENDING_PAYMENT'
+        && request.resource.data.slug is string
+        && request.resource.data.name is string;
 
       allow update: if isPlatformAdmin()
         || (
@@ -91,42 +88,29 @@ service cloud.firestore {
       allow delete: if isPlatformAdmin();
     }
 
-
-    /* =====================================================
-       SLUG RESERVATIONS
-       ===================================================== */
-
     match /slugReservations/{slug} {
 
-      /*
-       * Signed-in users need to read/check whether
-       * the requested school URL already exists.
-       */
       allow read: if signedIn();
 
-      /*
-       * A signed-in user can create a reservation only
-       * for their own school.
-       */
       allow create: if signedIn()
         && !exists(
           /databases/$(database)/documents/slugReservations/$(slug)
         )
         && request.resource.data.slug == slug
         && request.resource.data.schoolId is string
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/schools/$(request.resource.data.schoolId)
+        ).data.ownerUid == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/schools/$(request.resource.data.schoolId)
+        ).data.status == 'PENDING_PAYMENT'
+        && getAfter(
+          /databases/$(database)/documents/schools/$(request.resource.data.schoolId)
+        ).data.slug == slug;
 
-      /*
-       * Only Platform Admin can change or delete
-       * an existing slug reservation.
-       */
       allow update, delete: if isPlatformAdmin();
     }
-
-
-    /* =====================================================
-       USERS
-       ===================================================== */
 
     match /users/{uid} {
 
@@ -146,11 +130,6 @@ service cloud.firestore {
       allow delete: if isPlatformAdmin();
     }
 
-
-    /* =====================================================
-       SCHOOL MEMBERSHIPS
-       ===================================================== */
-
     match /schoolMemberships/{membershipDocId} {
 
       allow read: if isPlatformAdmin()
@@ -162,17 +141,21 @@ service cloud.firestore {
           )
         );
 
-      /*
-       * During registration, the logged-in user can
-       * create only their own PENDING school_admin membership.
-       */
       allow create: if isPlatformAdmin()
         || (
           signedIn()
+          && membershipDocId ==
+             request.auth.uid + '_' + request.resource.data.schoolId
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.role == 'school_admin'
           && request.resource.data.status == 'PENDING'
           && request.resource.data.schoolId is string
+          && getAfter(
+            /databases/$(database)/documents/schools/$(request.resource.data.schoolId)
+          ).data.ownerUid == request.auth.uid
+          && getAfter(
+            /databases/$(database)/documents/schools/$(request.resource.data.schoolId)
+          ).data.status == 'PENDING_PAYMENT'
         );
 
       allow update: if isPlatformAdmin()
@@ -192,22 +175,12 @@ service cloud.firestore {
         );
     }
 
-
-    /* =====================================================
-       PLATFORM SETTINGS
-       ===================================================== */
-
     match /platformSettings/{docId} {
 
       allow read: if true;
 
       allow create, update, delete: if isPlatformAdmin();
     }
-
-
-    /* =====================================================
-       UTR RESERVATIONS
-       ===================================================== */
 
     match /utrReservations/{utr} {
 
@@ -221,11 +194,6 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
-
-
-    /* =====================================================
-       RECHARGE REQUESTS
-       ===================================================== */
 
     match /rechargeRequests/{id} {
 
@@ -254,11 +222,6 @@ service cloud.firestore {
       allow delete: if isPlatformAdmin();
     }
 
-
-    /* =====================================================
-       WALLETS
-       ===================================================== */
-
     match /wallets/{schoolId} {
 
       allow read: if isPlatformAdmin()
@@ -266,11 +229,6 @@ service cloud.firestore {
 
       allow create, update, delete: if isPlatformAdmin();
     }
-
-
-    /* =====================================================
-       WALLET TRANSACTIONS
-       ===================================================== */
 
     match /walletTransactions/{id} {
 
@@ -281,11 +239,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-
-    /* =====================================================
-       SUBSCRIPTIONS
-       ===================================================== */
-
     match /subscriptions/{schoolId} {
 
       allow read: if isPlatformAdmin()
@@ -294,22 +247,12 @@ service cloud.firestore {
       allow create, update, delete: if isPlatformAdmin();
     }
 
-
-    /* =====================================================
-       BILLING CYCLES
-       ===================================================== */
-
     match /billingCycles/{id} {
 
       allow read: if isPlatformAdmin();
 
       allow create, update, delete: if false;
     }
-
-
-    /* =====================================================
-       SCHOOL CONTENT
-       ===================================================== */
 
     match /schoolContent/{docId} {
 
@@ -337,11 +280,6 @@ service cloud.firestore {
         && isSchoolAdmin(resource.data.schoolId);
     }
 
-
-    /* =====================================================
-       STUDENTS
-       ===================================================== */
-
     match /students/{studentId} {
 
       allow read: if isPlatformAdmin()
@@ -367,11 +305,6 @@ service cloud.firestore {
         && resource.data.schoolId is string
         && isSchoolAdmin(resource.data.schoolId);
     }
-
-
-    /* =====================================================
-       CLASSES
-       ===================================================== */
 
     match /classes/{classId} {
 
@@ -399,11 +332,6 @@ service cloud.firestore {
         && isSchoolAdmin(resource.data.schoolId);
     }
 
-
-    /* =====================================================
-       RESULTS
-       ===================================================== */
-
     match /results/{resultId} {
 
       allow read: if isPlatformAdmin()
@@ -428,11 +356,6 @@ service cloud.firestore {
         && isSchoolAdmin(resource.data.schoolId);
     }
 
-
-    /* =====================================================
-       HOMEWORK
-       ===================================================== */
-
     match /homework/{homeworkId} {
 
       allow read: if isPlatformAdmin()
@@ -452,11 +375,6 @@ service cloud.firestore {
           || isTeacher(request.resource.data.schoolId)
         );
     }
-
-
-    /* =====================================================
-       ATTENDANCE
-       ===================================================== */
 
     match /attendance/{attendanceId} {
 
@@ -478,11 +396,6 @@ service cloud.firestore {
         );
     }
 
-
-    /* =====================================================
-       NOTICES
-       ===================================================== */
-
     match /notices/{noticeId} {
 
       allow read: if isPlatformAdmin()
@@ -499,11 +412,6 @@ service cloud.firestore {
         && request.resource.data.schoolId is string
         && isSchoolAdmin(request.resource.data.schoolId);
     }
-
-
-    /* =====================================================
-       EVENTS
-       ===================================================== */
 
     match /events/{eventId} {
 
@@ -522,11 +430,6 @@ service cloud.firestore {
         && isSchoolAdmin(request.resource.data.schoolId);
     }
 
-
-    /* =====================================================
-       GALLERY
-       ===================================================== */
-
     match /gallery/{galleryId} {
 
       allow read: if isPlatformAdmin()
@@ -543,11 +446,6 @@ service cloud.firestore {
         && request.resource.data.schoolId is string
         && isSchoolAdmin(request.resource.data.schoolId);
     }
-
-
-    /* =====================================================
-       DOCUMENTS
-       ===================================================== */
 
     match /documents/{documentId} {
 
@@ -566,11 +464,6 @@ service cloud.firestore {
         && isSchoolAdmin(request.resource.data.schoolId);
     }
 
-
-    /* =====================================================
-       ACADEMIC SESSIONS
-       ===================================================== */
-
     match /academicSessions/{sessionId} {
 
       allow read: if isPlatformAdmin()
@@ -588,11 +481,6 @@ service cloud.firestore {
         && isSchoolAdmin(request.resource.data.schoolId);
     }
 
-
-    /* =====================================================
-       PLATFORM ADS
-       ===================================================== */
-
     match /platformAds/{adId} {
 
       allow read: if true;
@@ -600,22 +488,12 @@ service cloud.firestore {
       allow create, update, delete: if isPlatformAdmin();
     }
 
-
-    /* =====================================================
-       PLATFORM ANNOUNCEMENTS
-       ===================================================== */
-
     match /platformAnnouncements/{id} {
 
       allow read: if true;
 
       allow create, update, delete: if isPlatformAdmin();
     }
-
-
-    /* =====================================================
-       AUDIT LOGS
-       ===================================================== */
 
     match /auditLogs/{logId} {
 
@@ -625,11 +503,6 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
-
-
-    /* =====================================================
-       SUPPORT REQUESTS
-       ===================================================== */
 
     match /supportRequests/{requestId} {
 
@@ -647,18 +520,12 @@ service cloud.firestore {
       allow delete: if isPlatformAdmin();
     }
 
-
-    /* =====================================================
-       LEGACY COLLECTIONS
-       ===================================================== */
-
     match /school/{docId} {
 
       allow read: if true;
 
       allow write: if isPlatformAdmin();
     }
-
 
     match /announcements/{docId} {
 
@@ -667,18 +534,12 @@ service cloud.firestore {
       allow create, update, delete: if isPlatformAdmin();
     }
 
-
     match /teachers/{docId} {
 
       allow read: if true;
 
       allow create, update, delete: if isPlatformAdmin();
     }
-
-
-    /* =====================================================
-       DEFAULT DENY
-       ===================================================== */
 
     match /{document=**} {
       allow read, write: if false;
