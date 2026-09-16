@@ -1,4 +1,3 @@
-```ts
 import {
   collection,
   doc,
@@ -6,9 +5,9 @@ import {
   getDocs,
   query,
   where,
-  runTransaction,
   serverTimestamp,
   setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/firebase/config';
@@ -75,30 +74,18 @@ export async function ensureUserRecord(
 
   const now = new Date().toISOString();
 
-  /*
-   * Platform Admin is controlled by the fixed email.
-   *
-   * Other management roles are preserved here,
-   * but actual school access is verified through
-   * active school membership in fetchUserRole().
-   */
   let role: UserRole = 'user';
 
   if (isPlatformAdminEmail(normalizedEmail)) {
     role = 'platform_admin';
-  } else if (
-    existingUser?.role === 'school_admin'
-  ) {
+  } else if (existingUser?.role === 'school_admin') {
     role = 'school_admin';
-  } else if (
-    existingUser?.role === 'teacher'
-  ) {
+  } else if (existingUser?.role === 'teacher') {
     role = 'teacher';
   }
 
   const user: AppUser = {
     uid,
-
     email: normalizedEmail,
 
     displayName:
@@ -125,9 +112,6 @@ export async function ensureUserRecord(
     lastLoginAt: now,
   };
 
-  /*
-   * Create or update the user's basic record.
-   */
   await setDoc(
     userRef,
     user,
@@ -153,16 +137,10 @@ export async function fetchUserRole(
     return 'user';
   }
 
-  /*
-   * Platform Admin has highest priority.
-   */
   if (isPlatformAdminEmail(email)) {
     return 'platform_admin';
   }
 
-  /*
-   * Find ACTIVE school memberships.
-   */
   const membershipQuery = query(
     collection(db, 'schoolMemberships'),
     where('uid', '==', uid),
@@ -176,10 +154,6 @@ export async function fetchUserRole(
     return 'user';
   }
 
-  /*
-   * School Admin gets priority over Teacher
-   * if the same Google account has both roles.
-   */
   for (
     const membershipDoc of
     membershipSnapshot.docs
@@ -194,9 +168,6 @@ export async function fetchUserRole(
     }
   }
 
-  /*
-   * Otherwise check for Teacher.
-   */
   for (
     const membershipDoc of
     membershipSnapshot.docs
@@ -224,18 +195,26 @@ export async function registerSchool(
   uid: string,
   input: SchoolRegistrationInput
 ): Promise<School> {
-  const name =
-    input.name.trim();
-
-  const slug =
-    input.slug.trim().toLowerCase();
-
-  const ownerEmail =
-    input.ownerEmail.trim().toLowerCase();
 
   /*
-   * Validation
+   * Basic validation
    */
+
+  if (!uid) {
+    throw new Error(
+      'You must be signed in to register a school.'
+    );
+  }
+
+  const name =
+    input.name?.trim() ?? '';
+
+  const slug =
+    input.slug?.trim().toLowerCase() ?? '';
+
+  const ownerEmail =
+    input.ownerEmail?.trim().toLowerCase() ?? '';
+
   if (!name) {
     throw new Error(
       'School name is required.'
@@ -244,7 +223,7 @@ export async function registerSchool(
 
   if (!slug) {
     throw new Error(
-      'School slug is required.'
+      'School URL/slug is required.'
     );
   }
 
@@ -254,13 +233,7 @@ export async function registerSchool(
     )
   ) {
     throw new Error(
-      'School slug can contain only lowercase letters, numbers and hyphens.'
-    );
-  }
-
-  if (!uid) {
-    throw new Error(
-      'You must be signed in to register a school.'
+      'School URL/slug can contain only lowercase letters, numbers and hyphens.'
     );
   }
 
@@ -271,36 +244,47 @@ export async function registerSchool(
   }
 
   /*
-   * Create new School document reference.
+   * References
    */
+
   const schoolRef = doc(
     collection(db, 'schools')
   );
 
-  /*
-   * Unique URL slug reservation.
-   */
   const slugRef = doc(
     db,
     'slugReservations',
     slug
   );
 
-  /*
-   * School Admin membership.
-   */
   const membershipRef = doc(
     db,
     'schoolMemberships',
     `${uid}_${schoolRef.id}`
   );
 
+  /*
+   * Check whether this slug is already registered.
+   *
+   * This read happens BEFORE the batch.
+   */
+
+  const existingSlug =
+    await getDoc(slugRef);
+
+  if (existingSlug.exists()) {
+    throw new Error(
+      'This school URL/slug is already registered. Please choose another.'
+    );
+  }
+
   const now =
     new Date().toISOString();
 
   /*
-   * School record.
+   * School document
    */
+
   const school: School = {
     id: schoolRef.id,
 
@@ -326,11 +310,9 @@ export async function registerSchool(
   };
 
   /*
-   * School Admin membership.
-   *
-   * It remains PENDING until the Platform Admin
-   * approves the school's payment.
+   * School Admin membership
    */
+
   const membership: SchoolMembership = {
     id: membershipRef.id,
 
@@ -350,70 +332,46 @@ export async function registerSchool(
   };
 
   /*
-   * Atomic transaction:
+   * Batch write
    *
-   * 1. Check slug
-   * 2. Create school
-   * 3. Reserve slug
-   * 4. Create school-admin membership
+   * 1. Create school
+   * 2. Reserve slug
+   * 3. Create pending school admin membership
    */
-  await runTransaction(
-    db,
-    async (transaction) => {
-      const slugDoc =
-        await transaction.get(
-          slugRef
-        );
 
-      /*
-       * Stop duplicate school URLs.
-       */
-      if (slugDoc.exists()) {
-        throw new Error(
-          'This school URL/slug is already registered. Please choose another.'
-        );
-      }
+  const batch =
+    writeBatch(db);
 
-      /*
-       * 1. Create pending school.
-       */
-      transaction.set(
-        schoolRef,
-        {
-          ...school,
-        }
-      );
+  batch.set(
+    schoolRef,
+    school
+  );
 
-      /*
-       * 2. Reserve unique slug.
-       */
-      transaction.set(
-        slugRef,
-        {
-          slug,
+  batch.set(
+    slugRef,
+    {
+      slug,
 
-          schoolId:
-            schoolRef.id,
+      schoolId:
+        schoolRef.id,
 
-          ownerUid: uid,
+      ownerUid: uid,
 
-          createdAt:
-            serverTimestamp(),
-        }
-      );
-
-      /*
-       * 3. Create pending School Admin membership.
-       */
-      transaction.set(
-        membershipRef,
-        {
-          ...membership,
-        }
-      );
+      createdAt:
+        serverTimestamp(),
     }
   );
 
+  batch.set(
+    membershipRef,
+    membership
+  );
+
+  /*
+   * Commit all three writes atomically.
+   */
+
+  await batch.commit();
+
   return school;
 }
-```
