@@ -98,7 +98,7 @@ export default function PaymentRechargePage() {
       '🏫 SCHOOL WEBSITE PAYMENT REQUEST',
       '',
       `School Name: ${schoolName || 'Not available'}`,
-      `School ID: ${schoolId}`,
+    
       `Admin Email: ${user.email || 'Not available'}`,
       '',
       `Selected Package: ₹${selectedPackage.amount}`,
