@@ -1,3 +1,4 @@
+```tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -8,45 +9,21 @@ export default function RegisterSchoolPage() {
   const { user, signInWithGoogle, signOut } = useAuth();
 
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
+  const [phone, setPhone] = useState('');
   const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  /*
-   * Convert school name into a safe URL slug.
-   *
-   * IMPORTANT:
-   * A full website URL is NOT accepted as a school slug.
-   */
+  // School name से automatic URL slug बनाता है
   const makeSlug = (value: string) => {
     return value
       .toLowerCase()
       .trim()
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .replace(/\.vercel\.app.*$/i, '')
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-+|-+$/g, '');
-  };
-
-  const handleNameChange = (value: string) => {
-    setName(value);
-
-    /*
-     * Only automatically create slug if the user
-     * has not manually entered one.
-     */
-    if (!slug) {
-      setSlug(makeSlug(value));
-    }
-  };
-
-  const handleSlugChange = (value: string) => {
-    setSlug(makeSlug(value));
   };
 
   const handleRegister = async (event: React.FormEvent) => {
@@ -59,27 +36,27 @@ export default function RegisterSchoolPage() {
     }
 
     const cleanName = name.trim();
-    const cleanSlug = makeSlug(slug);
+    const cleanPhone = phone.trim();
+    const cleanSlug = makeSlug(cleanName);
 
     if (!cleanName) {
       setError('Please enter school name.');
       return;
     }
 
-    if (!cleanSlug) {
-      setError('Please enter a valid school URL/slug.');
+    if (!cleanPhone) {
+      setError('Please enter mobile number.');
       return;
     }
 
-    /*
-     * Only simple URL slugs are allowed.
-     *
-     * Example:
-     * sunrise-public-school
-     */
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
+    if (!/^[0-9+()\-\s]{10,18}$/.test(cleanPhone)) {
+      setError('Please enter a valid mobile number.');
+      return;
+    }
+
+    if (!cleanSlug) {
       setError(
-        'School URL can contain only lowercase letters, numbers and hyphens.'
+        'School name cannot create a valid school URL. Please use English letters or numbers.'
       );
       return;
     }
@@ -91,6 +68,7 @@ export default function RegisterSchoolPage() {
         name: cleanName,
         slug: cleanSlug,
         ownerEmail: user.email ?? '',
+        phone: cleanPhone,
         tagline: tagline.trim(),
         description: description.trim(),
       });
@@ -137,7 +115,7 @@ export default function RegisterSchoolPage() {
       await signOut();
 
       setName('');
-      setSlug('');
+      setPhone('');
       setTagline('');
       setDescription('');
     } catch (err) {
@@ -254,6 +232,11 @@ export default function RegisterSchoolPage() {
                   </li>
 
                   <li>
+                    • School URL will be created automatically from the
+                    school name.
+                  </li>
+
+                  <li>
                     • Registration first creates a pending school.
                   </li>
 
@@ -286,47 +269,43 @@ export default function RegisterSchoolPage() {
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) =>
-                      handleNameChange(e.target.value)
-                    }
+                    onChange={(e) => setName(e.target.value)}
                     placeholder="Example: Sunrise Public School"
                     disabled={loading}
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     required
                   />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    School URL automatically:
+                  </p>
+
+                  <p className="mt-1 break-all rounded-lg bg-gray-50 p-2 text-xs font-semibold text-blue-700">
+                    /school/{makeSlug(name) || 'your-school'}
+                  </p>
                 </div>
 
-                {/* School URL */}
+                {/* Mobile Number */}
                 <div>
                   <label className="mb-2 block font-bold text-gray-800">
-                    School Website URL *
+                    Mobile Number *
                   </label>
 
                   <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) =>
-                      handleSlugChange(e.target.value)
-                    }
-                    placeholder="sunrise-public-school"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Example: 9876543210"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    maxLength={18}
                     disabled={loading}
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     required
                   />
 
                   <p className="mt-2 text-xs text-gray-500">
-                    Your school page:
-                  </p>
-
-                  <p className="mt-1 break-all rounded-lg bg-gray-50 p-2 text-xs font-semibold text-blue-700">
-                    /school/{slug || 'your-school'}
-                  </p>
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    केवल school का नाम/slug डालें, जैसे:
-                    <span className="font-bold text-gray-700">
-                      sunrise-public-school
-                    </span>
+                    School contact mobile number.
                   </p>
                 </div>
 
@@ -339,9 +318,7 @@ export default function RegisterSchoolPage() {
                   <input
                     type="text"
                     value={tagline}
-                    onChange={(e) =>
-                      setTagline(e.target.value)
-                    }
+                    onChange={(e) => setTagline(e.target.value)}
                     placeholder="Education • Discipline • Excellence"
                     disabled={loading}
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
@@ -356,9 +333,7 @@ export default function RegisterSchoolPage() {
 
                   <textarea
                     value={description}
-                    onChange={(e) =>
-                      setDescription(e.target.value)
-                    }
+                    onChange={(e) => setDescription(e.target.value)}
                     placeholder="Enter a short description about your school..."
                     rows={5}
                     disabled={loading}
@@ -405,3 +380,4 @@ export default function RegisterSchoolPage() {
     </div>
   );
 }
+```
