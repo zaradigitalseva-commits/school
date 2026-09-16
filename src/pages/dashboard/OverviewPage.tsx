@@ -1,134 +1,1291 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
-  Megaphone,
-  CalendarDays,
-  Users,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+  orderBy,
+  limit,
+} from 'firebase/firestore';
+
+import { db } from '@/firebase/config';
+
+import type {
+  AppUser,
   School,
-  TrendingUp,
-  ShieldCheck,
-  UserCog,
-  BookOpen,
-} from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import {
-  fetchAnnouncements,
-  fetchEvents,
-  fetchTeachers,
-  fetchAllUsers,
-  fetchAuthorizedAdmins,
-  fetchAuthorizedFaculty,
-} from '@/firebase/firestore';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+  SchoolMembership,
+  SchoolRegistrationInput,
+  UserRole,
+  SchoolInfo,
+  Announcement,
+  SchoolEvent,
+  Teacher,
+} from '@/firebase/types';
 
-export default function OverviewPage() {
-  const { isAdmin, isFaculty, user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    announcements: 0,
-    events: 0,
-    teachers: 0,
-    users: 0,
-    admins: 0,
-    faculty: 0,
-  });
+/* =========================================================
+   PLATFORM ADMIN
+========================================================= */
 
-  useEffect(() => {
-    Promise.all([
-      fetchAnnouncements(),
-      fetchEvents(),
-      fetchTeachers(),
-      fetchAllUsers().catch(() => []),
-      fetchAuthorizedAdmins().catch(() => []),
-      fetchAuthorizedFaculty().catch(() => []),
-    ])
-      .then(([a, e, t, u, ad, f]) => {
-        setStats({
-          announcements: a.length,
-          events: e.length,
-          teachers: t.length,
-          users: u.length,
-          admins: ad.length,
-          faculty: f.length,
-        });
-      })
-      .finally(() => setLoading(false));
-  }, []);
+export const PLATFORM_ADMIN_EMAIL =
+  'ngogrant454@gmail.com';
 
-  if (loading) return <LoadingSpinner label="Loading dashboard..." />;
-
-  const cards = [
-    { icon: Megaphone, label: 'Announcements', value: stats.announcements, to: '/dashboard/announcements', color: 'blue' },
-    { icon: CalendarDays, label: 'Events', value: stats.events, to: '/dashboard/events', color: 'emerald' },
-    { icon: Users, label: 'Teachers', value: stats.teachers, to: '/dashboard/teachers', color: 'amber' },
-    ...(isAdmin
-      ? [
-          { icon: School, label: 'School Info', value: 'Edit', to: '/dashboard/school', color: 'rose' },
-          { icon: TrendingUp, label: 'Registered Users', value: stats.users, to: '/dashboard/users', color: 'blue' },
-          { icon: ShieldCheck, label: 'Admin Access', value: stats.admins, to: '/dashboard/admins', color: 'emerald' },
-          { icon: UserCog, label: 'Faculty Access', value: stats.faculty, to: '/dashboard/faculty', color: 'amber' },
-        ]
-      : []),
-  ];
+/**
+ * Checks whether a given email belongs to the platform admin.
+ * Case-insensitive and whitespace-tolerant.
+ */
+export function isPlatformAdminEmail(
+  email?: string | null
+): boolean {
+  if (!email) return false;
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.displayName?.split(' ')[0] ?? 'User'}!
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {isAdmin ? 'You have full administrator access.' : 'You have faculty access. Manage announcements, events, and teachers.'}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {cards.map((card, i) => (
-          <Link
-            key={i}
-            to={card.to}
-            className="bg-white rounded-2xl p-5 card-shadow card-shadow-hover"
-          >
-            <div className={`w-11 h-11 rounded-xl bg-${card.color}-50 flex items-center justify-center mb-3`}>
-              <card.icon className={`w-5 h-5 text-${card.color}-600`} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{card.label}</p>
-          </Link>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 card-shadow">
-        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-blue-600" />
-          Quick Actions
-        </h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[
-            { to: '/dashboard/announcements', label: 'Manage Announcements', icon: Megaphone, color: 'blue' },
-            { to: '/dashboard/events', label: 'Manage Events', icon: CalendarDays, color: 'emerald' },
-            { to: '/dashboard/teachers', label: 'Manage Teachers', icon: Users, color: 'amber' },
-            ...(isAdmin
-              ? [
-                  { to: '/dashboard/school', label: 'Edit School Info', icon: School, color: 'rose' },
-                  { to: '/dashboard/faculty', label: 'Manage Faculty', icon: UserCog, color: 'amber' },
-                  { to: '/dashboard/admins', label: 'Manage Admins', icon: ShieldCheck, color: 'emerald' },
-                ]
-              : []),
-          ].map((action, i) => (
-            <Link
-              key={i}
-              to={action.to}
-              className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all group"
-            >
-              <div className={`w-9 h-9 rounded-lg bg-${action.color}-50 flex items-center justify-center group-hover:scale-105 transition-transform`}>
-                <action.icon className={`w-4 h-4 text-${action.color}-600`} />
-              </div>
-              <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">{action.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
+    email.trim().toLowerCase() ===
+    PLATFORM_ADMIN_EMAIL.toLowerCase()
   );
+}
+
+/* =========================================================
+   USER RECORD
+========================================================= */
+
+export async function ensureUserRecord(
+  uid: string,
+  email: string,
+  displayName?: string | null,
+  photoURL?: string | null
+): Promise<AppUser> {
+  if (!uid) {
+    throw new Error('User UID is required.');
+  }
+
+  const cleanEmail = email?.trim().toLowerCase() || '';
+
+  const userRef = doc(db, 'users', uid);
+  const snapshot = await getDoc(userRef);
+
+  const now = new Date().toISOString();
+
+  if (!snapshot.exists()) {
+    const role: UserRole = isPlatformAdminEmail(cleanEmail)
+      ? 'platform_admin'
+      : 'user';
+
+    const newUser: AppUser = {
+      uid,
+      email: cleanEmail,
+      displayName:
+        displayName?.trim() || undefined,
+      photoURL:
+        photoURL?.trim() || undefined,
+      role,
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: now,
+      active: true,
+    };
+
+    await setDoc(userRef, newUser);
+
+    return newUser;
+  }
+
+  const existingUser =
+    snapshot.data() as AppUser;
+
+  const updateData: Partial<AppUser> = {
+    email: cleanEmail || existingUser.email,
+    updatedAt: now,
+    lastLoginAt: now,
+    active: true,
+  };
+
+  if (displayName !== undefined) {
+    updateData.displayName =
+      displayName?.trim() || undefined;
+  }
+
+  if (photoURL !== undefined) {
+    updateData.photoURL =
+      photoURL?.trim() || undefined;
+  }
+
+  /*
+   * Platform admin role is controlled by the
+   * configured platform admin email.
+   */
+  if (isPlatformAdminEmail(cleanEmail)) {
+    updateData.role = 'platform_admin';
+  }
+
+  await setDoc(
+    userRef,
+    updateData,
+    { merge: true }
+  );
+
+  return {
+    ...existingUser,
+    ...updateData,
+    uid,
+  } as AppUser;
+}
+
+/* =========================================================
+   FETCH USER ROLE
+========================================================= */
+
+export async function fetchUserRole(
+  uid: string
+): Promise<UserRole> {
+  if (!uid) {
+    return 'user';
+  }
+
+  try {
+    const userRef = doc(
+      db,
+      'users',
+      uid
+    );
+
+    const userSnapshot =
+      await getDoc(userRef);
+
+    /*
+     * Only platform_admin from the user document
+     * is treated as a global role.
+     *
+     * Normal "user" must NOT immediately return,
+     * because the user may have an ACTIVE
+     * school membership.
+     */
+    if (userSnapshot.exists()) {
+      const user =
+        userSnapshot.data() as AppUser;
+
+      if (user.role === 'platform_admin') {
+        return 'platform_admin';
+      }
+
+      if (isPlatformAdminEmail(user.email)) {
+        return 'platform_admin';
+      }
+    }
+
+    /*
+     * Check active school membership.
+     */
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const membershipQuery =
+      query(
+        membershipsRef,
+        where('uid', '==', uid),
+        where('status', '==', 'ACTIVE'),
+        limit(10)
+      );
+
+    const membershipSnapshot =
+      await getDocs(
+        membershipQuery
+      );
+
+    if (!membershipSnapshot.empty) {
+      /*
+       * Prefer school_admin if user has one.
+       */
+      for (
+        const membershipDoc
+        of membershipSnapshot.docs
+      ) {
+        const membership =
+          membershipDoc.data() as SchoolMembership;
+
+        if (
+          membership.role ===
+          'school_admin'
+        ) {
+          return 'school_admin';
+        }
+      }
+
+      /*
+       * Otherwise teacher.
+       */
+      for (
+        const membershipDoc
+        of membershipSnapshot.docs
+      ) {
+        const membership =
+          membershipDoc.data() as SchoolMembership;
+
+        if (
+          membership.role ===
+          'teacher'
+        ) {
+          return 'teacher';
+        }
+      }
+    }
+
+    return 'user';
+  } catch (error) {
+    console.error(
+      'Failed to fetch user role:',
+      error
+    );
+
+    return 'user';
+  }
+}
+
+/* =========================================================
+   REGISTER SCHOOL
+========================================================= */
+
+export async function registerSchool(
+  ownerUid: string,
+  input: SchoolRegistrationInput,
+  ownerEmail: string
+): Promise<School> {
+  if (!ownerUid) {
+    throw new Error(
+      'Owner UID is required.'
+    );
+  }
+
+  const cleanName =
+    input.name?.trim();
+
+  const cleanSlug =
+    input.slug
+      ?.trim()
+      .toLowerCase();
+
+  const cleanPhone =
+    input.phone?.trim();
+
+  const cleanEmail =
+    ownerEmail
+      ?.trim()
+      .toLowerCase();
+
+  if (!cleanName) {
+    throw new Error(
+      'School name is required.'
+    );
+  }
+
+  if (!cleanSlug) {
+    throw new Error(
+      'School URL/slug is required.'
+    );
+  }
+
+  if (!cleanPhone) {
+    throw new Error(
+      'Mobile number is required.'
+    );
+  }
+
+  if (!cleanEmail) {
+    throw new Error(
+      'Google account email is required.'
+    );
+  }
+
+  /*
+   * Check whether slug already exists.
+   */
+  const slugRef = doc(
+    db,
+    'slugReservations',
+    cleanSlug
+  );
+
+  const slugSnapshot =
+    await getDoc(slugRef);
+
+  if (slugSnapshot.exists()) {
+    throw new Error(
+      'This school URL is already registered. Please use a different school name.'
+    );
+  }
+
+  /*
+   * Generate IDs.
+   */
+  const schoolRef =
+    doc(collection(db, 'schools'));
+
+  const schoolId =
+    schoolRef.id;
+
+  const membershipId =
+    `${ownerUid}_${schoolId}`;
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      membershipId
+    );
+
+  const now =
+    new Date().toISOString();
+
+  const school: School = {
+    id: schoolId,
+    name: cleanName,
+    slug: cleanSlug,
+    ownerUid,
+    ownerEmail: cleanEmail,
+
+    status: 'PENDING_PAYMENT',
+
+    createdAt: now,
+    updatedAt: now,
+
+    phone: cleanPhone,
+
+    tagline:
+      input.tagline?.trim() || undefined,
+
+    description:
+      input.description?.trim() || undefined,
+
+    paymentStatus: 'PENDING',
+    subscriptionStatus: 'PENDING',
+  };
+
+  const membership:
+    SchoolMembership = {
+    id: membershipId,
+    schoolId,
+    uid: ownerUid,
+    email: cleanEmail,
+    role: 'school_admin',
+    status: 'PENDING',
+    assignments: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const batch =
+    writeBatch(db);
+
+  /*
+   * School
+   */
+  batch.set(
+    schoolRef,
+    school
+  );
+
+  /*
+   * Owner membership
+   */
+  batch.set(
+    membershipRef,
+    membership
+  );
+
+  /*
+   * Slug reservation
+   */
+  batch.set(
+    slugRef,
+    {
+      slug: cleanSlug,
+      schoolId,
+      schoolName: cleanName,
+      ownerUid,
+      createdAt:
+        serverTimestamp(),
+    }
+  );
+
+  await batch.commit();
+
+  return school;
+}
+
+/* =========================================================
+   SCHOOL INFO
+========================================================= */
+
+export async function fetchSchoolInfo():
+  Promise<SchoolInfo | null> {
+  try {
+    const infoRef =
+      doc(
+        db,
+        'settings',
+        'schoolInfo'
+      );
+
+    const snapshot =
+      await getDoc(infoRef);
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return snapshot.data() as SchoolInfo;
+  } catch (error) {
+    console.error(
+      'Failed to fetch school info:',
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   ANNOUNCEMENTS
+========================================================= */
+
+export async function fetchAnnouncements():
+  Promise<Announcement[]> {
+  try {
+    const announcementsRef =
+      collection(
+        db,
+        'announcements'
+      );
+
+    const announcementsQuery =
+      query(
+        announcementsRef,
+        orderBy(
+          'createdAt',
+          'desc'
+        ),
+        limit(50)
+      );
+
+    const snapshot =
+      await getDocs(
+        announcementsQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as Announcement)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch announcements:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   EVENTS
+========================================================= */
+
+export async function fetchEvents():
+  Promise<SchoolEvent[]> {
+  try {
+    const eventsRef =
+      collection(
+        db,
+        'events'
+      );
+
+    const eventsQuery =
+      query(
+        eventsRef,
+        orderBy(
+          'createdAt',
+          'desc'
+        ),
+        limit(50)
+      );
+
+    const snapshot =
+      await getDocs(
+        eventsQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as SchoolEvent)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch events:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   TEACHERS
+========================================================= */
+
+export async function fetchTeachers():
+  Promise<Teacher[]> {
+  try {
+    const teachersRef =
+      collection(
+        db,
+        'teachers'
+      );
+
+    const teachersQuery =
+      query(
+        teachersRef,
+        orderBy(
+          'createdAt',
+          'desc'
+        ),
+        limit(100)
+      );
+
+    const snapshot =
+      await getDocs(
+        teachersQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as Teacher)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch teachers:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   ALL USERS
+========================================================= */
+
+export async function fetchAllUsers():
+  Promise<AppUser[]> {
+  try {
+    const usersRef =
+      collection(
+        db,
+        'users'
+      );
+
+    const usersQuery =
+      query(
+        usersRef,
+        orderBy(
+          'createdAt',
+          'desc'
+        ),
+        limit(500)
+      );
+
+    const snapshot =
+      await getDocs(
+        usersQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        ...item.data(),
+        uid: item.id,
+      } as AppUser)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch all users:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   AUTHORIZED ADMINS
+   (active school_admin memberships across all schools)
+========================================================= */
+
+export async function fetchAuthorizedAdmins():
+  Promise<SchoolMembership[]> {
+  try {
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const membershipsQuery =
+      query(
+        membershipsRef,
+        where(
+          'role',
+          '==',
+          'school_admin'
+        ),
+        where(
+          'status',
+          '==',
+          'ACTIVE'
+        ),
+        limit(500)
+      );
+
+    const snapshot =
+      await getDocs(
+        membershipsQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as SchoolMembership)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch authorized admins:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   AUTHORIZED FACULTY
+   (active teacher memberships across all schools)
+========================================================= */
+
+export async function fetchAuthorizedFaculty():
+  Promise<SchoolMembership[]> {
+  try {
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const membershipsQuery =
+      query(
+        membershipsRef,
+        where(
+          'role',
+          '==',
+          'teacher'
+        ),
+        where(
+          'status',
+          '==',
+          'ACTIVE'
+        ),
+        limit(500)
+      );
+
+    const snapshot =
+      await getDocs(
+        membershipsQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as SchoolMembership)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch authorized faculty:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   PUBLIC SCHOOLS
+========================================================= */
+
+export async function fetchPublicSchools():
+  Promise<School[]> {
+  try {
+    const schoolsRef =
+      collection(
+        db,
+        'schools'
+      );
+
+    const schoolsQuery =
+      query(
+        schoolsRef,
+        where(
+          'status',
+          '==',
+          'LIVE'
+        )
+      );
+
+    const snapshot =
+      await getDocs(
+        schoolsQuery
+      );
+
+    const schools =
+      snapshot.docs.map(
+        (item) => ({
+          id: item.id,
+          ...item.data(),
+        } as School)
+      );
+
+    schools.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() -
+        new Date(a.createdAt).getTime()
+    );
+
+    return schools;
+  } catch (error) {
+    console.error(
+      'Failed to fetch public schools:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   ALL SCHOOLS
+========================================================= */
+
+export async function fetchAllSchools():
+  Promise<School[]> {
+  try {
+    const schoolsRef =
+      collection(
+        db,
+        'schools'
+      );
+
+    const schoolsQuery =
+      query(
+        schoolsRef,
+        orderBy(
+          'createdAt',
+          'desc'
+        )
+      );
+
+    const snapshot =
+      await getDocs(
+        schoolsQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as School)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch all schools:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   UPDATE SCHOOL STATUS
+========================================================= */
+
+export async function updateSchoolStatus(
+  schoolId: string,
+  status: School['status'],
+  approvedByUid?: string,
+  suspensionReason?: string
+): Promise<void> {
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  const schoolSnapshot =
+    await getDoc(schoolRef);
+
+  if (!schoolSnapshot.exists()) {
+    throw new Error(
+      'School not found.'
+    );
+  }
+
+  const school =
+    schoolSnapshot.data() as School;
+
+  const now =
+    new Date().toISOString();
+
+  const schoolUpdates:
+    Partial<School> = {
+    status,
+    updatedAt: now,
+  };
+
+  if (status === 'LIVE') {
+    schoolUpdates.paymentStatus =
+      'PAID';
+
+    schoolUpdates.subscriptionStatus =
+      'ACTIVE';
+
+    if (approvedByUid) {
+      schoolUpdates.approvedByUid =
+        approvedByUid;
+
+      schoolUpdates.approvedAt =
+        now;
+    }
+  }
+
+  if (status === 'SUSPENDED') {
+    schoolUpdates.suspendedAt =
+      now;
+
+    if (suspensionReason) {
+      schoolUpdates.suspensionReason =
+        suspensionReason;
+    }
+  }
+
+  if (status === 'ARCHIVED') {
+    schoolUpdates.archivedAt =
+      now;
+  }
+
+  const batch =
+    writeBatch(db);
+
+  batch.set(
+    schoolRef,
+    schoolUpdates,
+    { merge: true }
+  );
+
+  /*
+   * When a school becomes LIVE,
+   * activate its school_admin membership(s).
+   */
+  if (status === 'LIVE') {
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const membershipQuery =
+      query(
+        membershipsRef,
+        where(
+          'schoolId',
+          '==',
+          schoolId
+        ),
+        where(
+          'role',
+          '==',
+          'school_admin'
+        )
+      );
+
+    const membershipSnapshot =
+      await getDocs(
+        membershipQuery
+      );
+
+    for (
+      const membershipDoc
+      of membershipSnapshot.docs
+    ) {
+      batch.set(
+        membershipDoc.ref,
+        {
+          status: 'ACTIVE',
+          updatedAt: now,
+          approvedByUid:
+            approvedByUid || null,
+          approvedAt: now,
+        },
+        { merge: true }
+      );
+    }
+  }
+
+  await batch.commit();
+
+  /*
+   * Keep TypeScript aware that school was
+   * intentionally read before updating.
+   */
+  void school;
+}
+
+/* =========================================================
+   SCHOOL BY SLUG
+========================================================= */
+
+export async function fetchSchoolBySlug(
+  slug: string
+): Promise<School | null> {
+  const cleanSlug =
+    slug?.trim().toLowerCase();
+
+  if (!cleanSlug) {
+    return null;
+  }
+
+  try {
+    const schoolsRef =
+      collection(
+        db,
+        'schools'
+      );
+
+    const schoolQuery =
+      query(
+        schoolsRef,
+        where(
+          'slug',
+          '==',
+          cleanSlug
+        ),
+        where(
+          'status',
+          '==',
+          'LIVE'
+        ),
+        limit(1)
+      );
+
+    const snapshot =
+      await getDocs(
+        schoolQuery
+      );
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const item =
+      snapshot.docs[0];
+
+    return {
+      id: item.id,
+      ...item.data(),
+    } as School;
+  } catch (error) {
+    console.error(
+      'Failed to fetch school by slug:',
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   SCHOOL BY ID
+========================================================= */
+
+export async function fetchSchoolById(
+  schoolId: string
+): Promise<School | null> {
+  if (!schoolId) {
+    return null;
+  }
+
+  try {
+    const schoolRef =
+      doc(
+        db,
+        'schools',
+        schoolId
+      );
+
+    const snapshot =
+      await getDoc(
+        schoolRef
+      );
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      ...snapshot.data(),
+    } as School;
+  } catch (error) {
+    console.error(
+      'Failed to fetch school by ID:',
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   MY MEMBERSHIP
+========================================================= */
+
+export async function fetchMyMembership(
+  uid: string,
+  schoolId: string
+): Promise<SchoolMembership | null> {
+  if (!uid || !schoolId) {
+    return null;
+  }
+
+  try {
+    const membershipId =
+      `${uid}_${schoolId}`;
+
+    const membershipRef =
+      doc(
+        db,
+        'schoolMemberships',
+        membershipId
+      );
+
+    const snapshot =
+      await getDoc(
+        membershipRef
+      );
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      ...snapshot.data(),
+    } as SchoolMembership;
+  } catch (error) {
+    console.error(
+      'Failed to fetch membership:',
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   SCHOOL MEMBERSHIPS
+========================================================= */
+
+export async function fetchSchoolMemberships(
+  schoolId: string
+): Promise<SchoolMembership[]> {
+  if (!schoolId) {
+    return [];
+  }
+
+  try {
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const membershipsQuery =
+      query(
+        membershipsRef,
+        where(
+          'schoolId',
+          '==',
+          schoolId
+        )
+      );
+
+    const snapshot =
+      await getDocs(
+        membershipsQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...item.data(),
+      } as SchoolMembership)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch school memberships:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   UPDATE SCHOOL MEMBERSHIP
+   FIX FOR VERCEL BUILD ERROR
+========================================================= */
+
+export async function updateSchoolMembership(
+  membershipId: string,
+  updates: Partial<SchoolMembership>
+): Promise<void> {
+  if (!membershipId) {
+    throw new Error(
+      'Membership ID is required.'
+    );
+  }
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      membershipId
+    );
+
+  const snapshot =
+    await getDoc(
+      membershipRef
+    );
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Membership not found.'
+    );
+  }
+
+  /*
+   * Do not allow these identity fields
+   * to be changed through this helper.
+   */
+  const safeUpdates:
+    Partial<SchoolMembership> = {
+    ...updates,
+  };
+
+  delete safeUpdates.id;
+  delete safeUpdates.schoolId;
+  delete safeUpdates.uid;
+
+  const now =
+    new Date().toISOString();
+
+  /*
+   * Automatically maintain approval/revocation
+   * timestamps when status changes.
+   */
+  if (
+    safeUpdates.status ===
+    'ACTIVE'
+  ) {
+    safeUpdates.approvedAt =
+      safeUpdates.approvedAt ||
+      now;
+
+    safeUpdates.revokedAt =
+      undefined;
+  }
+
+  if (
+    safeUpdates.status ===
+    'REVOKED'
+  ) {
+    safeUpdates.revokedAt =
+      safeUpdates.revokedAt ||
+      now;
+  }
+
+  safeUpdates.updatedAt =
+    now;
+
+  await setDoc(
+    membershipRef,
+    safeUpdates,
+    {
+      merge: true,
+    }
+  );
+}
+
+/* =========================================================
+   FORMAT DATE
+========================================================= */
+
+export function formatDate(
+  value?: string | Date | null
+): string {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const date =
+      value instanceof Date
+        ? value
+        : new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return '';
+    }
+
+    return date.toLocaleDateString(
+      'en-IN',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }
+    );
+  } catch {
+    return '';
+  }
 }
