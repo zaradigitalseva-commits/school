@@ -25,11 +25,10 @@ import type {
   Teacher,
 } from '@/firebase/types';
 
-/*
-|--------------------------------------------------------------------------
-| PLATFORM ADMIN
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   PLATFORM ADMIN
+========================================================= */
 
 export const PLATFORM_ADMIN_EMAIL = 'ngogrant454@gmail.com';
 
@@ -44,11 +43,10 @@ export function isPlatformAdminEmail(
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| ENSURE USER RECORD
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   ENSURE USER RECORD
+========================================================= */
 
 export async function ensureUserRecord(
   uid: string,
@@ -129,11 +127,10 @@ export async function ensureUserRecord(
   return user;
 }
 
-/*
-|--------------------------------------------------------------------------
-| FETCH USER ROLE
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   FETCH USER ROLE
+========================================================= */
 
 export async function fetchUserRole(
   uid: string,
@@ -160,6 +157,9 @@ export async function fetchUserRole(
     return 'user';
   }
 
+  /*
+   * School admin gets priority.
+   */
   for (
     const membershipDoc of
     membershipSnapshot.docs
@@ -174,6 +174,9 @@ export async function fetchUserRole(
     }
   }
 
+  /*
+   * Teacher
+   */
   for (
     const membershipDoc of
     membershipSnapshot.docs
@@ -191,11 +194,10 @@ export async function fetchUserRole(
   return 'user';
 }
 
-/*
-|--------------------------------------------------------------------------
-| REGISTER SCHOOL
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   REGISTER SCHOOL
+========================================================= */
 
 export async function registerSchool(
   uid: string,
@@ -219,9 +221,10 @@ export async function registerSchool(
   const phone =
     input.phone?.trim() ?? '';
 
-  /*
-   * School name
-   */
+
+  /* -------------------------------------------------------
+     SCHOOL NAME
+  ------------------------------------------------------- */
 
   if (!name) {
     throw new Error(
@@ -229,9 +232,10 @@ export async function registerSchool(
     );
   }
 
-  /*
-   * School URL slug
-   */
+
+  /* -------------------------------------------------------
+     SCHOOL SLUG
+  ------------------------------------------------------- */
 
   if (!slug) {
     throw new Error(
@@ -249,9 +253,10 @@ export async function registerSchool(
     );
   }
 
-  /*
-   * Google account email
-   */
+
+  /* -------------------------------------------------------
+     GOOGLE ACCOUNT EMAIL
+  ------------------------------------------------------- */
 
   if (!ownerEmail) {
     throw new Error(
@@ -259,9 +264,10 @@ export async function registerSchool(
     );
   }
 
-  /*
-   * Mobile number
-   */
+
+  /* -------------------------------------------------------
+     MOBILE NUMBER
+  ------------------------------------------------------- */
 
   if (!phone) {
     throw new Error(
@@ -279,9 +285,10 @@ export async function registerSchool(
     );
   }
 
-  /*
-   * References
-   */
+
+  /* -------------------------------------------------------
+     FIRESTORE REFERENCES
+  ------------------------------------------------------- */
 
   const schoolRef = doc(
     collection(db, 'schools')
@@ -299,9 +306,10 @@ export async function registerSchool(
     `${uid}_${schoolRef.id}`
   );
 
-  /*
-   * Check duplicate slug
-   */
+
+  /* -------------------------------------------------------
+     CHECK DUPLICATE SCHOOL URL
+  ------------------------------------------------------- */
 
   const existingSlug =
     await getDoc(slugRef);
@@ -312,12 +320,14 @@ export async function registerSchool(
     );
   }
 
+
   const now =
     new Date().toISOString();
 
-  /*
-   * School document
-   */
+
+  /* -------------------------------------------------------
+     SCHOOL DOCUMENT
+  ------------------------------------------------------- */
 
   const school: School = {
     id: schoolRef.id,
@@ -345,9 +355,10 @@ export async function registerSchool(
       input.description?.trim() ?? '',
   };
 
-  /*
-   * School admin membership
-   */
+
+  /* -------------------------------------------------------
+     SCHOOL ADMIN MEMBERSHIP
+  ------------------------------------------------------- */
 
   const membership: SchoolMembership = {
     id: membershipRef.id,
@@ -367,9 +378,10 @@ export async function registerSchool(
     updatedAt: now,
   };
 
-  /*
-   * Atomic batch
-   */
+
+  /* -------------------------------------------------------
+     ATOMIC BATCH
+  ------------------------------------------------------- */
 
   const batch =
     writeBatch(db);
@@ -404,20 +416,15 @@ export async function registerSchool(
   return school;
 }
 
-/*
-|--------------------------------------------------------------------------
-| FETCH SCHOOL INFO
-|--------------------------------------------------------------------------
-|
-| Compatibility with the existing public HomePage.
-| useSchoolInfo() calls this without an argument.
-|
-| Data is read from:
-| settings/schoolInfo
-|
-*/
 
-export async function fetchSchoolInfo(): Promise<SchoolInfo | null> {
+/* =========================================================
+   FETCH SCHOOL INFO
+   OLD SINGLE-SCHOOL COMPATIBILITY
+========================================================= */
+
+export async function fetchSchoolInfo(): Promise<
+  SchoolInfo | null
+> {
   const schoolInfoRef = doc(
     db,
     'settings',
@@ -434,11 +441,10 @@ export async function fetchSchoolInfo(): Promise<SchoolInfo | null> {
   return snapshot.data() as SchoolInfo;
 }
 
-/*
-|--------------------------------------------------------------------------
-| FETCH ANNOUNCEMENTS
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   FETCH ANNOUNCEMENTS
+========================================================= */
 
 export async function fetchAnnouncements(): Promise<
   Announcement[]
@@ -477,11 +483,10 @@ export async function fetchAnnouncements(): Promise<
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| FETCH EVENTS
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   FETCH EVENTS
+========================================================= */
 
 export async function fetchEvents(): Promise<
   SchoolEvent[]
@@ -520,11 +525,10 @@ export async function fetchEvents(): Promise<
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| FETCH TEACHERS
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   FETCH TEACHERS
+========================================================= */
 
 export async function fetchTeachers(): Promise<
   Teacher[]
@@ -563,11 +567,63 @@ export async function fetchTeachers(): Promise<
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| FORMAT DATE
-|--------------------------------------------------------------------------
-*/
+
+/* =========================================================
+   FETCH PUBLIC / LIVE SCHOOLS
+========================================================= */
+
+export async function fetchPublicSchools(): Promise<
+  School[]
+> {
+  try {
+    const schoolsRef =
+      collection(
+        db,
+        'schools'
+      );
+
+    const q = query(
+      schoolsRef,
+      where(
+        'status',
+        '==',
+        'LIVE'
+      )
+    );
+
+    const snapshot =
+      await getDocs(q);
+
+    return snapshot.docs
+      .map(
+        (item) => ({
+          id: item.id,
+          ...(item.data() as Omit<
+            School,
+            'id'
+          >),
+        })
+      )
+      .sort(
+        (a, b) =>
+          (b.createdAt ?? '').localeCompare(
+            a.createdAt ?? ''
+          )
+      );
+  } catch (error) {
+    console.error(
+      'Failed to fetch public schools:',
+      error
+    );
+
+    return [];
+  }
+}
+
+
+/* =========================================================
+   FORMAT DATE
+========================================================= */
 
 export function formatDate(
   value?: string | Date | null
@@ -582,7 +638,11 @@ export function formatDate(
         ? value
         : new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
       return String(value);
     }
 
