@@ -33,6 +33,21 @@ import type {
 export const PLATFORM_ADMIN_EMAIL =
   'ngogrant454@gmail.com';
 
+/**
+ * Checks whether a given email belongs to the platform admin.
+ * Case-insensitive and whitespace-tolerant.
+ */
+export function isPlatformAdminEmail(
+  email?: string | null
+): boolean {
+  if (!email) return false;
+
+  return (
+    email.trim().toLowerCase() ===
+    PLATFORM_ADMIN_EMAIL.toLowerCase()
+  );
+}
+
 /* =========================================================
    USER RECORD
 ========================================================= */
@@ -55,10 +70,9 @@ export async function ensureUserRecord(
   const now = new Date().toISOString();
 
   if (!snapshot.exists()) {
-    const role: UserRole =
-      cleanEmail === PLATFORM_ADMIN_EMAIL
-        ? 'platform_admin'
-        : 'user';
+    const role: UserRole = isPlatformAdminEmail(cleanEmail)
+      ? 'platform_admin'
+      : 'user';
 
     const newUser: AppUser = {
       uid,
@@ -103,7 +117,7 @@ export async function ensureUserRecord(
    * Platform admin role is controlled by the
    * configured platform admin email.
    */
-  if (cleanEmail === PLATFORM_ADMIN_EMAIL) {
+  if (isPlatformAdminEmail(cleanEmail)) {
     updateData.role = 'platform_admin';
   }
 
@@ -154,6 +168,10 @@ export async function fetchUserRole(
         userSnapshot.data() as AppUser;
 
       if (user.role === 'platform_admin') {
+        return 'platform_admin';
+      }
+
+      if (isPlatformAdminEmail(user.email)) {
         return 'platform_admin';
       }
     }
