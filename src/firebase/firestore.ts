@@ -388,13 +388,11 @@ export async function registerSchool(
 
     phone: cleanPhone,
 
-    tagline:
-      input.tagline?.trim() ||
-      undefined,
+   tagline:
+  input.tagline?.trim() || '',
 
-    description:
-      input.description?.trim() ||
-      undefined,
+description:
+  input.description?.trim() || '',
 
     paymentStatus: 'PENDING',
     subscriptionStatus: 'PENDING',
