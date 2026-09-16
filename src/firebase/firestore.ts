@@ -9,6 +9,7 @@ import {
   setDoc,
   writeBatch,
   orderBy,
+  limit,
 } from 'firebase/firestore';
 
 import { db } from '@/firebase/config';
@@ -30,7 +31,8 @@ import type {
    PLATFORM ADMIN
 ========================================================= */
 
-export const PLATFORM_ADMIN_EMAIL = 'ngogrant454@gmail.com';
+export const PLATFORM_ADMIN_EMAIL =
+  'ngogrant454@gmail.com';
 
 export function isPlatformAdminEmail(
   email?: string | null
@@ -425,20 +427,29 @@ export async function registerSchool(
 export async function fetchSchoolInfo(): Promise<
   SchoolInfo | null
 > {
-  const schoolInfoRef = doc(
-    db,
-    'settings',
-    'schoolInfo'
-  );
+  try {
+    const schoolInfoRef = doc(
+      db,
+      'settings',
+      'schoolInfo'
+    );
 
-  const snapshot =
-    await getDoc(schoolInfoRef);
+    const snapshot =
+      await getDoc(schoolInfoRef);
 
-  if (!snapshot.exists()) {
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return snapshot.data() as SchoolInfo;
+  } catch (error) {
+    console.error(
+      'Failed to fetch school info:',
+      error
+    );
+
     return null;
   }
-
-  return snapshot.data() as SchoolInfo;
 }
 
 
@@ -617,6 +628,72 @@ export async function fetchPublicSchools(): Promise<
     );
 
     return [];
+  }
+}
+
+
+/* =========================================================
+   FETCH SCHOOL BY SLUG
+   PUBLIC SCHOOL PAGE
+========================================================= */
+
+export async function fetchSchoolBySlug(
+  slug: string
+): Promise<School | null> {
+  try {
+    const cleanSlug =
+      slug.trim().toLowerCase();
+
+    if (!cleanSlug) {
+      return null;
+    }
+
+    const schoolsRef =
+      collection(
+        db,
+        'schools'
+      );
+
+    const q = query(
+      schoolsRef,
+      where(
+        'slug',
+        '==',
+        cleanSlug
+      ),
+      where(
+        'status',
+        '==',
+        'LIVE'
+      ),
+      limit(1)
+    );
+
+    const snapshot =
+      await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const schoolDoc =
+      snapshot.docs[0];
+
+    return {
+      id: schoolDoc.id,
+
+      ...(schoolDoc.data() as Omit<
+        School,
+        'id'
+      >),
+    };
+  } catch (error) {
+    console.error(
+      'Failed to fetch school by slug:',
+      error
+    );
+
+    return null;
   }
 }
 
