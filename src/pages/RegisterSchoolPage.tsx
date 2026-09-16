@@ -1,4 +1,3 @@
-```tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -12,10 +11,11 @@ export default function RegisterSchoolPage() {
   const [phone, setPhone] = useState('');
   const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // School name से automatic URL slug बनाता है
+  // School name से automatic URL slug बनाना
   const makeSlug = (value: string) => {
     return value
       .toLowerCase()
@@ -26,24 +26,44 @@ export default function RegisterSchoolPage() {
       .replace(/^-+|-+$/g, '');
   };
 
-  const handleRegister = async (event: React.FormEvent) => {
+  const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
 
+    // Google login जरूरी
     if (!user) {
       setError('Please sign in with Google first.');
+      return;
+    }
+
+    // Google email जरूरी है
+    const ownerEmail = user.email?.trim();
+
+    if (!ownerEmail) {
+      setError(
+        'Your Google account email could not be found. Please logout and login again with Google.'
+      );
       return;
     }
 
     const cleanName = name.trim();
     const cleanPhone = phone.trim();
     const cleanSlug = makeSlug(cleanName);
+    const cleanTagline = tagline.trim();
+    const cleanDescription = description.trim();
 
+    // School Name
     if (!cleanName) {
       setError('Please enter school name.');
       return;
     }
 
+    if (cleanName.length < 2) {
+      setError('School name must contain at least 2 characters.');
+      return;
+    }
+
+    // Mobile
     if (!cleanPhone) {
       setError('Please enter mobile number.');
       return;
@@ -54,6 +74,7 @@ export default function RegisterSchoolPage() {
       return;
     }
 
+    // Slug
     if (!cleanSlug) {
       setError(
         'School name cannot create a valid school URL. Please use English letters or numbers.'
@@ -64,16 +85,33 @@ export default function RegisterSchoolPage() {
     try {
       setLoading(true);
 
-      const school = await registerSchool(user.uid, {
-        name: cleanName,
-        slug: cleanSlug,
-        ownerEmail: user.email ?? '',
-        phone: cleanPhone,
-        tagline: tagline.trim(),
-        description: description.trim(),
-      });
+      /*
+       * IMPORTANT:
+       *
+       * ownerEmail registration form में नहीं है।
+       * Google account का email automatically लिया जा रहा है।
+       *
+       * registerSchool(
+       *   ownerUid,
+       *   registrationInput,
+       *   ownerEmail
+       * )
+       */
 
-      navigate('/payment/recharge?schoolId=' + school.id, {
+      const school = await registerSchool(
+        user.uid,
+        {
+          name: cleanName,
+          slug: cleanSlug,
+          phone: cleanPhone,
+          tagline: cleanTagline,
+          description: cleanDescription,
+        },
+        ownerEmail
+      );
+
+      // Registration के बाद सीधे Payment/Recharge page
+      navigate(`/payment/recharge?schoolId=${school.id}`, {
         replace: true,
       });
     } catch (err) {
@@ -94,6 +132,8 @@ export default function RegisterSchoolPage() {
     setError('');
 
     try {
+      setLoading(true);
+
       await signInWithGoogle();
     } catch (err) {
       console.error('Google sign-in failed:', err);
@@ -104,6 +144,8 @@ export default function RegisterSchoolPage() {
           : 'Google sign-in failed. Please try again.';
 
       setError(message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -152,7 +194,9 @@ export default function RegisterSchoolPage() {
         {/* Main Card */}
         <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
 
-          {/* NOT LOGGED IN */}
+          {/* =========================
+              NOT LOGGED IN
+          ========================== */}
           {!user && (
             <div className="rounded-2xl border-2 border-orange-200 bg-orange-50 p-6 text-center">
 
@@ -195,10 +239,12 @@ export default function RegisterSchoolPage() {
             </div>
           )}
 
-          {/* LOGGED IN */}
+          {/* =========================
+              LOGGED IN
+          ========================== */}
           {user && (
             <>
-              {/* Login Status */}
+              {/* Google Account Status */}
               <div className="mb-6 rounded-2xl border-2 border-green-200 bg-green-50 p-4">
 
                 <div className="font-bold text-green-800">
@@ -206,7 +252,7 @@ export default function RegisterSchoolPage() {
                 </div>
 
                 <div className="mt-1 break-all text-sm text-green-700">
-                  {user.email}
+                  {user.email || 'Google email not available'}
                 </div>
 
                 <button
@@ -229,6 +275,14 @@ export default function RegisterSchoolPage() {
                 <ul className="mt-2 space-y-1 text-sm text-blue-800">
                   <li>
                     • No school recognition document is required.
+                  </li>
+
+                  <li>
+                    • No email field is required in the form.
+                  </li>
+
+                  <li>
+                    • Your Google account email is saved automatically.
                   </li>
 
                   <li>
@@ -272,6 +326,7 @@ export default function RegisterSchoolPage() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Example: Sunrise Public School"
                     disabled={loading}
+                    autoComplete="organization"
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
                     required
                   />
@@ -380,4 +435,3 @@ export default function RegisterSchoolPage() {
     </div>
   );
 }
-```
