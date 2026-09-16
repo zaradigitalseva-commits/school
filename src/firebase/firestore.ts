@@ -31,8 +31,7 @@ import type {
    PLATFORM ADMIN
 ========================================================= */
 
-export const PLATFORM_ADMIN_EMAIL =
-  'ngogrant454@gmail.com';
+export const PLATFORM_ADMIN_EMAIL = 'ngogrant454@gmail.com';
 
 export function isPlatformAdminEmail(
   email?: string | null
@@ -427,29 +426,20 @@ export async function registerSchool(
 export async function fetchSchoolInfo(): Promise<
   SchoolInfo | null
 > {
-  try {
-    const schoolInfoRef = doc(
-      db,
-      'settings',
-      'schoolInfo'
-    );
+  const schoolInfoRef = doc(
+    db,
+    'settings',
+    'schoolInfo'
+  );
 
-    const snapshot =
-      await getDoc(schoolInfoRef);
+  const snapshot =
+    await getDoc(schoolInfoRef);
 
-    if (!snapshot.exists()) {
-      return null;
-    }
-
-    return snapshot.data() as SchoolInfo;
-  } catch (error) {
-    console.error(
-      'Failed to fetch school info:',
-      error
-    );
-
+  if (!snapshot.exists()) {
     return null;
   }
+
+  return snapshot.data() as SchoolInfo;
 }
 
 
@@ -634,7 +624,7 @@ export async function fetchPublicSchools(): Promise<
 
 /* =========================================================
    FETCH SCHOOL BY SLUG
-   PUBLIC SCHOOL PAGE
+   PUBLIC LIVE SCHOOL PAGE
 ========================================================= */
 
 export async function fetchSchoolBySlug(
@@ -681,7 +671,6 @@ export async function fetchSchoolBySlug(
 
     return {
       id: schoolDoc.id,
-
       ...(schoolDoc.data() as Omit<
         School,
         'id'
