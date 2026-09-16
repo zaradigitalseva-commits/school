@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   setDoc,
   writeBatch,
+  orderBy,
 } from 'firebase/firestore';
 
 import { db } from '@/firebase/config';
@@ -18,6 +19,10 @@ import type {
   SchoolMembership,
   SchoolRegistrationInput,
   UserRole,
+  SchoolInfo,
+  Announcement,
+  SchoolEvent,
+  Teacher,
 } from '@/firebase/types';
 
 /*
@@ -196,11 +201,6 @@ export async function registerSchool(
   uid: string,
   input: SchoolRegistrationInput
 ): Promise<School> {
-
-  /*
-   * Basic validation
-   */
-
   if (!uid) {
     throw new Error(
       'You must be signed in to register a school.'
@@ -230,7 +230,7 @@ export async function registerSchool(
   }
 
   /*
-   * Automatic school URL slug
+   * School URL slug
    */
 
   if (!slug) {
@@ -300,9 +300,7 @@ export async function registerSchool(
   );
 
   /*
-   * Check whether this slug is already registered.
-   *
-   * This read happens BEFORE the batch.
+   * Check duplicate slug
    */
 
   const existingSlug =
@@ -338,10 +336,6 @@ export async function registerSchool(
 
     updatedAt: now,
 
-    /*
-     * Mobile number
-     */
-
     phone,
 
     tagline:
@@ -352,7 +346,7 @@ export async function registerSchool(
   };
 
   /*
-   * School Admin membership
+   * School admin membership
    */
 
   const membership: SchoolMembership = {
@@ -374,11 +368,7 @@ export async function registerSchool(
   };
 
   /*
-   * Batch write
-   *
-   * 1. Create school
-   * 2. Reserve slug
-   * 3. Create pending school admin membership
+   * Atomic batch
    */
 
   const batch =
@@ -409,10 +399,6 @@ export async function registerSchool(
     membership
   );
 
-  /*
-   * Commit all three writes atomically.
-   */
-
   await batch.commit();
 
   return school;
@@ -423,29 +409,192 @@ export async function registerSchool(
 | FETCH SCHOOL INFO
 |--------------------------------------------------------------------------
 |
-| Used by useSchoolInfo.ts and school information pages.
+| Compatibility with the existing public HomePage.
+| useSchoolInfo() calls this without an argument.
+|
+| Data is read from:
+| settings/schoolInfo
 |
 */
 
-export async function fetchSchoolInfo(
-  schoolId: string
-): Promise<School | null> {
-  if (!schoolId) {
-    return null;
-  }
-
-  const schoolRef = doc(
+export async function fetchSchoolInfo(): Promise<SchoolInfo | null> {
+  const schoolInfoRef = doc(
     db,
-    'schools',
-    schoolId
+    'settings',
+    'schoolInfo'
   );
 
-  const schoolSnapshot =
-    await getDoc(schoolRef);
+  const snapshot =
+    await getDoc(schoolInfoRef);
 
-  if (!schoolSnapshot.exists()) {
+  if (!snapshot.exists()) {
     return null;
   }
 
-  return schoolSnapshot.data() as School;
+  return snapshot.data() as SchoolInfo;
+}
+
+/*
+|--------------------------------------------------------------------------
+| FETCH ANNOUNCEMENTS
+|--------------------------------------------------------------------------
+*/
+
+export async function fetchAnnouncements(): Promise<
+  Announcement[]
+> {
+  try {
+    const announcementsRef =
+      collection(
+        db,
+        'announcements'
+      );
+
+    const q = query(
+      announcementsRef,
+      orderBy('date', 'desc')
+    );
+
+    const snapshot =
+      await getDocs(q);
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...(item.data() as Omit<
+          Announcement,
+          'id'
+        >),
+      })
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch announcements:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| FETCH EVENTS
+|--------------------------------------------------------------------------
+*/
+
+export async function fetchEvents(): Promise<
+  SchoolEvent[]
+> {
+  try {
+    const eventsRef =
+      collection(
+        db,
+        'events'
+      );
+
+    const q = query(
+      eventsRef,
+      orderBy('date', 'asc')
+    );
+
+    const snapshot =
+      await getDocs(q);
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...(item.data() as Omit<
+          SchoolEvent,
+          'id'
+        >),
+      })
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch events:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| FETCH TEACHERS
+|--------------------------------------------------------------------------
+*/
+
+export async function fetchTeachers(): Promise<
+  Teacher[]
+> {
+  try {
+    const teachersRef =
+      collection(
+        db,
+        'teachers'
+      );
+
+    const q = query(
+      teachersRef,
+      orderBy('order', 'asc')
+    );
+
+    const snapshot =
+      await getDocs(q);
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...(item.data() as Omit<
+          Teacher,
+          'id'
+        >),
+      })
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch teachers:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| FORMAT DATE
+|--------------------------------------------------------------------------
+*/
+
+export function formatDate(
+  value?: string | Date | null
+): string {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const date =
+      value instanceof Date
+        ? value
+        : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+
+    return date.toLocaleDateString(
+      'en-IN',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }
+    );
+  } catch {
+    return String(value);
+  }
 }
