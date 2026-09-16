@@ -86,6 +86,7 @@ export async function ensureUserRecord(
 
   const user: AppUser = {
     uid,
+
     email: normalizedEmail,
 
     displayName:
@@ -215,15 +216,26 @@ export async function registerSchool(
   const ownerEmail =
     input.ownerEmail?.trim().toLowerCase() ?? '';
 
+  const phone =
+    input.phone?.trim() ?? '';
+
+  /*
+   * School name
+   */
+
   if (!name) {
     throw new Error(
       'School name is required.'
     );
   }
 
+  /*
+   * Automatic school URL slug
+   */
+
   if (!slug) {
     throw new Error(
-      'School URL/slug is required.'
+      'School URL/slug could not be created from the school name.'
     );
   }
 
@@ -237,9 +249,33 @@ export async function registerSchool(
     );
   }
 
+  /*
+   * Google account email
+   */
+
   if (!ownerEmail) {
     throw new Error(
       'Google account email is required.'
+    );
+  }
+
+  /*
+   * Mobile number
+   */
+
+  if (!phone) {
+    throw new Error(
+      'School mobile number is required.'
+    );
+  }
+
+  if (
+    !/^[0-9+()\-\s]{10,18}$/.test(
+      phone
+    )
+  ) {
+    throw new Error(
+      'Please enter a valid school mobile number.'
     );
   }
 
@@ -274,7 +310,7 @@ export async function registerSchool(
 
   if (existingSlug.exists()) {
     throw new Error(
-      'This school URL/slug is already registered. Please choose another.'
+      'This school URL/slug is already registered. Please use a different school name.'
     );
   }
 
@@ -301,6 +337,12 @@ export async function registerSchool(
     createdAt: now,
 
     updatedAt: now,
+
+    /*
+     * Mobile number
+     */
+
+    phone,
 
     tagline:
       input.tagline?.trim() ?? '',
