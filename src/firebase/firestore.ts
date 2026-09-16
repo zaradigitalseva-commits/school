@@ -10,6 +10,8 @@ import {
   writeBatch,
   orderBy,
   limit,
+  deleteDoc,
+  updateDoc,
 } from 'firebase/firestore';
 
 import { db } from '@/firebase/config';
@@ -62,7 +64,8 @@ export async function ensureUserRecord(
     throw new Error('User UID is required.');
   }
 
-  const cleanEmail = email?.trim().toLowerCase() || '';
+  const cleanEmail =
+    email?.trim().toLowerCase() || '';
 
   const userRef = doc(db, 'users', uid);
   const snapshot = await getDoc(userRef);
@@ -70,9 +73,10 @@ export async function ensureUserRecord(
   const now = new Date().toISOString();
 
   if (!snapshot.exists()) {
-    const role: UserRole = isPlatformAdminEmail(cleanEmail)
-      ? 'platform_admin'
-      : 'user';
+    const role: UserRole =
+      isPlatformAdminEmail(cleanEmail)
+        ? 'platform_admin'
+        : 'user';
 
     const newUser: AppUser = {
       uid,
@@ -139,10 +143,21 @@ export async function ensureUserRecord(
 ========================================================= */
 
 export async function fetchUserRole(
-  uid: string
+  uid: string,
+  email?: string | null
 ): Promise<UserRole> {
   if (!uid) {
     return 'user';
+  }
+
+  /*
+   * Direct platform admin check.
+   */
+  if (
+    email &&
+    isPlatformAdminEmail(email)
+  ) {
+    return 'platform_admin';
   }
 
   try {
@@ -167,11 +182,18 @@ export async function fetchUserRole(
       const user =
         userSnapshot.data() as AppUser;
 
-      if (user.role === 'platform_admin') {
+      if (
+        user.role ===
+        'platform_admin'
+      ) {
         return 'platform_admin';
       }
 
-      if (isPlatformAdminEmail(user.email)) {
+      if (
+        isPlatformAdminEmail(
+          user.email
+        )
+      ) {
         return 'platform_admin';
       }
     }
@@ -188,8 +210,16 @@ export async function fetchUserRole(
     const membershipQuery =
       query(
         membershipsRef,
-        where('uid', '==', uid),
-        where('status', '==', 'ACTIVE'),
+        where(
+          'uid',
+          '==',
+          uid
+        ),
+        where(
+          'status',
+          '==',
+          'ACTIVE'
+        ),
         limit(10)
       );
 
@@ -198,7 +228,9 @@ export async function fetchUserRole(
         membershipQuery
       );
 
-    if (!membershipSnapshot.empty) {
+    if (
+      !membershipSnapshot.empty
+    ) {
       /*
        * Prefer school_admin if user has one.
        */
@@ -357,10 +389,12 @@ export async function registerSchool(
     phone: cleanPhone,
 
     tagline:
-      input.tagline?.trim() || undefined,
+      input.tagline?.trim() ||
+      undefined,
 
     description:
-      input.description?.trim() || undefined,
+      input.description?.trim() ||
+      undefined,
 
     paymentStatus: 'PENDING',
     subscriptionStatus: 'PENDING',
@@ -450,6 +484,36 @@ export async function fetchSchoolInfo():
   }
 }
 
+
+/*
+ * Save school information.
+ */
+export async function saveSchoolInfo(
+  info: SchoolInfo
+): Promise<void> {
+  if (!info) {
+    throw new Error(
+      'School information is required.'
+    );
+  }
+
+  await setDoc(
+    doc(
+      db,
+      'settings',
+      'schoolInfo'
+    ),
+    {
+      ...info,
+      updatedAt:
+        new Date().toISOString(),
+    },
+    {
+      merge: true,
+    }
+  );
+}
+
 /* =========================================================
    ANNOUNCEMENTS
 ========================================================= */
@@ -492,6 +556,84 @@ export async function fetchAnnouncements():
 
     return [];
   }
+}
+
+
+/*
+ * Add announcement.
+ */
+export async function addAnnouncement(
+  data: Partial<Announcement>
+): Promise<void> {
+  const ref =
+    doc(
+      collection(
+        db,
+        'announcements'
+      )
+    );
+
+  await setDoc(
+    ref,
+    {
+      ...data,
+      id: ref.id,
+      createdAt:
+        new Date().toISOString(),
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+/*
+ * Update announcement.
+ */
+export async function updateAnnouncement(
+  id: string,
+  data: Partial<Announcement>
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Announcement ID is required.'
+    );
+  }
+
+  await updateDoc(
+    doc(
+      db,
+      'announcements',
+      id
+    ),
+    {
+      ...data,
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+/*
+ * Delete announcement.
+ */
+export async function deleteAnnouncement(
+  id: string
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Announcement ID is required.'
+    );
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'announcements',
+      id
+    )
+  );
 }
 
 /* =========================================================
@@ -538,6 +680,84 @@ export async function fetchEvents():
   }
 }
 
+
+/*
+ * Add event.
+ */
+export async function addEvent(
+  data: Partial<SchoolEvent>
+): Promise<void> {
+  const ref =
+    doc(
+      collection(
+        db,
+        'events'
+      )
+    );
+
+  await setDoc(
+    ref,
+    {
+      ...data,
+      id: ref.id,
+      createdAt:
+        new Date().toISOString(),
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+/*
+ * Update event.
+ */
+export async function updateEvent(
+  id: string,
+  data: Partial<SchoolEvent>
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Event ID is required.'
+    );
+  }
+
+  await updateDoc(
+    doc(
+      db,
+      'events',
+      id
+    ),
+    {
+      ...data,
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+/*
+ * Delete event.
+ */
+export async function deleteEvent(
+  id: string
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Event ID is required.'
+    );
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'events',
+      id
+    )
+  );
+}
+
 /* =========================================================
    TEACHERS
 ========================================================= */
@@ -582,6 +802,84 @@ export async function fetchTeachers():
   }
 }
 
+
+/*
+ * Add teacher.
+ */
+export async function addTeacher(
+  data: Partial<Teacher>
+): Promise<void> {
+  const ref =
+    doc(
+      collection(
+        db,
+        'teachers'
+      )
+    );
+
+  await setDoc(
+    ref,
+    {
+      ...data,
+      id: ref.id,
+      createdAt:
+        new Date().toISOString(),
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+/*
+ * Update teacher.
+ */
+export async function updateTeacher(
+  id: string,
+  data: Partial<Teacher>
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Teacher ID is required.'
+    );
+  }
+
+  await updateDoc(
+    doc(
+      db,
+      'teachers',
+      id
+    ),
+    {
+      ...data,
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+/*
+ * Delete teacher.
+ */
+export async function deleteTeacher(
+  id: string
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Teacher ID is required.'
+    );
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'teachers',
+      id
+    )
+  );
+}
+
 /* =========================================================
    PUBLIC SCHOOLS
 ========================================================= */
@@ -620,8 +918,12 @@ export async function fetchPublicSchools():
 
     schools.sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() -
-        new Date(a.createdAt).getTime()
+        new Date(
+          b.createdAt
+        ).getTime() -
+        new Date(
+          a.createdAt
+        ).getTime()
     );
 
     return schools;
@@ -702,7 +1004,9 @@ export async function updateSchoolStatus(
     );
 
   const schoolSnapshot =
-    await getDoc(schoolRef);
+    await getDoc(
+      schoolRef
+    );
 
   if (!schoolSnapshot.exists()) {
     throw new Error(
@@ -759,7 +1063,9 @@ export async function updateSchoolStatus(
   batch.set(
     schoolRef,
     schoolUpdates,
-    { merge: true }
+    {
+      merge: true,
+    }
   );
 
   /*
@@ -806,17 +1112,15 @@ export async function updateSchoolStatus(
             approvedByUid || null,
           approvedAt: now,
         },
-        { merge: true }
+        {
+          merge: true,
+        }
       );
     }
   }
 
   await batch.commit();
 
-  /*
-   * Keep TypeScript aware that school was
-   * intentionally read before updating.
-   */
   void school;
 }
 
@@ -1022,7 +1326,6 @@ export async function fetchSchoolMemberships(
 
 /* =========================================================
    UPDATE SCHOOL MEMBERSHIP
-   FIX FOR VERCEL BUILD ERROR
 ========================================================= */
 
 export async function updateSchoolMembership(
@@ -1103,6 +1406,222 @@ export async function updateSchoolMembership(
     {
       merge: true,
     }
+  );
+}
+
+/* =========================================================
+   FETCH ALL USERS
+========================================================= */
+
+export async function fetchAllUsers():
+  Promise<AppUser[]> {
+  try {
+    const usersRef =
+      collection(
+        db,
+        'users'
+      );
+
+    const snapshot =
+      await getDocs(
+        usersRef
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        ...item.data(),
+        uid: item.id,
+      } as AppUser)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch all users:',
+      error
+    );
+
+    return [];
+  }
+}
+
+/* =========================================================
+   IS ADMIN EMAIL
+========================================================= */
+
+export function isAdminEmail(
+  email?: string | null
+): boolean {
+  return isPlatformAdminEmail(
+    email
+  );
+}
+
+/* =========================================================
+   AUTHORIZED ADMINS
+========================================================= */
+
+export async function fetchAuthorizedAdmins():
+  Promise<AppUser[]> {
+  try {
+    const ref =
+      collection(
+        db,
+        'authorizedAdmins'
+      );
+
+    const snapshot =
+      await getDocs(ref);
+
+    return snapshot.docs.map(
+      (item) => ({
+        ...item.data(),
+        uid: item.id,
+      } as AppUser)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch authorized admins:',
+      error
+    );
+
+    return [];
+  }
+}
+
+
+export async function addAuthorizedAdmin(
+  uid: string,
+  email: string
+): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'Admin UID is required.'
+    );
+  }
+
+  if (!email?.trim()) {
+    throw new Error(
+      'Admin email is required.'
+    );
+  }
+
+  await setDoc(
+    doc(
+      db,
+      'authorizedAdmins',
+      uid
+    ),
+    {
+      uid,
+      email:
+        email.trim().toLowerCase(),
+      role: 'admin',
+      createdAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+export async function removeAuthorizedAdmin(
+  uid: string
+): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'Admin UID is required.'
+    );
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'authorizedAdmins',
+      uid
+    )
+  );
+}
+
+/* =========================================================
+   AUTHORIZED FACULTY
+========================================================= */
+
+export async function fetchAuthorizedFaculty():
+  Promise<AppUser[]> {
+  try {
+    const ref =
+      collection(
+        db,
+        'authorizedFaculty'
+      );
+
+    const snapshot =
+      await getDocs(ref);
+
+    return snapshot.docs.map(
+      (item) => ({
+        ...item.data(),
+        uid: item.id,
+      } as AppUser)
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch authorized faculty:',
+      error
+    );
+
+    return [];
+  }
+}
+
+
+export async function addAuthorizedFaculty(
+  uid: string,
+  email: string
+): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'Faculty UID is required.'
+    );
+  }
+
+  if (!email?.trim()) {
+    throw new Error(
+      'Faculty email is required.'
+    );
+  }
+
+  await setDoc(
+    doc(
+      db,
+      'authorizedFaculty',
+      uid
+    ),
+    {
+      uid,
+      email:
+        email.trim().toLowerCase(),
+      role: 'faculty',
+      createdAt:
+        new Date().toISOString(),
+    }
+  );
+}
+
+
+export async function removeAuthorizedFaculty(
+  uid: string
+): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'Faculty UID is required.'
+    );
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'authorizedFaculty',
+      uid
+    )
   );
 }
 
