@@ -417,3 +417,35 @@ export async function registerSchool(
 
   return school;
 }
+
+/*
+|--------------------------------------------------------------------------
+| FETCH SCHOOL INFO
+|--------------------------------------------------------------------------
+|
+| Used by useSchoolInfo.ts and school information pages.
+|
+*/
+
+export async function fetchSchoolInfo(
+  schoolId: string
+): Promise<School | null> {
+  if (!schoolId) {
+    return null;
+  }
+
+  const schoolRef = doc(
+    db,
+    'schools',
+    schoolId
+  );
+
+  const schoolSnapshot =
+    await getDoc(schoolRef);
+
+  if (!schoolSnapshot.exists()) {
+    return null;
+  }
+
+  return schoolSnapshot.data() as School;
+}
