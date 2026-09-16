@@ -1,21 +1,24 @@
+// src/firebase/types.ts
+
+// ============================================================
+// USER ROLES
+// ============================================================
+
 export type UserRole =
   | 'platform_admin'
   | 'school_admin'
   | 'teacher'
   | 'user';
 
-/*
- * Old roles kept only for compatibility with any old component
- * that may still reference them.
- */
 export type LegacyUserRole =
   | 'admin'
   | 'faculty'
   | 'user';
 
-/* ================================
-   SCHOOL
-================================ */
+
+// ============================================================
+// SCHOOL STATUS
+// ============================================================
 
 export type SchoolStatus =
   | 'PENDING_PAYMENT'
@@ -23,8 +26,14 @@ export type SchoolStatus =
   | 'SUSPENDED'
   | 'ARCHIVED';
 
+
+// ============================================================
+// SCHOOL
+// ============================================================
+
 export interface School {
   id: string;
+
   name: string;
   slug: string;
 
@@ -57,14 +66,73 @@ export interface School {
 
   customDomain?: string;
   customDomainStatus?: 'NONE' | 'PENDING' | 'VERIFIED';
+
+  // Optional subscription/payment information
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+  paymentStatus?: string;
+  paymentId?: string;
+  paymentAmount?: number;
+  paymentDate?: string;
+
+  // Optional platform/admin information
+  approvedByUid?: string;
+  approvedAt?: string;
+  suspendedAt?: string;
+  archivedAt?: string;
+  suspensionReason?: string;
 }
 
 
-/* ================================
-   SCHOOL MEMBERSHIP
-================================ */
+// ============================================================
+// SCHOOL REGISTRATION
+// ============================================================
 
-export type MembershipStatus =
+export interface SchoolRegistrationInput {
+  name: string;
+  slug: string;
+
+  ownerEmail: string;
+  phone: string;
+
+  tagline?: string;
+  description?: string;
+}
+
+
+// ============================================================
+// APP USER
+// ============================================================
+
+export interface AppUser {
+  uid: string;
+
+  email: string;
+  displayName?: string;
+  photoURL?: string;
+
+  role: UserRole;
+
+  schoolId?: string;
+
+  phone?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  active?: boolean;
+}
+
+
+// ============================================================
+// SCHOOL MEMBERSHIP
+// ============================================================
+
+export type SchoolMembershipRole =
+  | 'school_admin'
+  | 'teacher';
+
+export type SchoolMembershipStatus =
   | 'PENDING'
   | 'ACTIVE'
   | 'REVOKED';
@@ -72,67 +140,64 @@ export type MembershipStatus =
 export interface SchoolMembership {
   id: string;
 
-  uid: string;
   schoolId: string;
-
-  role: 'school_admin' | 'teacher';
-
-  status: MembershipStatus;
-
-  /*
-   * For teachers this contains assigned class IDs.
-   * Example:
-   * ['class-1-a', 'class-5-a']
-   */
-  assignments: string[];
-
-  createdAt: string;
-  updatedAt?: string;
-
-  invitedByUid?: string;
-  invitedByEmail?: string;
-}
-
-
-/* ================================
-   SCHOOL REGISTRATION
-================================ */
-
-export interface SchoolRegistrationInput {
-  name: string;
-  slug: string;
-
-  ownerEmail: string;
-
-  tagline?: string;
-  description?: string;
-}
-
-
-/* ================================
-   USER
-================================ */
-
-export interface AppUser {
   uid: string;
 
   email: string;
-  displayName: string;
-
+  displayName?: string;
   photoURL?: string;
 
-  role: UserRole;
+  role: SchoolMembershipRole;
+
+  status: SchoolMembershipStatus;
+
+  // For teachers
+  assignments?: string[];
 
   createdAt: string;
   updatedAt?: string;
 
-  lastLoginAt?: string;
+  approvedByUid?: string;
+  approvedAt?: string;
+
+  revokedAt?: string;
 }
 
 
-/* ================================
-   CLASSES
-================================ */
+// ============================================================
+// SCHOOL INFO
+// ============================================================
+
+export interface SchoolInfo {
+  name: string;
+
+  tagline: string;
+  description: string;
+
+  address: string;
+  phone: string;
+  email: string;
+
+  logoUrl: string;
+  heroImageUrl: string;
+
+  campusImages: string[];
+
+  principalName: string;
+  principalMessage: string;
+  principalImageUrl: string;
+
+  foundedYear: string;
+
+  totalStudents: string;
+  totalTeachers: string;
+  totalCourses: string;
+}
+
+
+// ============================================================
+// CLASS
+// ============================================================
 
 export interface SchoolClass {
   id: string;
@@ -140,70 +205,73 @@ export interface SchoolClass {
   schoolId: string;
 
   name: string;
-  classNumber: number;
+  className?: string;
 
-  /*
-   * Example:
-   * A, B, C
-   */
-  division?: string;
+  // Example: 1, 2, 3 ... 12
+  classNumber?: number;
 
-  academicSessionId?: string;
+  section?: string;
 
-  classTeacherUid?: string;
+  description?: string;
 
-  createdAt: string;
+  teacherIds?: string[];
+
+  createdAt?: string;
   updatedAt?: string;
+
+  active?: boolean;
 }
 
 
-/* ================================
-   STUDENTS
-================================ */
+// ============================================================
+// STUDENT
+// ============================================================
 
 export interface Student {
   id: string;
 
   schoolId: string;
 
-  admissionNumber: string;
-
-  rollNumber?: number;
+  admissionNumber?: string;
+  rollNumber?: string;
 
   name: string;
 
-  dateOfBirth?: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
 
-  gender?: 'male' | 'female' | 'other';
+  gender?: string;
+
+  dateOfBirth?: string;
 
   classId?: string;
   className?: string;
-  division?: string;
+  section?: string;
 
   fatherName?: string;
   motherName?: string;
-
-  parentName?: string;
+  guardianName?: string;
 
   phone?: string;
   email?: string;
 
   address?: string;
 
-  photoURL?: string;
+  photoUrl?: string;
 
   admissionDate?: string;
 
-  status?: 'active' | 'inactive' | 'transferred' | 'left';
-
-  createdAt: string;
+  createdAt?: string;
   updatedAt?: string;
+
+  active?: boolean;
 }
 
 
-/* ================================
-   ACADEMIC SESSION
-================================ */
+// ============================================================
+// ACADEMIC SESSION
+// ============================================================
 
 export interface AcademicSession {
   id: string;
@@ -212,22 +280,19 @@ export interface AcademicSession {
 
   name: string;
 
-  /*
-   * Example:
-   * 2026-27
-   */
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
 
-  isActive: boolean;
+  active?: boolean;
 
-  createdAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 
-/* ================================
-   SUBJECT
-================================ */
+// ============================================================
+// SUBJECT
+// ============================================================
 
 export interface Subject {
   id: string;
@@ -238,47 +303,49 @@ export interface Subject {
 
   code?: string;
 
-  classIds?: string[];
+  classId?: string;
 
-  maxMarks?: number;
+  teacherIds?: string[];
 
-  passingMarks?: number;
+  description?: string;
 
-  createdAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  active?: boolean;
 }
 
 
-/* ================================
-   EXAM
-================================ */
+// ============================================================
+// EXAM
+// ============================================================
 
 export interface Exam {
   id: string;
 
   schoolId: string;
 
-  academicSessionId: string;
-
   name: string;
+
+  classId?: string;
+
+  academicSessionId?: string;
 
   startDate?: string;
   endDate?: string;
 
-  status?: 'draft' | 'active' | 'completed';
+  totalMarks?: number;
 
-  createdAt: string;
+  description?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 
-/* ================================
-   RESULT
-================================ */
-
-export type ResultStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'REVIEW'
-  | 'PUBLISHED';
+// ============================================================
+// RESULT
+// ============================================================
 
 export interface Result {
   id: string;
@@ -287,76 +354,76 @@ export interface Result {
 
   studentId: string;
 
-  classId: string;
+  studentName?: string;
 
-  academicSessionId: string;
+  classId?: string;
+  className?: string;
 
-  examId: string;
+  subjectId?: string;
+  subjectName?: string;
 
-  subjectId: string;
+  examId?: string;
+  examName?: string;
 
-  marksObtained: number;
-
-  maxMarks: number;
+  marks?: number;
+  maxMarks?: number;
 
   grade?: string;
 
+  percentage?: number;
+
   remarks?: string;
 
-  status: ResultStatus;
+  academicSessionId?: string;
 
-  enteredByUid: string;
-
-  reviewedByUid?: string;
-
-  publishedAt?: string;
-
-  createdAt: string;
+  createdAt?: string;
   updatedAt?: string;
 }
 
 
-/* ================================
-   HOMEWORK
-================================ */
+// ============================================================
+// HOMEWORK
+// ============================================================
 
 export interface Homework {
   id: string;
 
   schoolId: string;
 
-  classId: string;
-
-  subjectId?: string;
-
-  teacherUid: string;
-
   title: string;
 
-  description: string;
+  description?: string;
 
-  assignedDate: string;
+  classId?: string;
+  className?: string;
 
+  subjectId?: string;
+  subjectName?: string;
+
+  teacherId?: string;
+  teacherName?: string;
+
+  assignedDate?: string;
   dueDate?: string;
 
   attachmentUrl?: string;
 
-  status?: 'active' | 'completed' | 'archived';
-
-  createdAt: string;
+  createdAt?: string;
   updatedAt?: string;
+
+  published?: boolean;
 }
 
 
-/* ================================
-   ATTENDANCE
-================================ */
+// ============================================================
+// ATTENDANCE
+// ============================================================
 
 export type AttendanceStatus =
-  | 'present'
-  | 'absent'
-  | 'late'
-  | 'leave';
+  | 'PRESENT'
+  | 'ABSENT'
+  | 'LATE'
+  | 'LEAVE';
 
 export interface Attendance {
   id: string;
@@ -364,29 +431,34 @@ export interface Attendance {
   schoolId: string;
 
   studentId: string;
+  studentName?: string;
 
-  classId: string;
+  classId?: string;
+  className?: string;
 
   date: string;
 
   status: AttendanceStatus;
 
-  markedByUid: string;
-
   remarks?: string;
 
-  createdAt: string;
+  markedByUid?: string;
+  markedByName?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 
-/* ================================
-   NOTICE
-================================ */
+// ============================================================
+// NOTICE
+// ============================================================
 
 export type NoticePriority =
-  | 'high'
-  | 'medium'
-  | 'low';
+  | 'LOW'
+  | 'NORMAL'
+  | 'HIGH'
+  | 'URGENT';
 
 export interface Notice {
   id: string;
@@ -397,432 +469,23 @@ export interface Notice {
 
   content: string;
 
-  priority: NoticePriority;
-
-  published: boolean;
-
-  publishedAt?: string;
-
-  createdByUid: string;
-
-  createdAt: string;
-  updatedAt?: string;
-}
-
-
-/* ================================
-   EVENT
-================================ */
-
-export interface SchoolEvent {
-  id: string;
-
-  schoolId: string;
-
-  title: string;
-
-  description: string;
-
   date: string;
 
-  endDate?: string;
-
-  location?: string;
-
-  imageUrl?: string;
+  priority: NoticePriority;
 
   published?: boolean;
 
-  createdByUid: string;
-
-  createdAt: string;
-  updatedAt?: string;
-}
-
-
-/* ================================
-   GALLERY
-================================ */
-
-export interface GalleryItem {
-  id: string;
-
-  schoolId: string;
-
-  title?: string;
-
-  imageUrl: string;
-
-  description?: string;
-
-  published?: boolean;
-
-  createdByUid: string;
-
-  createdAt: string;
-}
-
-
-/* ================================
-   DOCUMENT
-================================ */
-
-export interface SchoolDocument {
-  id: string;
-
-  schoolId: string;
-
-  title: string;
-
-  description?: string;
-
-  fileUrl: string;
-
-  fileType?: string;
-
-  uploadedByUid: string;
-
-  createdAt: string;
-}
-
-
-/* ================================
-   TEACHER
-================================ */
-
-export interface Teacher {
-  id: string;
-
-  schoolId?: string;
-
-  uid?: string;
-
-  name: string;
-
-  email: string;
-
-  designation: string;
-
-  subject: string;
-
-  qualification: string;
-
-  bio: string;
-
-  imageUrl: string;
-
-  phone: string;
-
-  /*
-   * Assigned class IDs.
-   * A teacher can have multiple assigned classes.
-   */
-  assignedClassIds?: string[];
-
-  status?: 'active' | 'inactive';
-
-  order?: number;
+  createdByUid?: string;
+  createdByName?: string;
 
   createdAt?: string;
   updatedAt?: string;
 }
 
 
-/* ================================
-   WALLET
-================================ */
-
-export interface Wallet {
-  schoolId: string;
-
-  balance: number;
-
-  currency: 'INR';
-
-  updatedAt: string;
-}
-
-
-/* ================================
-   WALLET TRANSACTION
-================================ */
-
-export type WalletTransactionType =
-  | 'RECHARGE'
-  | 'SUBSCRIPTION'
-  | 'REFUND'
-  | 'ADJUSTMENT';
-
-export interface WalletTransaction {
-  id: string;
-
-  schoolId: string;
-
-  type: WalletTransactionType;
-
-  amount: number;
-
-  balanceBefore: number;
-
-  balanceAfter: number;
-
-  description: string;
-
-  referenceId?: string;
-
-  createdAt: string;
-
-  createdByUid: string;
-}
-
-
-/* ================================
-   SUBSCRIPTION
-================================ */
-
-export interface Subscription {
-  schoolId: string;
-
-  status:
-    | 'ACTIVE'
-    | 'EXPIRED'
-    | 'SUSPENDED';
-
-  startAt: string;
-
-  expiresAt: string;
-
-  lastPaymentId?: string;
-
-  totalDaysPurchased?: number;
-
-  updatedAt: string;
-}
-
-
-/* ================================
-   BILLING CYCLE
-================================ */
-
-export interface BillingCycle {
-  id: string;
-
-  schoolId: string;
-
-  subscriptionId?: string;
-
-  periodStart: string;
-
-  periodEnd: string;
-
-  amount: number;
-
-  days: number;
-
-  status:
-    | 'PENDING'
-    | 'PAID'
-    | 'FAILED'
-    | 'CANCELLED';
-
-  createdAt: string;
-
-  processedAt?: string;
-}
-
-
-/* ================================
-   RECHARGE / PAYMENT
-================================ */
-
-export type RechargeStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'REJECTED';
-
-export interface RechargeRequest {
-  id: string;
-
-  schoolId: string;
-
-  uid: string;
-
-  amount: number;
-
-  days: number;
-
-  utr: string;
-
-  utrNormalized: string;
-
-  proofUrl?: string;
-
-  note?: string;
-
-  status: RechargeStatus;
-
-  createdAt: string;
-
-  reviewedAt?: string;
-
-  reviewedByUid?: string;
-
-  rejectionReason?: string;
-}
-
-
-/* ================================
-   PAYMENT PACKAGES
-================================ */
-
-export interface BillingPackage {
-  amount: number;
-  days: number;
-}
-
-
-/* ================================
-   PAYMENT SETTINGS
-================================ */
-
-export interface PaymentSettings {
-  upiId: string;
-
-  qrImageUrl?: string;
-
-  supportPhone?: string;
-
-  instructions?: string;
-
-  updatedAt?: string;
-}
-
-
-/* ================================
-   PLATFORM ADS
-================================ */
-
-export interface PlatformAd {
-  id: string;
-
-  title: string;
-
-  content?: string;
-
-  imageUrl?: string;
-
-  linkUrl?: string;
-
-  active: boolean;
-
-  startAt?: string;
-
-  endAt?: string;
-
-  createdAt: string;
-}
-
-
-/* ================================
-   PLATFORM ANNOUNCEMENT
-================================ */
-
-export interface PlatformAnnouncement {
-  id: string;
-
-  title: string;
-
-  content: string;
-
-  active: boolean;
-
-  createdAt: string;
-
-  updatedAt?: string;
-}
-
-
-/* ================================
-   AUDIT LOG
-================================ */
-
-export interface AuditLog {
-  id: string;
-
-  schoolId?: string;
-
-  actorUid: string;
-
-  actorEmail?: string;
-
-  action: string;
-
-  collection?: string;
-
-  documentId?: string;
-
-  description?: string;
-
-  createdAt: string;
-}
-
-
-/* ================================
-   SUPPORT REQUEST
-================================ */
-
-export interface SupportRequest {
-  id: string;
-
-  schoolId?: string;
-
-  uid: string;
-
-  subject: string;
-
-  message: string;
-
-  status:
-    | 'OPEN'
-    | 'IN_PROGRESS'
-    | 'RESOLVED'
-    | 'CLOSED';
-
-  createdAt: string;
-
-  updatedAt?: string;
-}
-
-
-/* ================================
-   OLD SINGLE-SCHOOL COMPATIBILITY
-================================ */
-
-/*
- * These interfaces keep existing public pages working
- * while the application is being migrated to the new
- * multi-school architecture.
- */
-
-export interface SchoolInfo {
-  name: string;
-  tagline: string;
-  description: string;
-  address: string;
-  phone: string;
-  email: string;
-  logoUrl: string;
-  heroImageUrl: string;
-  campusImages: string[];
-  principalName: string;
-  principalMessage: string;
-  principalImageUrl: string;
-  foundedYear: string;
-  totalStudents: string;
-  totalTeachers: string;
-  totalCourses: string;
-}
-
+// ============================================================
+// ANNOUNCEMENT
+// ============================================================
 
 export interface Announcement {
   id: string;
@@ -840,4 +503,460 @@ export interface Announcement {
   published?: boolean;
 
   createdByUid?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// SCHOOL EVENT
+// ============================================================
+
+export interface SchoolEvent {
+  id: string;
+
+  schoolId?: string;
+
+  title: string;
+
+  description?: string;
+
+  date: string;
+
+  startTime?: string;
+  endTime?: string;
+
+  location?: string;
+
+  imageUrl?: string;
+
+  createdByUid?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  published?: boolean;
+}
+
+
+// ============================================================
+// GALLERY
+// ============================================================
+
+export interface GalleryItem {
+  id: string;
+
+  schoolId: string;
+
+  title?: string;
+
+  description?: string;
+
+  imageUrl: string;
+
+  category?: string;
+
+  createdByUid?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  published?: boolean;
+}
+
+
+// ============================================================
+// SCHOOL DOCUMENT
+// ============================================================
+
+export interface SchoolDocument {
+  id: string;
+
+  schoolId: string;
+
+  title: string;
+
+  description?: string;
+
+  documentUrl: string;
+
+  documentType?: string;
+
+  uploadedByUid?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  published?: boolean;
+}
+
+
+// ============================================================
+// TEACHER
+// ============================================================
+
+export interface Teacher {
+  id: string;
+
+  schoolId?: string;
+
+  uid?: string;
+
+  name: string;
+
+  email?: string;
+
+  phone?: string;
+
+  photoUrl?: string;
+
+  designation?: string;
+
+  qualification?: string;
+
+  experience?: string;
+
+  subject?: string;
+
+  classIds?: string[];
+
+  assignedClasses?: string[];
+
+  bio?: string;
+
+  order?: number;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  active?: boolean;
+}
+
+
+// ============================================================
+// PLATFORM PAYMENT
+// ============================================================
+
+export type PaymentStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'APPROVED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'REFUNDED';
+
+export interface Payment {
+  id: string;
+
+  schoolId: string;
+
+  userId?: string;
+
+  ownerUid?: string;
+
+  amount: number;
+
+  currency?: string;
+
+  status: PaymentStatus;
+
+  paymentId?: string;
+
+  transactionId?: string;
+
+  gateway?: string;
+
+  plan?: string;
+
+  description?: string;
+
+  createdAt: string;
+  updatedAt?: string;
+
+  approvedByUid?: string;
+  approvedAt?: string;
+}
+
+
+// ============================================================
+// SCHOOL SUBSCRIPTION
+// ============================================================
+
+export type SubscriptionStatus =
+  | 'PENDING'
+  | 'ACTIVE'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'SUSPENDED';
+
+export interface SchoolSubscription {
+  id: string;
+
+  schoolId: string;
+
+  planId?: string;
+  planName?: string;
+
+  status: SubscriptionStatus;
+
+  amount?: number;
+
+  startDate?: string;
+  endDate?: string;
+
+  paymentId?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// SUBSCRIPTION PLAN
+// ============================================================
+
+export interface SubscriptionPlan {
+  id: string;
+
+  name: string;
+
+  description?: string;
+
+  amount: number;
+
+  durationDays?: number;
+
+  features?: string[];
+
+  active?: boolean;
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// SCHOOL WALLET
+// ============================================================
+
+export interface SchoolWallet {
+  id: string;
+
+  schoolId: string;
+
+  balance: number;
+
+  currency?: string;
+
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// WALLET TRANSACTION
+// ============================================================
+
+export type WalletTransactionType =
+  | 'CREDIT'
+  | 'DEBIT';
+
+export interface WalletTransaction {
+  id: string;
+
+  schoolId: string;
+
+  type: WalletTransactionType;
+
+  amount: number;
+
+  balanceAfter?: number;
+
+  description?: string;
+
+  referenceId?: string;
+
+  createdAt: string;
+
+  createdByUid?: string;
+}
+
+
+// ============================================================
+// PLATFORM SUPPORT TICKET
+// ============================================================
+
+export type SupportTicketStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'CLOSED';
+
+export interface SupportTicket {
+  id: string;
+
+  schoolId?: string;
+
+  userId?: string;
+
+  name?: string;
+
+  email?: string;
+
+  subject: string;
+
+  message: string;
+
+  status: SupportTicketStatus;
+
+  adminReply?: string;
+
+  createdAt: string;
+  updatedAt?: string;
+
+  resolvedAt?: string;
+}
+
+
+// ============================================================
+// CONTACT MESSAGE
+// ============================================================
+
+export interface ContactMessage {
+  id: string;
+
+  schoolId?: string;
+
+  name: string;
+
+  email?: string;
+
+  phone?: string;
+
+  subject?: string;
+
+  message: string;
+
+  createdAt: string;
+
+  read?: boolean;
+
+  replied?: boolean;
+}
+
+
+// ============================================================
+// SLUG RESERVATION
+// ============================================================
+
+export interface SlugReservation {
+  slug: string;
+
+  schoolId: string;
+
+  schoolName: string;
+
+  ownerUid: string;
+
+  createdAt: string;
+}
+
+
+// ============================================================
+// PLATFORM SETTINGS
+// ============================================================
+
+export interface PlatformSettings {
+  id: string;
+
+  platformName?: string;
+
+  logoUrl?: string;
+
+  supportEmail?: string;
+
+  supportPhone?: string;
+
+  defaultPlanId?: string;
+
+  registrationEnabled?: boolean;
+
+  maintenanceMode?: boolean;
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// GENERAL SETTINGS
+// ============================================================
+
+export interface SchoolSettings {
+  id: string;
+
+  schoolId: string;
+
+  schoolName?: string;
+
+  logoUrl?: string;
+
+  primaryColor?: string;
+
+  secondaryColor?: string;
+
+  theme?: string;
+
+  showGallery?: boolean;
+
+  showTeachers?: boolean;
+
+  showEvents?: boolean;
+
+  showNotices?: boolean;
+
+  showResults?: boolean;
+
+  showHomework?: boolean;
+
+  showAttendance?: boolean;
+
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// GENERIC API / OPERATION RESULT
+// ============================================================
+
+export interface OperationResult {
+  success: boolean;
+
+  message?: string;
+
+  error?: string;
+
+  id?: string;
+}
+
+
+// ============================================================
+// PAGINATION
+// ============================================================
+
+export interface PaginationOptions {
+  page?: number;
+
+  pageSize?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+
+  page: number;
+
+  pageSize: number;
+
+  total?: number;
+
+  hasMore?: boolean;
 }
