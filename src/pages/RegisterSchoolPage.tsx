@@ -73,9 +73,9 @@ export default function RegisterSchoolPage() {
         description: description.trim(),
       });
 
-   navigate('/payment/recharge?schoolId=' + school.id, {
-  replace: true,
-});
+      navigate('/payment/recharge?schoolId=' + school.id, {
+        replace: true,
+      });
     } catch (err) {
       console.error('School registration failed:', err);
 
