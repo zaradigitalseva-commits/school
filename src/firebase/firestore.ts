@@ -1,5 +1,3 @@
-// src/firebase/firestore.ts
-
 import {
   collection,
   doc,
@@ -28,128 +26,103 @@ import type {
   Teacher,
 } from '@/firebase/types';
 
-
-// ============================================================
-// PLATFORM ADMIN
-// ============================================================
+/* =========================================================
+   PLATFORM ADMIN
+========================================================= */
 
 export const PLATFORM_ADMIN_EMAIL =
   'ngogrant454@gmail.com';
 
-export function isPlatformAdminEmail(
-  email?: string | null
-): boolean {
-  if (!email) return false;
-
-  return (
-    email.trim().toLowerCase() ===
-    PLATFORM_ADMIN_EMAIL.toLowerCase()
-  );
-}
-
-
-// ============================================================
-// ENSURE USER RECORD
-// ============================================================
+/* =========================================================
+   USER RECORD
+========================================================= */
 
 export async function ensureUserRecord(
   uid: string,
-  email?: string | null,
+  email: string,
   displayName?: string | null,
   photoURL?: string | null
-): Promise<AppUser | null> {
+): Promise<AppUser> {
   if (!uid) {
-    return null;
+    throw new Error('User UID is required.');
   }
 
-  try {
-    const userRef = doc(db, 'users', uid);
-    const snapshot = await getDoc(userRef);
+  const cleanEmail = email?.trim().toLowerCase() || '';
 
-    const now = new Date().toISOString();
+  const userRef = doc(db, 'users', uid);
+  const snapshot = await getDoc(userRef);
 
-    if (!snapshot.exists()) {
-      const role: UserRole =
-        isPlatformAdminEmail(email)
-          ? 'platform_admin'
-          : 'user';
+  const now = new Date().toISOString();
 
-      const userData: AppUser = {
-        uid,
-        email: email ?? '',
-        displayName: displayName ?? '',
-        photoURL: photoURL ?? '',
-        role,
-        createdAt: now,
-        updatedAt: now,
-        lastLoginAt: now,
-        active: true,
-      };
+  if (!snapshot.exists()) {
+    const role: UserRole =
+      cleanEmail === PLATFORM_ADMIN_EMAIL
+        ? 'platform_admin'
+        : 'user';
 
-      await setDoc(userRef, userData);
-
-      return userData;
-    }
-
-    const existingData =
-      snapshot.data() as Omit<
-        AppUser,
-        'uid'
-      >;
-
-    const updatedData: Partial<AppUser> = {
+    const newUser: AppUser = {
+      uid,
+      email: cleanEmail,
+      displayName:
+        displayName?.trim() || undefined,
+      photoURL:
+        photoURL?.trim() || undefined,
+      role,
+      createdAt: now,
       updatedAt: now,
       lastLoginAt: now,
+      active: true,
     };
 
-    if (email) {
-      updatedData.email = email;
-    }
+    await setDoc(userRef, newUser);
 
-    if (displayName) {
-      updatedData.displayName =
-        displayName;
-    }
-
-    if (photoURL) {
-      updatedData.photoURL =
-        photoURL;
-    }
-
-    if (
-      isPlatformAdminEmail(email)
-    ) {
-      updatedData.role =
-        'platform_admin';
-    }
-
-    await setDoc(
-      userRef,
-      updatedData,
-      {
-        merge: true,
-      }
-    );
-
-    return {
-      uid: snapshot.id,
-      ...existingData,
-      ...updatedData,
-    } as AppUser;
-  } catch (error) {
-    console.error(
-      'Failed to ensure user record:',
-      error
-    );
-
-    return null;
+    return newUser;
   }
+
+  const existingUser =
+    snapshot.data() as AppUser;
+
+  const updateData: Partial<AppUser> = {
+    email: cleanEmail || existingUser.email,
+    updatedAt: now,
+    lastLoginAt: now,
+    active: true,
+  };
+
+  if (displayName !== undefined) {
+    updateData.displayName =
+      displayName?.trim() || undefined;
+  }
+
+  if (photoURL !== undefined) {
+    updateData.photoURL =
+      photoURL?.trim() || undefined;
+  }
+
+  /*
+   * Platform admin role is controlled by the
+   * configured platform admin email.
+   */
+  if (cleanEmail === PLATFORM_ADMIN_EMAIL) {
+    updateData.role = 'platform_admin';
+  }
+
+  await setDoc(
+    userRef,
+    updateData,
+    { merge: true }
+  );
+
+  return {
+    ...existingUser,
+    ...updateData,
+    uid,
+  } as AppUser;
 }
 
-
-// ============================================================
-// FETCH USER ROLE
-// ============================================================
+/* =========================================================
+   FETCH USER ROLE
+========================================================= */
 
 export async function fetchUserRole(
   uid: string
@@ -159,21 +132,35 @@ export async function fetchUserRole(
   }
 
   try {
-    const userRef =
-      doc(db, 'users', uid);
+    const userRef = doc(
+      db,
+      'users',
+      uid
+    );
 
-    const snapshot =
+    const userSnapshot =
       await getDoc(userRef);
 
-    if (snapshot.exists()) {
-      const data =
-        snapshot.data() as AppUser;
+    /*
+     * Only platform_admin from the user document
+     * is treated as a global role.
+     *
+     * Normal "user" must NOT immediately return,
+     * because the user may have an ACTIVE
+     * school membership.
+     */
+    if (userSnapshot.exists()) {
+      const user =
+        userSnapshot.data() as AppUser;
 
-      if (data.role) {
-        return data.role;
+      if (user.role === 'platform_admin') {
+        return 'platform_admin';
       }
     }
 
+    /*
+     * Check active school membership.
+     */
     const membershipsRef =
       collection(
         db,
@@ -183,17 +170,9 @@ export async function fetchUserRole(
     const membershipQuery =
       query(
         membershipsRef,
-        where(
-          'uid',
-          '==',
-          uid
-        ),
-        where(
-          'status',
-          '==',
-          'ACTIVE'
-        ),
-        limit(1)
+        where('uid', '==', uid),
+        where('status', '==', 'ACTIVE'),
+        limit(10)
       );
 
     const membershipSnapshot =
@@ -201,25 +180,41 @@ export async function fetchUserRole(
         membershipQuery
       );
 
-    if (
-      !membershipSnapshot.empty
-    ) {
-      const membership =
-        membershipSnapshot.docs[0]
-          .data() as SchoolMembership;
-
-      if (
-        membership.role ===
-        'school_admin'
+    if (!membershipSnapshot.empty) {
+      /*
+       * Prefer school_admin if user has one.
+       */
+      for (
+        const membershipDoc
+        of membershipSnapshot.docs
       ) {
-        return 'school_admin';
+        const membership =
+          membershipDoc.data() as SchoolMembership;
+
+        if (
+          membership.role ===
+          'school_admin'
+        ) {
+          return 'school_admin';
+        }
       }
 
-      if (
-        membership.role ===
-        'teacher'
+      /*
+       * Otherwise teacher.
+       */
+      for (
+        const membershipDoc
+        of membershipSnapshot.docs
       ) {
-        return 'teacher';
+        const membership =
+          membershipDoc.data() as SchoolMembership;
+
+        if (
+          membership.role ===
+          'teacher'
+        ) {
+          return 'teacher';
+        }
       }
     }
 
@@ -234,11 +229,9 @@ export async function fetchUserRole(
   }
 }
 
-
-// ============================================================
-// REGISTER SCHOOL
-// EMAIL IS AUTOMATIC FROM GOOGLE LOGIN
-// ============================================================
+/* =========================================================
+   REGISTER SCHOOL
+========================================================= */
 
 export async function registerSchool(
   ownerUid: string,
@@ -247,228 +240,172 @@ export async function registerSchool(
 ): Promise<School> {
   if (!ownerUid) {
     throw new Error(
-      'Google login is required.'
+      'Owner UID is required.'
     );
   }
 
-  const cleanOwnerEmail =
-    ownerEmail.trim();
+  const cleanName =
+    input.name?.trim();
 
-  if (!cleanOwnerEmail) {
-    throw new Error(
-      'Google account email could not be found.'
-    );
-  }
-
-  const name =
-    input.name.trim();
-
-  const slug =
+  const cleanSlug =
     input.slug
-      .trim()
+      ?.trim()
       .toLowerCase();
 
-  const phone =
-    input.phone.trim();
+  const cleanPhone =
+    input.phone?.trim();
 
-  if (!name) {
+  const cleanEmail =
+    ownerEmail
+      ?.trim()
+      .toLowerCase();
+
+  if (!cleanName) {
     throw new Error(
       'School name is required.'
     );
   }
 
-  if (!slug) {
+  if (!cleanSlug) {
     throw new Error(
-      'School URL is required.'
+      'School URL/slug is required.'
     );
   }
 
-  if (!phone) {
+  if (!cleanPhone) {
     throw new Error(
       'Mobile number is required.'
     );
   }
 
-  try {
-    // ----------------------------------------------------------
-    // CHECK SLUG
-    // ----------------------------------------------------------
-
-    const slugRef =
-      doc(
-        db,
-        'slugReservations',
-        slug
-      );
-
-    const slugSnapshot =
-      await getDoc(slugRef);
-
-    if (
-      slugSnapshot.exists()
-    ) {
-      throw new Error(
-        'This school URL is already in use. Please use a different school name.'
-      );
-    }
-
-    // ----------------------------------------------------------
-    // SCHOOL
-    // ----------------------------------------------------------
-
-    const schoolRef =
-      doc(
-        collection(
-          db,
-          'schools'
-        )
-      );
-
-    const schoolId =
-      schoolRef.id;
-
-    const now =
-      new Date().toISOString();
-
-    const schoolData: School = {
-      id: schoolId,
-
-      name,
-      slug,
-
-      ownerUid,
-      ownerEmail:
-        cleanOwnerEmail,
-
-      status:
-        'PENDING_PAYMENT',
-
-      createdAt: now,
-      updatedAt: now,
-
-      phone,
-
-      tagline:
-        input.tagline?.trim() ?? '',
-
-      description:
-        input.description?.trim() ?? '',
-
-      paymentStatus:
-        'PENDING',
-
-      subscriptionStatus:
-        'PENDING',
-    };
-
-    // ----------------------------------------------------------
-    // SCHOOL ADMIN MEMBERSHIP
-    // ----------------------------------------------------------
-
-    const membershipId =
-      `${ownerUid}_${schoolId}`;
-
-    const membershipRef =
-      doc(
-        db,
-        'schoolMemberships',
-        membershipId
-      );
-
-    const membershipData:
-      SchoolMembership = {
-      id: membershipId,
-
-      schoolId,
-
-      uid:
-        ownerUid,
-
-      email:
-        cleanOwnerEmail,
-
-      role:
-        'school_admin',
-
-      status:
-        'PENDING',
-
-      assignments: [],
-
-      createdAt: now,
-
-      updatedAt: now,
-    };
-
-    // ----------------------------------------------------------
-    // SLUG RESERVATION
-    // ----------------------------------------------------------
-
-    const slugData = {
-      slug,
-
-      schoolId,
-
-      schoolName:
-        name,
-
-      ownerUid,
-
-      createdAt:
-        serverTimestamp(),
-    };
-
-    // ----------------------------------------------------------
-    // BATCH
-    // ----------------------------------------------------------
-
-    const batch =
-      writeBatch(db);
-
-    batch.set(
-      schoolRef,
-      schoolData
-    );
-
-    batch.set(
-      membershipRef,
-      membershipData
-    );
-
-    batch.set(
-      slugRef,
-      slugData
-    );
-
-    await batch.commit();
-
-    return schoolData;
-  } catch (error) {
-    console.error(
-      'Failed to register school:',
-      error
-    );
-
-    if (
-      error instanceof Error
-    ) {
-      throw error;
-    }
-
+  if (!cleanEmail) {
     throw new Error(
-      'School registration failed. Please try again.'
+      'Google account email is required.'
     );
   }
+
+  /*
+   * Check whether slug already exists.
+   */
+  const slugRef = doc(
+    db,
+    'slugReservations',
+    cleanSlug
+  );
+
+  const slugSnapshot =
+    await getDoc(slugRef);
+
+  if (slugSnapshot.exists()) {
+    throw new Error(
+      'This school URL is already registered. Please use a different school name.'
+    );
+  }
+
+  /*
+   * Generate IDs.
+   */
+  const schoolRef =
+    doc(collection(db, 'schools'));
+
+  const schoolId =
+    schoolRef.id;
+
+  const membershipId =
+    `${ownerUid}_${schoolId}`;
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      membershipId
+    );
+
+  const now =
+    new Date().toISOString();
+
+  const school: School = {
+    id: schoolId,
+    name: cleanName,
+    slug: cleanSlug,
+    ownerUid,
+    ownerEmail: cleanEmail,
+
+    status: 'PENDING_PAYMENT',
+
+    createdAt: now,
+    updatedAt: now,
+
+    phone: cleanPhone,
+
+    tagline:
+      input.tagline?.trim() || undefined,
+
+    description:
+      input.description?.trim() || undefined,
+
+    paymentStatus: 'PENDING',
+    subscriptionStatus: 'PENDING',
+  };
+
+  const membership:
+    SchoolMembership = {
+    id: membershipId,
+    schoolId,
+    uid: ownerUid,
+    email: cleanEmail,
+    role: 'school_admin',
+    status: 'PENDING',
+    assignments: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const batch =
+    writeBatch(db);
+
+  /*
+   * School
+   */
+  batch.set(
+    schoolRef,
+    school
+  );
+
+  /*
+   * Owner membership
+   */
+  batch.set(
+    membershipRef,
+    membership
+  );
+
+  /*
+   * Slug reservation
+   */
+  batch.set(
+    slugRef,
+    {
+      slug: cleanSlug,
+      schoolId,
+      schoolName: cleanName,
+      ownerUid,
+      createdAt:
+        serverTimestamp(),
+    }
+  );
+
+  await batch.commit();
+
+  return school;
 }
 
+/* =========================================================
+   SCHOOL INFO
+========================================================= */
 
-// ============================================================
-// SCHOOL INFO
-// ============================================================
-
-export async function fetchSchoolInfo(): Promise<
-  Partial<SchoolInfo> | null
-> {
+export async function fetchSchoolInfo():
+  Promise<SchoolInfo | null> {
   try {
     const infoRef =
       doc(
@@ -480,14 +417,11 @@ export async function fetchSchoolInfo(): Promise<
     const snapshot =
       await getDoc(infoRef);
 
-    if (
-      !snapshot.exists()
-    ) {
+    if (!snapshot.exists()) {
       return null;
     }
 
-    return snapshot.data() as
-      Partial<SchoolInfo>;
+    return snapshot.data() as SchoolInfo;
   } catch (error) {
     console.error(
       'Failed to fetch school info:',
@@ -498,24 +432,22 @@ export async function fetchSchoolInfo(): Promise<
   }
 }
 
+/* =========================================================
+   ANNOUNCEMENTS
+========================================================= */
 
-// ============================================================
-// ANNOUNCEMENTS
-// ============================================================
-
-export async function fetchAnnouncements(): Promise<
-  Announcement[]
-> {
+export async function fetchAnnouncements():
+  Promise<Announcement[]> {
   try {
-    const ref =
+    const announcementsRef =
       collection(
         db,
         'announcements'
       );
 
-    const q =
+    const announcementsQuery =
       query(
-        ref,
+        announcementsRef,
         orderBy(
           'createdAt',
           'desc'
@@ -524,16 +456,15 @@ export async function fetchAnnouncements(): Promise<
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        announcementsQuery
+      );
 
     return snapshot.docs.map(
       (item) => ({
         id: item.id,
-        ...(item.data() as Omit<
-          Announcement,
-          'id'
-        >),
-      })
+        ...item.data(),
+      } as Announcement)
     );
   } catch (error) {
     console.error(
@@ -545,24 +476,22 @@ export async function fetchAnnouncements(): Promise<
   }
 }
 
+/* =========================================================
+   EVENTS
+========================================================= */
 
-// ============================================================
-// EVENTS
-// ============================================================
-
-export async function fetchEvents(): Promise<
-  SchoolEvent[]
-> {
+export async function fetchEvents():
+  Promise<SchoolEvent[]> {
   try {
-    const ref =
+    const eventsRef =
       collection(
         db,
         'events'
       );
 
-    const q =
+    const eventsQuery =
       query(
-        ref,
+        eventsRef,
         orderBy(
           'createdAt',
           'desc'
@@ -571,16 +500,15 @@ export async function fetchEvents(): Promise<
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        eventsQuery
+      );
 
     return snapshot.docs.map(
       (item) => ({
         id: item.id,
-        ...(item.data() as Omit<
-          SchoolEvent,
-          'id'
-        >),
-      })
+        ...item.data(),
+      } as SchoolEvent)
     );
   } catch (error) {
     console.error(
@@ -592,24 +520,22 @@ export async function fetchEvents(): Promise<
   }
 }
 
+/* =========================================================
+   TEACHERS
+========================================================= */
 
-// ============================================================
-// TEACHERS
-// ============================================================
-
-export async function fetchTeachers(): Promise<
-  Teacher[]
-> {
+export async function fetchTeachers():
+  Promise<Teacher[]> {
   try {
-    const ref =
+    const teachersRef =
       collection(
         db,
         'teachers'
       );
 
-    const q =
+    const teachersQuery =
       query(
-        ref,
+        teachersRef,
         orderBy(
           'createdAt',
           'desc'
@@ -618,16 +544,15 @@ export async function fetchTeachers(): Promise<
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        teachersQuery
+      );
 
     return snapshot.docs.map(
       (item) => ({
         id: item.id,
-        ...(item.data() as Omit<
-          Teacher,
-          'id'
-        >),
-      })
+        ...item.data(),
+      } as Teacher)
     );
   } catch (error) {
     console.error(
@@ -639,25 +564,22 @@ export async function fetchTeachers(): Promise<
   }
 }
 
+/* =========================================================
+   PUBLIC SCHOOLS
+========================================================= */
 
-// ============================================================
-// PUBLIC SCHOOLS
-// ONLY LIVE
-// ============================================================
-
-export async function fetchPublicSchools(): Promise<
-  School[]
-> {
+export async function fetchPublicSchools():
+  Promise<School[]> {
   try {
-    const ref =
+    const schoolsRef =
       collection(
         db,
         'schools'
       );
 
-    const q =
+    const schoolsQuery =
       query(
-        ref,
+        schoolsRef,
         where(
           'status',
           '==',
@@ -666,28 +588,22 @@ export async function fetchPublicSchools(): Promise<
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        schoolsQuery
+      );
 
     const schools =
       snapshot.docs.map(
         (item) => ({
           id: item.id,
-          ...(item.data() as Omit<
-            School,
-            'id'
-          >),
-        })
+          ...item.data(),
+        } as School)
       );
 
     schools.sort(
       (a, b) =>
-        String(
-          b.createdAt ?? ''
-        ).localeCompare(
-          String(
-            a.createdAt ?? ''
-          )
-        )
+        new Date(b.createdAt).getTime() -
+        new Date(a.createdAt).getTime()
     );
 
     return schools;
@@ -701,25 +617,22 @@ export async function fetchPublicSchools(): Promise<
   }
 }
 
+/* =========================================================
+   ALL SCHOOLS
+========================================================= */
 
-// ============================================================
-// ALL SCHOOLS
-// PLATFORM ADMIN
-// ============================================================
-
-export async function fetchAllSchools(): Promise<
-  School[]
-> {
+export async function fetchAllSchools():
+  Promise<School[]> {
   try {
-    const ref =
+    const schoolsRef =
       collection(
         db,
         'schools'
       );
 
-    const q =
+    const schoolsQuery =
       query(
-        ref,
+        schoolsRef,
         orderBy(
           'createdAt',
           'desc'
@@ -727,16 +640,15 @@ export async function fetchAllSchools(): Promise<
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        schoolsQuery
+      );
 
     return snapshot.docs.map(
       (item) => ({
         id: item.id,
-        ...(item.data() as Omit<
-          School,
-          'id'
-        >),
-      })
+        ...item.data(),
+      } as School)
     );
   } catch (error) {
     console.error(
@@ -748,15 +660,15 @@ export async function fetchAllSchools(): Promise<
   }
 }
 
-
-// ============================================================
-// UPDATE SCHOOL STATUS
-// ============================================================
+/* =========================================================
+   UPDATE SCHOOL STATUS
+========================================================= */
 
 export async function updateSchoolStatus(
   schoolId: string,
   status: School['status'],
-  extraData?: Partial<School>
+  approvedByUid?: string,
+  suspensionReason?: string
 ): Promise<void> {
   if (!schoolId) {
     throw new Error(
@@ -771,89 +683,79 @@ export async function updateSchoolStatus(
       schoolId
     );
 
-  const snapshot =
-    await getDoc(
-      schoolRef
-    );
+  const schoolSnapshot =
+    await getDoc(schoolRef);
 
-  if (
-    !snapshot.exists()
-  ) {
+  if (!schoolSnapshot.exists()) {
     throw new Error(
       'School not found.'
     );
   }
 
+  const school =
+    schoolSnapshot.data() as School;
+
   const now =
     new Date().toISOString();
 
-  const updateData:
+  const schoolUpdates:
     Partial<School> = {
     status,
-
     updatedAt: now,
-
-    ...(extraData ?? {}),
   };
 
-  if (
-    status === 'LIVE' &&
-    !updateData.approvedAt
-  ) {
-    updateData.approvedAt =
-      now;
-  }
-
-  if (
-    status === 'SUSPENDED' &&
-    !updateData.suspendedAt
-  ) {
-    updateData.suspendedAt =
-      now;
-  }
-
-  if (
-    status === 'ARCHIVED' &&
-    !updateData.archivedAt
-  ) {
-    updateData.archivedAt =
-      now;
-  }
-
-  if (
-    status === 'LIVE'
-  ) {
-    updateData.paymentStatus =
-      updateData.paymentStatus ??
+  if (status === 'LIVE') {
+    schoolUpdates.paymentStatus =
       'PAID';
 
-    updateData.subscriptionStatus =
-      updateData.subscriptionStatus ??
+    schoolUpdates.subscriptionStatus =
       'ACTIVE';
+
+    if (approvedByUid) {
+      schoolUpdates.approvedByUid =
+        approvedByUid;
+
+      schoolUpdates.approvedAt =
+        now;
+    }
   }
 
-  await setDoc(
-    schoolRef,
-    updateData,
-    {
-      merge: true,
+  if (status === 'SUSPENDED') {
+    schoolUpdates.suspendedAt =
+      now;
+
+    if (suspensionReason) {
+      schoolUpdates.suspensionReason =
+        suspensionReason;
     }
+  }
+
+  if (status === 'ARCHIVED') {
+    schoolUpdates.archivedAt =
+      now;
+  }
+
+  const batch =
+    writeBatch(db);
+
+  batch.set(
+    schoolRef,
+    schoolUpdates,
+    { merge: true }
   );
 
-  // ----------------------------------------------------------
-  // ACTIVATE SCHOOL ADMIN AFTER APPROVAL
-  // ----------------------------------------------------------
-
-  if (
-    status === 'LIVE'
-  ) {
+  /*
+   * When a school becomes LIVE,
+   * activate its school_admin membership(s).
+   */
+  if (status === 'LIVE') {
     const membershipsRef =
       collection(
         db,
         'schoolMemberships'
       );
 
-    const q =
+    const membershipQuery =
       query(
         membershipsRef,
         where(
@@ -868,69 +770,62 @@ export async function updateSchoolStatus(
         )
       );
 
-    const snapshot =
-      await getDocs(q);
-
-    if (
-      !snapshot.empty
-    ) {
-      const batch =
-        writeBatch(db);
-
-      snapshot.docs.forEach(
-        (membershipDoc) => {
-          batch.set(
-            membershipDoc.ref,
-            {
-              status:
-                'ACTIVE',
-
-              approvedAt:
-                now,
-
-              updatedAt:
-                now,
-            },
-            {
-              merge: true,
-            }
-          );
-        }
+    const membershipSnapshot =
+      await getDocs(
+        membershipQuery
       );
 
-      await batch.commit();
+    for (
+      const membershipDoc
+      of membershipSnapshot.docs
+    ) {
+      batch.set(
+        membershipDoc.ref,
+        {
+          status: 'ACTIVE',
+          updatedAt: now,
+          approvedByUid:
+            approvedByUid || null,
+          approvedAt: now,
+        },
+        { merge: true }
+      );
     }
   }
+
+  await batch.commit();
+
+  /*
+   * Keep TypeScript aware that school was
+   * intentionally read before updating.
+   */
+  void school;
 }
 
-
-// ============================================================
-// SCHOOL BY SLUG
-// ONLY LIVE SCHOOL
-// ============================================================
+/* =========================================================
+   SCHOOL BY SLUG
+========================================================= */
 
 export async function fetchSchoolBySlug(
   slug: string
 ): Promise<School | null> {
+  const cleanSlug =
+    slug?.trim().toLowerCase();
+
+  if (!cleanSlug) {
+    return null;
+  }
+
   try {
-    const cleanSlug =
-      slug
-        .trim()
-        .toLowerCase();
-
-    if (!cleanSlug) {
-      return null;
-    }
-
-    const ref =
+    const schoolsRef =
       collection(
         db,
         'schools'
       );
 
-    const q =
+    const schoolQuery =
       query(
-        ref,
+        schoolsRef,
         where(
           'slug',
           '==',
@@ -945,11 +840,11 @@ export async function fetchSchoolBySlug(
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        schoolQuery
+      );
 
-    if (
-      snapshot.empty
-    ) {
+    if (snapshot.empty) {
       return null;
     }
 
@@ -958,11 +853,8 @@ export async function fetchSchoolBySlug(
 
     return {
       id: item.id,
-      ...(item.data() as Omit<
-        School,
-        'id'
-      >),
-    };
+      ...item.data(),
+    } as School;
   } catch (error) {
     console.error(
       'Failed to fetch school by slug:',
@@ -973,45 +865,38 @@ export async function fetchSchoolBySlug(
   }
 }
 
-
-// ============================================================
-// SCHOOL BY ID
-// ============================================================
+/* =========================================================
+   SCHOOL BY ID
+========================================================= */
 
 export async function fetchSchoolById(
   schoolId: string
 ): Promise<School | null> {
+  if (!schoolId) {
+    return null;
+  }
+
   try {
-    const cleanId =
-      schoolId.trim();
-
-    if (!cleanId) {
-      return null;
-    }
-
-    const ref =
+    const schoolRef =
       doc(
         db,
         'schools',
-        cleanId
+        schoolId
       );
 
     const snapshot =
-      await getDoc(ref);
+      await getDoc(
+        schoolRef
+      );
 
-    if (
-      !snapshot.exists()
-    ) {
+    if (!snapshot.exists()) {
       return null;
     }
 
     return {
       id: snapshot.id,
-      ...(snapshot.data() as Omit<
-        School,
-        'id'
-      >),
-    };
+      ...snapshot.data(),
+    } as School;
   } catch (error) {
     console.error(
       'Failed to fetch school by ID:',
@@ -1022,27 +907,23 @@ export async function fetchSchoolById(
   }
 }
 
-
-// ============================================================
-// MY MEMBERSHIP
-// ============================================================
+/* =========================================================
+   MY MEMBERSHIP
+========================================================= */
 
 export async function fetchMyMembership(
   uid: string,
   schoolId: string
 ): Promise<SchoolMembership | null> {
-  try {
-    if (
-      !uid ||
-      !schoolId
-    ) {
-      return null;
-    }
+  if (!uid || !schoolId) {
+    return null;
+  }
 
+  try {
     const membershipId =
       `${uid}_${schoolId}`;
 
-    const ref =
+    const membershipRef =
       doc(
         db,
         'schoolMemberships',
@@ -1050,24 +931,21 @@ export async function fetchMyMembership(
       );
 
     const snapshot =
-      await getDoc(ref);
+      await getDoc(
+        membershipRef
+      );
 
-    if (
-      !snapshot.exists()
-    ) {
+    if (!snapshot.exists()) {
       return null;
     }
 
     return {
       id: snapshot.id,
-      ...(snapshot.data() as Omit<
-        SchoolMembership,
-        'id'
-      >),
-    };
+      ...snapshot.data(),
+    } as SchoolMembership;
   } catch (error) {
     console.error(
-      'Failed to fetch my membership:',
+      'Failed to fetch membership:',
       error
     );
 
@@ -1075,28 +953,27 @@ export async function fetchMyMembership(
   }
 }
 
-
-// ============================================================
-// SCHOOL MEMBERSHIPS
-// ============================================================
+/* =========================================================
+   SCHOOL MEMBERSHIPS
+========================================================= */
 
 export async function fetchSchoolMemberships(
   schoolId: string
 ): Promise<SchoolMembership[]> {
-  try {
-    if (!schoolId) {
-      return [];
-    }
+  if (!schoolId) {
+    return [];
+  }
 
-    const ref =
+  try {
+    const membershipsRef =
       collection(
         db,
         'schoolMemberships'
       );
 
-    const q =
+    const membershipsQuery =
       query(
-        ref,
+        membershipsRef,
         where(
           'schoolId',
           '==',
@@ -1105,16 +982,15 @@ export async function fetchSchoolMemberships(
       );
 
     const snapshot =
-      await getDocs(q);
+      await getDocs(
+        membershipsQuery
+      );
 
     return snapshot.docs.map(
       (item) => ({
         id: item.id,
-        ...(item.data() as Omit<
-          SchoolMembership,
-          'id'
-        >),
-      })
+        ...item.data(),
+      } as SchoolMembership)
     );
   } catch (error) {
     console.error(
@@ -1126,13 +1002,98 @@ export async function fetchSchoolMemberships(
   }
 }
 
+/* =========================================================
+   UPDATE SCHOOL MEMBERSHIP
+   FIX FOR VERCEL BUILD ERROR
+========================================================= */
 
-// ============================================================
-// FORMAT DATE
-// ============================================================
+export async function updateSchoolMembership(
+  membershipId: string,
+  updates: Partial<SchoolMembership>
+): Promise<void> {
+  if (!membershipId) {
+    throw new Error(
+      'Membership ID is required.'
+    );
+  }
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      membershipId
+    );
+
+  const snapshot =
+    await getDoc(
+      membershipRef
+    );
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Membership not found.'
+    );
+  }
+
+  /*
+   * Do not allow these identity fields
+   * to be changed through this helper.
+   */
+  const safeUpdates:
+    Partial<SchoolMembership> = {
+    ...updates,
+  };
+
+  delete safeUpdates.id;
+  delete safeUpdates.schoolId;
+  delete safeUpdates.uid;
+
+  const now =
+    new Date().toISOString();
+
+  /*
+   * Automatically maintain approval/revocation
+   * timestamps when status changes.
+   */
+  if (
+    safeUpdates.status ===
+    'ACTIVE'
+  ) {
+    safeUpdates.approvedAt =
+      safeUpdates.approvedAt ||
+      now;
+
+    safeUpdates.revokedAt =
+      undefined;
+  }
+
+  if (
+    safeUpdates.status ===
+    'REVOKED'
+  ) {
+    safeUpdates.revokedAt =
+      safeUpdates.revokedAt ||
+      now;
+  }
+
+  safeUpdates.updatedAt =
+    now;
+
+  await setDoc(
+    membershipRef,
+    safeUpdates,
+    {
+      merge: true,
+    }
+  );
+}
+
+/* =========================================================
+   FORMAT DATE
+========================================================= */
 
 export function formatDate(
-  value?: string | null
+  value?: string | Date | null
 ): string {
   if (!value) {
     return '';
@@ -1140,14 +1101,16 @@ export function formatDate(
 
   try {
     const date =
-      new Date(value);
+      value instanceof Date
+        ? value
+        : new Date(value);
 
     if (
       Number.isNaN(
         date.getTime()
       )
     ) {
-      return value;
+      return '';
     }
 
     return date.toLocaleDateString(
@@ -1159,6 +1122,6 @@ export function formatDate(
       }
     );
   } catch {
-    return value;
+    return '';
   }
 }
