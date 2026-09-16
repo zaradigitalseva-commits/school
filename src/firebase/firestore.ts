@@ -26,12 +26,12 @@ import type {
   Teacher,
 } from '@/firebase/types';
 
-
 /* =========================================================
    PLATFORM ADMIN
 ========================================================= */
 
-export const PLATFORM_ADMIN_EMAIL = 'ngogrant454@gmail.com';
+export const PLATFORM_ADMIN_EMAIL =
+  'ngogrant454@gmail.com';
 
 export function isPlatformAdminEmail(
   email?: string | null
@@ -44,9 +44,8 @@ export function isPlatformAdminEmail(
   );
 }
 
-
 /* =========================================================
-   ENSURE USER RECORD
+   USER RECORD
 ========================================================= */
 
 export async function ensureUserRecord(
@@ -54,168 +53,164 @@ export async function ensureUserRecord(
   email?: string | null,
   displayName?: string | null,
   photoURL?: string | null
-): Promise<AppUser> {
+): Promise<AppUser | null> {
   if (!uid) {
-    throw new Error('User ID is required.');
+    return null;
   }
 
-  const normalizedEmail =
-    (email ?? '').trim().toLowerCase();
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snapshot = await getDoc(userRef);
 
-  if (!normalizedEmail) {
-    throw new Error('User email is required.');
-  }
+    const now = new Date().toISOString();
 
-  const userRef = doc(db, 'users', uid);
+    if (!snapshot.exists()) {
+      const role: UserRole = isPlatformAdminEmail(email)
+        ? 'platform_admin'
+        : 'user';
 
-  const existingSnapshot =
-    await getDoc(userRef);
+      const userData: AppUser = {
+        uid,
+        email: email ?? '',
+        displayName: displayName ?? '',
+        photoURL: photoURL ?? '',
+        role,
+        createdAt: now,
+        updatedAt: now,
+        lastLoginAt: now,
+      };
 
-  const existingUser =
-    existingSnapshot.exists()
-      ? (existingSnapshot.data() as Partial<AppUser>)
-      : null;
+      await setDoc(userRef, userData);
 
-  const now =
-    new Date().toISOString();
-
-  let role: UserRole = 'user';
-
-  if (isPlatformAdminEmail(normalizedEmail)) {
-    role = 'platform_admin';
-  } else if (existingUser?.role === 'school_admin') {
-    role = 'school_admin';
-  } else if (existingUser?.role === 'teacher') {
-    role = 'teacher';
-  }
-
-  const user: AppUser = {
-    uid,
-
-    email: normalizedEmail,
-
-    displayName:
-      displayName?.trim() ||
-      existingUser?.displayName ||
-      normalizedEmail.split('@')[0],
-
-    ...(photoURL || existingUser?.photoURL
-      ? {
-          photoURL:
-            photoURL ??
-            existingUser?.photoURL,
-        }
-      : {}),
-
-    role,
-
-    createdAt:
-      existingUser?.createdAt ??
-      now,
-
-    updatedAt: now,
-
-    lastLoginAt: now,
-  };
-
-  await setDoc(
-    userRef,
-    user,
-    {
-      merge: true,
+      return userData;
     }
-  );
 
-  return user;
+    const existingData =
+      snapshot.data() as Omit<AppUser, 'uid'>;
+
+    const updatedData: Partial<AppUser> = {
+      updatedAt: now,
+      lastLoginAt: now,
+    };
+
+    if (email && !existingData.email) {
+      updatedData.email = email;
+    }
+
+    if (displayName && !existingData.displayName) {
+      updatedData.displayName = displayName;
+    }
+
+    if (photoURL && !existingData.photoURL) {
+      updatedData.photoURL = photoURL;
+    }
+
+    if (
+      isPlatformAdminEmail(email) &&
+      existingData.role !== 'platform_admin'
+    ) {
+      updatedData.role = 'platform_admin';
+    }
+
+    await setDoc(
+      userRef,
+      updatedData,
+      { merge: true }
+    );
+
+    return {
+      uid: snapshot.id,
+      ...existingData,
+      ...updatedData,
+    } as AppUser;
+  } catch (error) {
+    console.error(
+      'Failed to ensure user record:',
+      error
+    );
+
+    return null;
+  }
 }
-
 
 /* =========================================================
    FETCH USER ROLE
 ========================================================= */
 
 export async function fetchUserRole(
-  uid: string,
-  email?: string | null
+  uid: string
 ): Promise<UserRole> {
   if (!uid) {
     return 'user';
   }
 
-  if (isPlatformAdminEmail(email)) {
-    return 'platform_admin';
-  }
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snapshot = await getDoc(userRef);
 
-  const membershipQuery = query(
-    collection(db, 'schoolMemberships'),
-    where('uid', '==', uid),
-    where('status', '==', 'ACTIVE')
-  );
+    if (snapshot.exists()) {
+      const data = snapshot.data() as AppUser;
 
-  const membershipSnapshot =
-    await getDocs(membershipQuery);
+      if (data.role) {
+        return data.role;
+      }
+    }
 
-  if (membershipSnapshot.empty) {
+    const membershipsRef =
+      collection(db, 'schoolMemberships');
+
+    const membershipQuery = query(
+      membershipsRef,
+      where('uid', '==', uid),
+      where('status', '==', 'ACTIVE'),
+      limit(1)
+    );
+
+    const membershipSnapshot =
+      await getDocs(membershipQuery);
+
+    if (!membershipSnapshot.empty) {
+      const membership =
+        membershipSnapshot.docs[0].data() as SchoolMembership;
+
+      if (membership.role === 'school_admin') {
+        return 'school_admin';
+      }
+
+      if (membership.role === 'teacher') {
+        return 'teacher';
+      }
+    }
+
+    return 'user';
+  } catch (error) {
+    console.error(
+      'Failed to fetch user role:',
+      error
+    );
+
     return 'user';
   }
-
-  for (
-    const membershipDoc of
-    membershipSnapshot.docs
-  ) {
-    const membership =
-      membershipDoc.data() as SchoolMembership;
-
-    if (
-      membership.role === 'school_admin'
-    ) {
-      return 'school_admin';
-    }
-  }
-
-  for (
-    const membershipDoc of
-    membershipSnapshot.docs
-  ) {
-    const membership =
-      membershipDoc.data() as SchoolMembership;
-
-    if (
-      membership.role === 'teacher'
-    ) {
-      return 'teacher';
-    }
-  }
-
-  return 'user';
 }
-
 
 /* =========================================================
    REGISTER SCHOOL
 ========================================================= */
 
 export async function registerSchool(
-  uid: string,
+  ownerUid: string,
   input: SchoolRegistrationInput
 ): Promise<School> {
-  if (!uid) {
+  if (!ownerUid) {
     throw new Error(
-      'You must be signed in to register a school.'
+      'Google login is required.'
     );
   }
 
-  const name =
-    input.name?.trim() ?? '';
-
-  const slug =
-    input.slug?.trim().toLowerCase() ?? '';
-
-  const ownerEmail =
-    input.ownerEmail?.trim().toLowerCase() ?? '';
-
-  const phone =
-    input.phone?.trim() ?? '';
+  const name = input.name.trim();
+  const slug = input.slug.trim().toLowerCase();
+  const ownerEmail = input.ownerEmail.trim();
+  const phone = input.phone.trim();
 
   if (!name) {
     throw new Error(
@@ -225,175 +220,158 @@ export async function registerSchool(
 
   if (!slug) {
     throw new Error(
-      'School URL/slug could not be created from the school name.'
-    );
-  }
-
-  if (
-    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(
-      slug
-    )
-  ) {
-    throw new Error(
-      'School URL/slug can contain only lowercase letters, numbers and hyphens.'
+      'School URL slug is required.'
     );
   }
 
   if (!ownerEmail) {
     throw new Error(
-      'Google account email is required.'
+      'Owner email is required.'
     );
   }
 
   if (!phone) {
     throw new Error(
-      'School mobile number is required.'
+      'Mobile number is required.'
     );
   }
 
-  if (
-    !/^[0-9+()\-\s]{10,18}$/.test(
-      phone
-    )
-  ) {
-    throw new Error(
-      'Please enter a valid school mobile number.'
+  try {
+    const slugRef = doc(
+      db,
+      'slugReservations',
+      slug
     );
-  }
 
-  const schoolRef = doc(
-    collection(db, 'schools')
-  );
+    const slugSnapshot =
+      await getDoc(slugRef);
 
-  const slugRef = doc(
-    db,
-    'slugReservations',
-    slug
-  );
-
-  const membershipRef = doc(
-    db,
-    'schoolMemberships',
-    `${uid}_${schoolRef.id}`
-  );
-
-  const existingSlug =
-    await getDoc(slugRef);
-
-  if (existingSlug.exists()) {
-    throw new Error(
-      'This school URL/slug is already registered. Please use a different school name.'
-    );
-  }
-
-  const now =
-    new Date().toISOString();
-
-  const school: School = {
-    id: schoolRef.id,
-
-    name,
-
-    slug,
-
-    ownerUid: uid,
-
-    ownerEmail,
-
-    status: 'PENDING_PAYMENT',
-
-    createdAt: now,
-
-    updatedAt: now,
-
-    phone,
-
-    tagline:
-      input.tagline?.trim() ?? '',
-
-    description:
-      input.description?.trim() ?? '',
-  };
-
-  const membership: SchoolMembership = {
-    id: membershipRef.id,
-
-    uid,
-
-    schoolId: schoolRef.id,
-
-    role: 'school_admin',
-
-    status: 'PENDING',
-
-    assignments: [],
-
-    createdAt: now,
-
-    updatedAt: now,
-  };
-
-  const batch =
-    writeBatch(db);
-
-  batch.set(
-    schoolRef,
-    school
-  );
-
-  batch.set(
-    slugRef,
-    {
-      slug,
-
-      schoolId:
-        schoolRef.id,
-
-      ownerUid: uid,
-
-      createdAt:
-        serverTimestamp(),
+    if (slugSnapshot.exists()) {
+      throw new Error(
+        'This school URL is already in use. Please choose another school name.'
+      );
     }
-  );
 
-  batch.set(
-    membershipRef,
-    membership
-  );
+    const schoolRef =
+      doc(collection(db, 'schools'));
 
-  await batch.commit();
+    const schoolId = schoolRef.id;
 
-  return school;
+    const now = new Date().toISOString();
+
+    const schoolData: School = {
+      id: schoolId,
+      name,
+      slug,
+      ownerUid,
+      ownerEmail,
+      phone,
+      status: 'PENDING_PAYMENT',
+      createdAt: now,
+      updatedAt: now,
+      tagline: input.tagline?.trim() ?? '',
+      description:
+        input.description?.trim() ?? '',
+      paymentStatus: 'PENDING',
+      subscriptionStatus: 'PENDING',
+    };
+
+    const membershipRef = doc(
+      db,
+      'schoolMemberships',
+      `${ownerUid}_${schoolId}`
+    );
+
+    const membershipData: SchoolMembership = {
+      id: `${ownerUid}_${schoolId}`,
+      uid: ownerUid,
+      schoolId,
+      role: 'school_admin',
+      status: 'PENDING',
+      assignments: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const batch = writeBatch(db);
+
+    batch.set(
+      schoolRef,
+      schoolData
+    );
+
+    batch.set(
+      membershipRef,
+      membershipData
+    );
+
+    batch.set(
+      slugRef,
+      {
+        slug,
+        schoolId,
+        schoolName: name,
+        ownerUid,
+        createdAt: serverTimestamp(),
+      }
+    );
+
+    await batch.commit();
+
+    return schoolData;
+  } catch (error) {
+    console.error(
+      'Failed to register school:',
+      error
+    );
+
+    if (
+      error instanceof Error &&
+      error.message
+    ) {
+      throw error;
+    }
+
+    throw new Error(
+      'School registration failed. Please try again.'
+    );
+  }
 }
 
-
 /* =========================================================
-   FETCH SCHOOL INFO
-   OLD SINGLE-SCHOOL COMPATIBILITY
+   SCHOOL INFO - LEGACY / HOME PAGE
 ========================================================= */
 
 export async function fetchSchoolInfo(): Promise<
-  SchoolInfo | null
+  Partial<SchoolInfo> | null
 > {
-  const schoolInfoRef = doc(
-    db,
-    'settings',
-    'schoolInfo'
-  );
+  try {
+    const infoRef = doc(
+      db,
+      'settings',
+      'schoolInfo'
+    );
 
-  const snapshot =
-    await getDoc(schoolInfoRef);
+    const snapshot =
+      await getDoc(infoRef);
 
-  if (!snapshot.exists()) {
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return snapshot.data() as Partial<SchoolInfo>;
+  } catch (error) {
+    console.error(
+      'Failed to fetch school info:',
+      error
+    );
+
     return null;
   }
-
-  return snapshot.data() as SchoolInfo;
 }
 
-
 /* =========================================================
-   FETCH ANNOUNCEMENTS
+   ANNOUNCEMENTS
 ========================================================= */
 
 export async function fetchAnnouncements(): Promise<
@@ -401,28 +379,24 @@ export async function fetchAnnouncements(): Promise<
 > {
   try {
     const announcementsRef =
-      collection(
-        db,
-        'announcements'
-      );
+      collection(db, 'announcements');
 
     const q = query(
       announcementsRef,
-      orderBy('date', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(50)
     );
 
     const snapshot =
       await getDocs(q);
 
-    return snapshot.docs.map(
-      (item) => ({
-        id: item.id,
-        ...(item.data() as Omit<
-          Announcement,
-          'id'
-        >),
-      })
-    );
+    return snapshot.docs.map((item) => ({
+      id: item.id,
+      ...(item.data() as Omit<
+        Announcement,
+        'id'
+      >),
+    }));
   } catch (error) {
     console.error(
       'Failed to fetch announcements:',
@@ -433,9 +407,8 @@ export async function fetchAnnouncements(): Promise<
   }
 }
 
-
 /* =========================================================
-   FETCH EVENTS
+   EVENTS
 ========================================================= */
 
 export async function fetchEvents(): Promise<
@@ -443,28 +416,24 @@ export async function fetchEvents(): Promise<
 > {
   try {
     const eventsRef =
-      collection(
-        db,
-        'events'
-      );
+      collection(db, 'events');
 
     const q = query(
       eventsRef,
-      orderBy('date', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(50)
     );
 
     const snapshot =
       await getDocs(q);
 
-    return snapshot.docs.map(
-      (item) => ({
-        id: item.id,
-        ...(item.data() as Omit<
-          SchoolEvent,
-          'id'
-        >),
-      })
-    );
+    return snapshot.docs.map((item) => ({
+      id: item.id,
+      ...(item.data() as Omit<
+        SchoolEvent,
+        'id'
+      >),
+    }));
   } catch (error) {
     console.error(
       'Failed to fetch events:',
@@ -475,9 +444,8 @@ export async function fetchEvents(): Promise<
   }
 }
 
-
 /* =========================================================
-   FETCH TEACHERS
+   TEACHERS
 ========================================================= */
 
 export async function fetchTeachers(): Promise<
@@ -485,28 +453,24 @@ export async function fetchTeachers(): Promise<
 > {
   try {
     const teachersRef =
-      collection(
-        db,
-        'teachers'
-      );
+      collection(db, 'teachers');
 
     const q = query(
       teachersRef,
-      orderBy('order', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(100)
     );
 
     const snapshot =
       await getDocs(q);
 
-    return snapshot.docs.map(
-      (item) => ({
-        id: item.id,
-        ...(item.data() as Omit<
-          Teacher,
-          'id'
-        >),
-      })
-    );
+    return snapshot.docs.map((item) => ({
+      id: item.id,
+      ...(item.data() as Omit<
+        Teacher,
+        'id'
+      >),
+    }));
   } catch (error) {
     console.error(
       'Failed to fetch teachers:',
@@ -517,9 +481,9 @@ export async function fetchTeachers(): Promise<
   }
 }
 
-
 /* =========================================================
-   FETCH PUBLIC / LIVE SCHOOLS
+   PUBLIC SCHOOLS
+   ONLY LIVE SCHOOLS
 ========================================================= */
 
 export async function fetchPublicSchools(): Promise<
@@ -527,39 +491,33 @@ export async function fetchPublicSchools(): Promise<
 > {
   try {
     const schoolsRef =
-      collection(
-        db,
-        'schools'
-      );
+      collection(db, 'schools');
 
     const q = query(
       schoolsRef,
-      where(
-        'status',
-        '==',
-        'LIVE'
-      )
+      where('status', '==', 'LIVE')
     );
 
     const snapshot =
       await getDocs(q);
 
-    return snapshot.docs
-      .map(
-        (item) => ({
-          id: item.id,
-          ...(item.data() as Omit<
-            School,
-            'id'
-          >),
-        })
+    const schools = snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...(item.data() as Omit<
+          School,
+          'id'
+        >),
+      })
+    );
+
+    schools.sort((a, b) =>
+      String(b.createdAt ?? '').localeCompare(
+        String(a.createdAt ?? '')
       )
-      .sort(
-        (a, b) =>
-          (b.createdAt ?? '').localeCompare(
-            a.createdAt ?? ''
-          )
-      );
+    );
+
+    return schools;
   } catch (error) {
     console.error(
       'Failed to fetch public schools:',
@@ -570,9 +528,8 @@ export async function fetchPublicSchools(): Promise<
   }
 }
 
-
 /* =========================================================
-   FETCH ALL SCHOOLS
+   ALL SCHOOLS
    PLATFORM ADMIN
 ========================================================= */
 
@@ -581,32 +538,23 @@ export async function fetchAllSchools(): Promise<
 > {
   try {
     const schoolsRef =
-      collection(
-        db,
-        'schools'
-      );
+      collection(db, 'schools');
+
+    const q = query(
+      schoolsRef,
+      orderBy('createdAt', 'desc')
+    );
 
     const snapshot =
-      await getDocs(
-        schoolsRef
-      );
+      await getDocs(q);
 
-    return snapshot.docs
-      .map(
-        (item) => ({
-          id: item.id,
-          ...(item.data() as Omit<
-            School,
-            'id'
-          >),
-        })
-      )
-      .sort(
-        (a, b) =>
-          (b.createdAt ?? '').localeCompare(
-            a.createdAt ?? ''
-          )
-      );
+    return snapshot.docs.map((item) => ({
+      id: item.id,
+      ...(item.data() as Omit<
+        School,
+        'id'
+      >),
+    }));
   } catch (error) {
     console.error(
       'Failed to fetch all schools:',
@@ -617,10 +565,8 @@ export async function fetchAllSchools(): Promise<
   }
 }
 
-
 /* =========================================================
    UPDATE SCHOOL STATUS
-   PLATFORM ADMIN
 ========================================================= */
 
 export async function updateSchoolStatus(
@@ -635,11 +581,7 @@ export async function updateSchoolStatus(
   }
 
   const schoolRef =
-    doc(
-      db,
-      'schools',
-      schoolId
-    );
+    doc(db, 'schools', schoolId);
 
   const snapshot =
     await getDoc(schoolRef);
@@ -655,9 +597,7 @@ export async function updateSchoolStatus(
 
   const updateData: Partial<School> = {
     status,
-
     updatedAt: now,
-
     ...(extraData ?? {}),
   };
 
@@ -665,24 +605,31 @@ export async function updateSchoolStatus(
     status === 'LIVE' &&
     !updateData.approvedAt
   ) {
-    updateData.approvedAt =
-      now;
+    updateData.approvedAt = now;
   }
 
   if (
     status === 'SUSPENDED' &&
     !updateData.suspendedAt
   ) {
-    updateData.suspendedAt =
-      now;
+    updateData.suspendedAt = now;
   }
 
   if (
     status === 'ARCHIVED' &&
     !updateData.archivedAt
   ) {
-    updateData.archivedAt =
-      now;
+    updateData.archivedAt = now;
+  }
+
+  if (status === 'LIVE') {
+    updateData.paymentStatus =
+      updateData.paymentStatus ??
+      'PAID';
+
+    updateData.subscriptionStatus =
+      updateData.subscriptionStatus ??
+      'ACTIVE';
   }
 
   await setDoc(
@@ -692,12 +639,57 @@ export async function updateSchoolStatus(
       merge: true,
     }
   );
+
+  /*
+   * When school becomes LIVE, activate
+   * the school administrator membership.
+   */
+
+  if (status === 'LIVE') {
+    const membershipsRef =
+      collection(db, 'schoolMemberships');
+
+    const membershipQuery = query(
+      membershipsRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      ),
+      where(
+        'role',
+        '==',
+        'school_admin'
+      )
+    );
+
+    const membershipSnapshot =
+      await getDocs(membershipQuery);
+
+    if (!membershipSnapshot.empty) {
+      const batch = writeBatch(db);
+
+      membershipSnapshot.docs.forEach(
+        (membershipDoc) => {
+          batch.set(
+            membershipDoc.ref,
+            {
+              status: 'ACTIVE',
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+        }
+      );
+
+      await batch.commit();
+    }
+  }
 }
 
-
 /* =========================================================
-   FETCH SCHOOL BY SLUG
-   PUBLIC LIVE SCHOOL PAGE
+   SCHOOL BY SLUG
+   ONLY LIVE SCHOOL
 ========================================================= */
 
 export async function fetchSchoolBySlug(
@@ -712,10 +704,7 @@ export async function fetchSchoolBySlug(
     }
 
     const schoolsRef =
-      collection(
-        db,
-        'schools'
-      );
+      collection(db, 'schools');
 
     const q = query(
       schoolsRef,
@@ -759,13 +748,150 @@ export async function fetchSchoolBySlug(
   }
 }
 
+/* =========================================================
+   SCHOOL BY ID
+========================================================= */
+
+export async function fetchSchoolById(
+  schoolId: string
+): Promise<School | null> {
+  try {
+    const cleanSchoolId =
+      schoolId.trim();
+
+    if (!cleanSchoolId) {
+      return null;
+    }
+
+    const schoolRef =
+      doc(db, 'schools', cleanSchoolId);
+
+    const snapshot =
+      await getDoc(schoolRef);
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      ...(snapshot.data() as Omit<
+        School,
+        'id'
+      >),
+    };
+  } catch (error) {
+    console.error(
+      'Failed to fetch school by ID:',
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   MY SCHOOL MEMBERSHIP
+========================================================= */
+
+export async function fetchMyMembership(
+  uid: string,
+  schoolId: string
+): Promise<SchoolMembership | null> {
+  try {
+    if (!uid || !schoolId) {
+      return null;
+    }
+
+    const membershipId =
+      `${uid}_${schoolId}`;
+
+    const membershipRef =
+      doc(
+        db,
+        'schoolMemberships',
+        membershipId
+      );
+
+    const snapshot =
+      await getDoc(membershipRef);
+
+    if (!snapshot.exists()) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      ...(snapshot.data() as Omit<
+        SchoolMembership,
+        'id'
+      >),
+    };
+  } catch (error) {
+    console.error(
+      'Failed to fetch my membership:',
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   ALL SCHOOL MEMBERSHIPS
+========================================================= */
+
+export async function fetchSchoolMemberships(
+  schoolId: string
+): Promise<SchoolMembership[]> {
+  try {
+    if (!schoolId) {
+      return [];
+    }
+
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const q = query(
+      membershipsRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
+    );
+
+    const snapshot =
+      await getDocs(q);
+
+    return snapshot.docs.map(
+      (item) => ({
+        id: item.id,
+        ...(item.data() as Omit<
+          SchoolMembership,
+          'id'
+        >),
+      })
+    );
+  } catch (error) {
+    console.error(
+      'Failed to fetch school memberships:',
+      error
+    );
+
+    return [];
+  }
+}
 
 /* =========================================================
    FORMAT DATE
 ========================================================= */
 
 export function formatDate(
-  value?: string | Date | null
+  value?: string | null
 ): string {
   if (!value) {
     return '';
@@ -773,16 +899,10 @@ export function formatDate(
 
   try {
     const date =
-      value instanceof Date
-        ? value
-        : new Date(value);
+      new Date(value);
 
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return String(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
     }
 
     return date.toLocaleDateString(
@@ -794,6 +914,6 @@ export function formatDate(
       }
     );
   } catch {
-    return String(value);
+    return value;
   }
 }
