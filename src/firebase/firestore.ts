@@ -76,7 +76,8 @@ export async function ensureUserRecord(
       ? (existingSnapshot.data() as Partial<AppUser>)
       : null;
 
-  const now = new Date().toISOString();
+  const now =
+    new Date().toISOString();
 
   let role: UserRole = 'user';
 
@@ -158,9 +159,6 @@ export async function fetchUserRole(
     return 'user';
   }
 
-  /*
-   * School admin gets priority.
-   */
   for (
     const membershipDoc of
     membershipSnapshot.docs
@@ -175,9 +173,6 @@ export async function fetchUserRole(
     }
   }
 
-  /*
-   * Teacher
-   */
   for (
     const membershipDoc of
     membershipSnapshot.docs
@@ -222,21 +217,11 @@ export async function registerSchool(
   const phone =
     input.phone?.trim() ?? '';
 
-
-  /* -------------------------------------------------------
-     SCHOOL NAME
-  ------------------------------------------------------- */
-
   if (!name) {
     throw new Error(
       'School name is required.'
     );
   }
-
-
-  /* -------------------------------------------------------
-     SCHOOL SLUG
-  ------------------------------------------------------- */
 
   if (!slug) {
     throw new Error(
@@ -254,21 +239,11 @@ export async function registerSchool(
     );
   }
 
-
-  /* -------------------------------------------------------
-     GOOGLE ACCOUNT EMAIL
-  ------------------------------------------------------- */
-
   if (!ownerEmail) {
     throw new Error(
       'Google account email is required.'
     );
   }
-
-
-  /* -------------------------------------------------------
-     MOBILE NUMBER
-  ------------------------------------------------------- */
 
   if (!phone) {
     throw new Error(
@@ -286,11 +261,6 @@ export async function registerSchool(
     );
   }
 
-
-  /* -------------------------------------------------------
-     FIRESTORE REFERENCES
-  ------------------------------------------------------- */
-
   const schoolRef = doc(
     collection(db, 'schools')
   );
@@ -307,11 +277,6 @@ export async function registerSchool(
     `${uid}_${schoolRef.id}`
   );
 
-
-  /* -------------------------------------------------------
-     CHECK DUPLICATE SCHOOL URL
-  ------------------------------------------------------- */
-
   const existingSlug =
     await getDoc(slugRef);
 
@@ -321,14 +286,8 @@ export async function registerSchool(
     );
   }
 
-
   const now =
     new Date().toISOString();
-
-
-  /* -------------------------------------------------------
-     SCHOOL DOCUMENT
-  ------------------------------------------------------- */
 
   const school: School = {
     id: schoolRef.id,
@@ -356,11 +315,6 @@ export async function registerSchool(
       input.description?.trim() ?? '',
   };
 
-
-  /* -------------------------------------------------------
-     SCHOOL ADMIN MEMBERSHIP
-  ------------------------------------------------------- */
-
   const membership: SchoolMembership = {
     id: membershipRef.id,
 
@@ -378,11 +332,6 @@ export async function registerSchool(
 
     updatedAt: now,
   };
-
-
-  /* -------------------------------------------------------
-     ATOMIC BATCH
-  ------------------------------------------------------- */
 
   const batch =
     writeBatch(db);
@@ -619,6 +568,130 @@ export async function fetchPublicSchools(): Promise<
 
     return [];
   }
+}
+
+
+/* =========================================================
+   FETCH ALL SCHOOLS
+   PLATFORM ADMIN
+========================================================= */
+
+export async function fetchAllSchools(): Promise<
+  School[]
+> {
+  try {
+    const schoolsRef =
+      collection(
+        db,
+        'schools'
+      );
+
+    const snapshot =
+      await getDocs(
+        schoolsRef
+      );
+
+    return snapshot.docs
+      .map(
+        (item) => ({
+          id: item.id,
+          ...(item.data() as Omit<
+            School,
+            'id'
+          >),
+        })
+      )
+      .sort(
+        (a, b) =>
+          (b.createdAt ?? '').localeCompare(
+            a.createdAt ?? ''
+          )
+      );
+  } catch (error) {
+    console.error(
+      'Failed to fetch all schools:',
+      error
+    );
+
+    return [];
+  }
+}
+
+
+/* =========================================================
+   UPDATE SCHOOL STATUS
+   PLATFORM ADMIN
+========================================================= */
+
+export async function updateSchoolStatus(
+  schoolId: string,
+  status: School['status'],
+  extraData?: Partial<School>
+): Promise<void> {
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  const snapshot =
+    await getDoc(schoolRef);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'School not found.'
+    );
+  }
+
+  const now =
+    new Date().toISOString();
+
+  const updateData: Partial<School> = {
+    status,
+
+    updatedAt: now,
+
+    ...(extraData ?? {}),
+  };
+
+  if (
+    status === 'LIVE' &&
+    !updateData.approvedAt
+  ) {
+    updateData.approvedAt =
+      now;
+  }
+
+  if (
+    status === 'SUSPENDED' &&
+    !updateData.suspendedAt
+  ) {
+    updateData.suspendedAt =
+      now;
+  }
+
+  if (
+    status === 'ARCHIVED' &&
+    !updateData.archivedAt
+  ) {
+    updateData.archivedAt =
+      now;
+  }
+
+  await setDoc(
+    schoolRef,
+    updateData,
+    {
+      merge: true,
+    }
+  );
 }
 
 
