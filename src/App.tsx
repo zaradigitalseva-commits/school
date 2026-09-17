@@ -26,7 +26,7 @@ import SchoolAdminPage from '@/pages/SchoolAdminPage';
 export default function App() {
 return ( <BrowserRouter> <AuthProvider> <ToastProvider> <Routes>
 
-```
+        
         <Route element={<PublicLayout />}>
           <Route path="/" element={<PlatformHomePage />} />
           <Route path="/about" element={<AboutPage />} />
@@ -80,7 +80,7 @@ return ( <BrowserRouter> <AuthProvider> <ToastProvider> <Routes>
     </ToastProvider>
   </AuthProvider>
 </BrowserRouter>
-```
+
 
 );
 }
