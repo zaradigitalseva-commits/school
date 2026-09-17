@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+
 import {
   approveRecharge,
   fetchPendingRecharges,
@@ -6,56 +7,235 @@ import {
   rejectRecharge,
   savePaymentSettings,
 } from '@/firebase/payment';
+
 import {
   fetchAllSchools,
   updateSchoolStatus,
 } from '@/firebase/firestore';
-import type { RechargeRequest, PaymentSettings } from '@/firebase/payment';
+
+import type {
+  RechargeRequest,
+  PaymentSettings,
+} from '@/firebase/payment';
+
 import type { School } from '@/firebase/types';
+
+/*
+ * =========================================================
+ * PLATFORM ADMIN WHATSAPP NUMBER
+ * =========================================================
+ *
+ * WhatsApp number international format में रखें।
+ * India = 91
+ *
+ * Example:
+ * 919112170192
+ */
+const ADMIN_WHATSAPP_NUMBER = '919112170192';
+
+/*
+ * =========================================================
+ * WHATSAPP / SUBSCRIPTION HELPERS
+ * =========================================================
+ */
+
+function getSchoolSubscriptionState(
+  school: School
+): 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'NO_EXPIRY' {
+  if (!school.subscriptionExpiryDate) {
+    return 'NO_EXPIRY';
+  }
+
+  const expiry = new Date(
+    school.subscriptionExpiryDate
+  ).getTime();
+
+  if (!Number.isFinite(expiry)) {
+    return 'NO_EXPIRY';
+  }
+
+  const now = Date.now();
+
+  const remainingMs = expiry - now;
+
+  /*
+   * Expiry हो चुका है
+   */
+  if (remainingMs <= 0) {
+    return 'EXPIRED';
+  }
+
+  /*
+   * अगले 3 दिनों के अंदर expiry है
+   */
+  const remainingDays = Math.ceil(
+    remainingMs / (24 * 60 * 60 * 1000)
+  );
+
+  if (remainingDays <= 3) {
+    return 'EXPIRING_SOON';
+  }
+
+  return 'ACTIVE';
+}
+
+function openSchoolWhatsApp(
+  school: School
+) {
+  const state =
+    getSchoolSubscriptionState(school);
+
+  const expiryText =
+    school.subscriptionExpiryDate
+      ? new Date(
+          school.subscriptionExpiryDate
+        ).toLocaleString('en-IN', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+      : 'Not available';
+
+  let message = '';
+
+  /*
+   * EXPIRED SCHOOL
+   */
+  if (state === 'EXPIRED') {
+    message =
+      `नमस्कार,\n\n` +
+      `🏫 School: ${school.name}\n\n` +
+      `🔴 आपके school website subscription की अवधि समाप्त हो गई है।\n` +
+      `📅 Expiry: ${expiryText}\n\n` +
+      `कृपया website service जारी रखने के लिए recharge करें।\n\n` +
+      `धन्यवाद।`;
+  }
+
+  /*
+   * EXPIRING SOON
+   */
+  else if (state === 'EXPIRING_SOON') {
+    message =
+      `नमस्कार,\n\n` +
+      `🏫 School: ${school.name}\n\n` +
+      `⚠️ आपके school website subscription की अवधि जल्द समाप्त होने वाली है।\n` +
+      `📅 Expiry: ${expiryText}\n\n` +
+      `कृपया समय पर recharge करें ताकि website service बंद न हो।\n\n` +
+      `धन्यवाद।`;
+  }
+
+  /*
+   * ACTIVE
+   */
+  else if (state === 'ACTIVE') {
+    message =
+      `नमस्कार,\n\n` +
+      `🏫 School: ${school.name}\n\n` +
+      `📅 Current subscription expiry: ${expiryText}\n\n` +
+      `यह आपके school website subscription का reminder है।\n` +
+      `कृपया expiry से पहले recharge कर लें।\n\n` +
+      `धन्यवाद।`;
+  }
+
+  /*
+   * PENDING / NO EXPIRY
+   */
+  else {
+    message =
+      `नमस्कार,\n\n` +
+      `🏫 School: ${school.name}\n\n` +
+      `आपके school website account के संबंध में आपसे संपर्क करना है।\n\n` +
+      `कृपया WhatsApp पर reply करें।\n\n` +
+      `धन्यवाद।`;
+  }
+
+  const whatsappUrl =
+    `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(
+      message
+    )}`;
+
+  window.open(
+    whatsappUrl,
+    '_blank',
+    'noopener,noreferrer'
+  );
+}
+
+/*
+ * =========================================================
+ * PLATFORM ADMIN PAGE
+ * =========================================================
+ */
 
 export default function PlatformAdminPage() {
   const [schools, setSchools] = useState<School[]>([]);
   const [requests, setRequests] = useState<RechargeRequest[]>([]);
 
-  const [settings, setSettings] = useState<PaymentSettings>({
-    upiId: '',
-    qrImageUrl: '',
-    supportPhone: '',
-    instructions: '',
-  });
+  const [settings, setSettings] =
+    useState<PaymentSettings>({
+      upiId: '',
+      qrImageUrl: '',
+      supportPhone: '',
+      instructions: '',
+    });
 
-  // Free approval days for each school
-  const [freeDays, setFreeDays] = useState<Record<string, string>>({});
+  /*
+   * Free approval days for each school
+   */
+  const [freeDays, setFreeDays] =
+    useState<Record<string, string>>({});
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [processingSchool, setProcessingSchool] = useState<string | null>(
-    null
-  );
+  const [loading, setLoading] =
+    useState(true);
 
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [saving, setSaving] =
+    useState(false);
+
+  const [processingSchool, setProcessingSchool] =
+    useState<string | null>(null);
+
+  const [message, setMessage] =
+    useState('');
+
+  const [error, setError] =
+    useState('');
+
+  /*
+   * =======================================================
+   * LOAD DATA
+   * =======================================================
+   */
 
   async function loadData() {
     try {
       setLoading(true);
       setError('');
 
-      const [schoolData, rechargeData, paymentSettings] =
-        await Promise.all([
-          fetchAllSchools(),
-          fetchPendingRecharges(),
-          fetchPaymentSettings(),
-        ]);
+      const [
+        schoolData,
+        rechargeData,
+        paymentSettings,
+      ] = await Promise.all([
+        fetchAllSchools(),
+        fetchPendingRecharges(),
+        fetchPaymentSettings(),
+      ]);
 
       setSchools(schoolData);
+
       setRequests(rechargeData);
 
       setSettings({
-        upiId: paymentSettings?.upiId || '',
-        qrImageUrl: paymentSettings?.qrImageUrl || '',
-        supportPhone: paymentSettings?.supportPhone || '',
-        instructions: paymentSettings?.instructions || '',
+        upiId:
+          paymentSettings?.upiId || '',
+
+        qrImageUrl:
+          paymentSettings?.qrImageUrl || '',
+
+        supportPhone:
+          paymentSettings?.supportPhone || '',
+
+        instructions:
+          paymentSettings?.instructions || '',
       });
     } catch (err) {
       console.error(err);
@@ -74,6 +254,12 @@ export default function PlatformAdminPage() {
     loadData();
   }, []);
 
+  /*
+   * =======================================================
+   * SAVE PAYMENT SETTINGS
+   * =======================================================
+   */
+
   async function handleSaveSettings(
     event: React.FormEvent
   ) {
@@ -84,9 +270,13 @@ export default function PlatformAdminPage() {
       setMessage('');
       setError('');
 
-      await savePaymentSettings(settings);
+      await savePaymentSettings(
+        settings
+      );
 
-      setMessage('Payment settings saved successfully.');
+      setMessage(
+        'Payment settings saved successfully.'
+      );
     } catch (err) {
       console.error(err);
 
@@ -100,10 +290,15 @@ export default function PlatformAdminPage() {
     }
   }
 
-  // ---------------------------------------------------------
-  // PAID RECHARGE APPROVAL
-  // ---------------------------------------------------------
-  async function handleApprove(requestId: string) {
+  /*
+   * =======================================================
+   * PAID RECHARGE APPROVAL
+   * =======================================================
+   */
+
+  async function handleApprove(
+    requestId: string
+  ) {
     if (
       !window.confirm(
         'Approve this payment? The exact recharge amount and days will be activated for the school.'
@@ -115,9 +310,14 @@ export default function PlatformAdminPage() {
     try {
       setError('');
       setMessage('');
-      setProcessingSchool(requestId);
 
-      await approveRecharge(requestId);
+      setProcessingSchool(
+        requestId
+      );
+
+      await approveRecharge(
+        requestId
+      );
 
       setMessage(
         '✅ Payment approved. The exact recharge has been activated for the school.'
@@ -137,24 +337,38 @@ export default function PlatformAdminPage() {
     }
   }
 
-  // ---------------------------------------------------------
-  // REJECT PAYMENT
-  // ---------------------------------------------------------
-  async function handleReject(requestId: string) {
+  /*
+   * =======================================================
+   * REJECT PAYMENT
+   * =======================================================
+   */
+
+  async function handleReject(
+    requestId: string
+  ) {
     const reason =
       window.prompt(
         'Enter rejection reason:',
         'Payment could not be verified.'
-      ) || 'Payment rejected by Platform Admin.';
+      ) ||
+      'Payment rejected by Platform Admin.';
 
     try {
       setError('');
       setMessage('');
-      setProcessingSchool(requestId);
 
-      await rejectRecharge(requestId, reason);
+      setProcessingSchool(
+        requestId
+      );
 
-      setMessage('Payment request rejected.');
+      await rejectRecharge(
+        requestId,
+        reason
+      );
+
+      setMessage(
+        'Payment request rejected.'
+      );
 
       await loadData();
     } catch (err) {
@@ -170,37 +384,56 @@ export default function PlatformAdminPage() {
     }
   }
 
-  // ---------------------------------------------------------
-  // FREE / WAIVED APPROVAL
-  // ---------------------------------------------------------
-  async function handleFreeApproval(school: School) {
-    const rawDays = freeDays[school.id]?.trim() || '';
+  /*
+   * =======================================================
+   * FREE / WAIVED APPROVAL
+   * =======================================================
+   */
 
-    // Only positive whole numbers
-    if (!/^[1-9]\d*$/.test(rawDays)) {
+  async function handleFreeApproval(
+    school: School
+  ) {
+    const rawDays =
+      freeDays[school.id]?.trim() || '';
+
+    /*
+     * Only positive whole numbers
+     */
+    if (
+      !/^[1-9]\d*$/.test(rawDays)
+    ) {
       setError(
         `Please enter a valid number of days for ${school.name}. Minimum is 1 day.`
       );
+
       setMessage('');
+
       return;
     }
 
-    const days = Number(rawDays);
+    const days =
+      Number(rawDays);
 
-    if (!Number.isSafeInteger(days) || days < 1) {
+    if (
+      !Number.isSafeInteger(days) ||
+      days < 1
+    ) {
       setError(
         `Invalid subscription days for ${school.name}.`
       );
+
       setMessage('');
+
       return;
     }
 
-    const confirmed = window.confirm(
-      `Free approval for "${school.name}"?\n\n` +
-      `Days: ${days}\n` +
-      `Amount: ₹0\n\n` +
-      `The subscription will activate from the approval date/time.`
-    );
+    const confirmed =
+      window.confirm(
+        `Free approval for "${school.name}"?\n\n` +
+        `Days: ${days}\n` +
+        `Amount: ₹0\n\n` +
+        `The subscription will activate from the approval date/time.`
+      );
 
     if (!confirmed) {
       return;
@@ -209,25 +442,13 @@ export default function PlatformAdminPage() {
     try {
       setError('');
       setMessage('');
-      setProcessingSchool(school.id);
+
+      setProcessingSchool(
+        school.id
+      );
 
       /*
-       * WAIVED / FREE approval.
-       *
-       * updateSchoolStatus handles:
-       * - LIVE status
-       * - ACTIVE subscription
-       * - paymentApprovalType = WAIVED
-       * - paymentAmount = 0
-       * - subscriptionDays = days
-       * - start date/time
-       * - expiry date/time
-       *
-       * If an old subscription is still active, the new period
-       * is added after the existing expiry.
-       *
-       * If it has expired, the new period starts immediately
-       * from the current approval time.
+       * WAIVED / FREE approval
        */
       await updateSchoolStatus(
         school.id,
@@ -242,12 +463,22 @@ export default function PlatformAdminPage() {
         `🆓 ${school.name} has been activated free for ${days} days.`
       );
 
-      // Clear input after successful approval
-      setFreeDays((current) => {
-        const next = { ...current };
-        delete next[school.id];
-        return next;
-      });
+      /*
+       * Clear input after approval
+       */
+      setFreeDays(
+        (current) => {
+          const next = {
+            ...current,
+          };
+
+          delete next[
+            school.id
+          ];
+
+          return next;
+        }
+      );
 
       await loadData();
     } catch (err) {
@@ -263,15 +494,20 @@ export default function PlatformAdminPage() {
     }
   }
 
-  // ---------------------------------------------------------
-  // SUSPEND / RESTORE
-  // ---------------------------------------------------------
+  /*
+   * =======================================================
+   * SUSPEND / RESTORE
+   * =======================================================
+   */
+
   async function handleSchoolStatus(
     schoolId: string,
     status: 'LIVE' | 'SUSPENDED'
   ) {
     const action =
-      status === 'LIVE' ? 'restore' : 'suspend';
+      status === 'LIVE'
+        ? 'restore'
+        : 'suspend';
 
     if (
       !window.confirm(
@@ -284,7 +520,10 @@ export default function PlatformAdminPage() {
     try {
       setError('');
       setMessage('');
-      setProcessingSchool(schoolId);
+
+      setProcessingSchool(
+        schoolId
+      );
 
       await updateSchoolStatus(
         schoolId,
@@ -311,38 +550,59 @@ export default function PlatformAdminPage() {
     }
   }
 
-  // ---------------------------------------------------------
-  // HELPERS
-  // ---------------------------------------------------------
-  function getSchoolById(schoolId: string) {
+  /*
+   * =======================================================
+   * HELPERS
+   * =======================================================
+   */
+
+  function getSchoolById(
+    schoolId: string
+  ) {
     return schools.find(
-      (school) => school.id === schoolId
+      (school) =>
+        school.id === schoolId
     );
   }
 
-  function formatDate(value?: string) {
-    if (!value) return '—';
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
+  function formatDate(
+    value?: string
+  ) {
+    if (!value) {
       return '—';
     }
 
-    return date.toLocaleString('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return '—';
+    }
+
+    return date.toLocaleString(
+      'en-IN',
+      {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }
+    );
   }
 
-  function getSubscriptionLabel(school: School) {
+  function getSubscriptionLabel(
+    school: School
+  ) {
     if (
       school.status === 'LIVE' &&
       school.subscriptionExpiryDate
     ) {
-      const expiry = new Date(
-        school.subscriptionExpiryDate
-      ).getTime();
+      const expiry =
+        new Date(
+          school.subscriptionExpiryDate
+        ).getTime();
 
       if (
         Number.isFinite(expiry) &&
@@ -354,14 +614,25 @@ export default function PlatformAdminPage() {
       return 'EXPIRED';
     }
 
-    return school.subscriptionStatus || 'PENDING';
+    return (
+      school.subscriptionStatus ||
+      'PENDING'
+    );
   }
+
+  /*
+   * =======================================================
+   * LOADING
+   * =======================================================
+   */
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4">
         <div className="rounded-3xl bg-white p-10 text-center shadow-2xl">
-          <div className="text-5xl">⚙️</div>
+          <div className="text-5xl">
+            ⚙️
+          </div>
 
           <p className="mt-4 text-xl font-extrabold text-gray-800">
             Loading Platform Admin...
@@ -371,27 +642,50 @@ export default function PlatformAdminPage() {
     );
   }
 
-  const liveSchools = schools.filter(
-    (school) => school.status === 'LIVE'
-  );
+  /*
+   * =======================================================
+   * SCHOOL COUNTS
+   * =======================================================
+   */
 
-  const pendingSchools = schools.filter(
-    (school) => school.status === 'PENDING_PAYMENT'
-  );
+  const liveSchools =
+    schools.filter(
+      (school) =>
+        school.status === 'LIVE'
+    );
 
-  const suspendedSchools = schools.filter(
-    (school) => school.status === 'SUSPENDED'
-  );
+  const pendingSchools =
+    schools.filter(
+      (school) =>
+        school.status ===
+        'PENDING_PAYMENT'
+    );
+
+  const suspendedSchools =
+    schools.filter(
+      (school) =>
+        school.status ===
+        'SUSPENDED'
+    );
+
+  /*
+   * =======================================================
+   * PAGE
+   * =======================================================
+   */
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-7xl">
 
-        {/* =====================================================
+        {/* =================================================
             HEADER
-        ====================================================== */}
+        ================================================== */}
+
         <div className="mb-8 text-center text-white">
-          <div className="text-6xl">👨‍💼</div>
+          <div className="text-6xl">
+            👨‍💼
+          </div>
 
           <h1 className="mt-3 text-3xl font-black md:text-5xl">
             Platform Admin
@@ -402,9 +696,10 @@ export default function PlatformAdminPage() {
           </p>
         </div>
 
-        {/* =====================================================
+        {/* =================================================
             MESSAGES
-        ====================================================== */}
+        ================================================== */}
+
         {error && (
           <div className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-700 shadow-lg">
             ❌ {error}
@@ -417,13 +712,16 @@ export default function PlatformAdminPage() {
           </div>
         )}
 
-        {/* =====================================================
+        {/* =================================================
             STATISTICS
-        ====================================================== */}
+        ================================================== */}
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="text-4xl">🏫</div>
+            <div className="text-4xl">
+              🏫
+            </div>
 
             <p className="mt-3 text-sm font-bold text-gray-500">
               Total Schools
@@ -435,7 +733,9 @@ export default function PlatformAdminPage() {
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="text-4xl">🟢</div>
+            <div className="text-4xl">
+              🟢
+            </div>
 
             <p className="mt-3 text-sm font-bold text-gray-500">
               Live Schools
@@ -447,7 +747,9 @@ export default function PlatformAdminPage() {
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="text-4xl">⏳</div>
+            <div className="text-4xl">
+              ⏳
+            </div>
 
             <p className="mt-3 text-sm font-bold text-gray-500">
               Pending Payment
@@ -459,7 +761,9 @@ export default function PlatformAdminPage() {
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="text-4xl">💳</div>
+            <div className="text-4xl">
+              💳
+            </div>
 
             <p className="mt-3 text-sm font-bold text-gray-500">
               Pending Requests
@@ -472,9 +776,10 @@ export default function PlatformAdminPage() {
 
         </div>
 
-        {/* =====================================================
+        {/* =================================================
             PAYMENT SETTINGS
-        ====================================================== */}
+        ================================================== */}
+
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <h2 className="text-2xl font-black text-gray-900">
@@ -486,9 +791,13 @@ export default function PlatformAdminPage() {
           </p>
 
           <form
-            onSubmit={handleSaveSettings}
+            onSubmit={
+              handleSaveSettings
+            }
             className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2"
           >
+
+            {/* UPI ID */}
 
             <div>
               <label className="mb-2 block font-bold text-gray-800">
@@ -496,11 +805,16 @@ export default function PlatformAdminPage() {
               </label>
 
               <input
-                value={settings.upiId}
-                onChange={(event) =>
+                value={
+                  settings.upiId
+                }
+                onChange={(
+                  event
+                ) =>
                   setSettings({
                     ...settings,
-                    upiId: event.target.value,
+                    upiId:
+                      event.target.value,
                   })
                 }
                 placeholder="example@upi"
@@ -508,17 +822,24 @@ export default function PlatformAdminPage() {
               />
             </div>
 
+            {/* QR */}
+
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 QR Image URL
               </label>
 
               <input
-                value={settings.qrImageUrl}
-                onChange={(event) =>
+                value={
+                  settings.qrImageUrl
+                }
+                onChange={(
+                  event
+                ) =>
                   setSettings({
                     ...settings,
-                    qrImageUrl: event.target.value,
+                    qrImageUrl:
+                      event.target.value,
                   })
                 }
                 placeholder="https://..."
@@ -526,17 +847,24 @@ export default function PlatformAdminPage() {
               />
             </div>
 
+            {/* SUPPORT PHONE */}
+
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 Support Phone
               </label>
 
               <input
-                value={settings.supportPhone}
-                onChange={(event) =>
+                value={
+                  settings.supportPhone
+                }
+                onChange={(
+                  event
+                ) =>
                   setSettings({
                     ...settings,
-                    supportPhone: event.target.value,
+                    supportPhone:
+                      event.target.value,
                   })
                 }
                 placeholder="Support phone number"
@@ -544,17 +872,24 @@ export default function PlatformAdminPage() {
               />
             </div>
 
+            {/* INSTRUCTIONS */}
+
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 Instructions
               </label>
 
               <textarea
-                value={settings.instructions}
-                onChange={(event) =>
+                value={
+                  settings.instructions
+                }
+                onChange={(
+                  event
+                ) =>
                   setSettings({
                     ...settings,
-                    instructions: event.target.value,
+                    instructions:
+                      event.target.value,
                   })
                 }
                 rows={3}
@@ -562,6 +897,8 @@ export default function PlatformAdminPage() {
                 className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
               />
             </div>
+
+            {/* SAVE */}
 
             <div className="md:col-span-2">
               <button
@@ -578,24 +915,26 @@ export default function PlatformAdminPage() {
           </form>
         </section>
 
-        {/* =====================================================
+        {/* =================================================
             PENDING PAYMENT REQUESTS
-        ====================================================== */}
+        ================================================== */}
+
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+
             <div>
               <h2 className="text-2xl font-black text-gray-900">
                 💰 Pending Payment Requests
               </h2>
 
               <p className="mt-1 text-gray-600">
-                Approve करने पर request में दिए गए exact amount और days
-                activate होंगे।
+                Approve करने पर request में दिए गए exact amount और days activate होंगे।
               </p>
             </div>
 
             <div className="rounded-2xl bg-blue-50 px-5 py-3 text-center">
+
               <p className="text-xs font-bold text-blue-600">
                 PENDING
               </p>
@@ -603,7 +942,9 @@ export default function PlatformAdminPage() {
               <p className="text-2xl font-black text-blue-700">
                 {requests.length}
               </p>
+
             </div>
+
           </div>
 
           {requests.length === 0 ? (
@@ -613,157 +954,225 @@ export default function PlatformAdminPage() {
           ) : (
             <div className="mt-5 space-y-4">
 
-              {requests.map((request) => {
-                const school = getSchoolById(
-                  request.schoolId
-                );
+              {requests.map(
+                (request) => {
+                  const school =
+                    getSchoolById(
+                      request.schoolId
+                    );
 
-                const busy =
-                  processingSchool === request.id;
+                  const busy =
+                    processingSchool ===
+                    request.id;
 
-                return (
-                  <div
-                    key={request.id}
-                    className="rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-lg"
-                  >
+                  return (
+                    <div
+                      key={
+                        request.id
+                      }
+                      className="rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-lg"
+                    >
 
-                    {/* SCHOOL INFORMATION */}
-                    <div className="mb-5 rounded-2xl bg-white p-4 shadow">
+                      {/* SCHOOL INFORMATION */}
 
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                        School
-                      </p>
+                      <div className="mb-5 rounded-2xl bg-white p-4 shadow">
 
-                      <p className="mt-1 text-xl font-black text-gray-900">
-                        {school?.name || 'School not found'}
-                      </p>
-
-                      {school && (
-                        <p className="mt-1 break-all text-sm text-gray-500">
-                          /school/{school.slug}
+                        <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                          School
                         </p>
+
+                        <p className="mt-1 text-xl font-black text-gray-900">
+                          {school?.name ||
+                            'School not found'}
+                        </p>
+
+                        {school && (
+                          <p className="mt-1 break-all text-sm text-gray-500">
+                            /school/
+                            {
+                              school.slug
+                            }
+                          </p>
+                        )}
+
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                        {/* AMOUNT */}
+
+                        <div className="rounded-2xl bg-green-50 p-4">
+
+                          <p className="text-sm font-bold text-gray-500">
+                            Recharge Amount
+                          </p>
+
+                          <p className="mt-1 text-2xl font-black text-green-600">
+                            ₹
+                            {
+                              request.amount
+                            }
+                          </p>
+
+                        </div>
+
+                        {/* DAYS */}
+
+                        <div className="rounded-2xl bg-purple-50 p-4">
+
+                          <p className="text-sm font-bold text-gray-500">
+                            Subscription
+                          </p>
+
+                          <p className="mt-1 text-2xl font-black text-purple-700">
+                            {
+                              request.days
+                            }{' '}
+                            days
+                          </p>
+
+                        </div>
+
+                        {/* UTR */}
+
+                        <div className="rounded-2xl bg-blue-50 p-4">
+
+                          <p className="text-sm font-bold text-gray-500">
+                            UTR
+                          </p>
+
+                          <p className="mt-1 break-all font-black text-blue-700">
+                            {
+                              request.utr ||
+                              '—'
+                            }
+                          </p>
+
+                        </div>
+
+                        {/* DATE */}
+
+                        <div className="rounded-2xl bg-yellow-50 p-4">
+
+                          <p className="text-sm font-bold text-gray-500">
+                            Request Date
+                          </p>
+
+                          <p className="mt-1 text-sm font-black text-gray-800">
+                            {
+                              formatDate(
+                                request.createdAt as
+                                  | string
+                                  | undefined
+                              )
+                            }
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      {/* NOTE */}
+
+                      {(
+                        request as RechargeRequest & {
+                          note?: string;
+                        }
+                      ).note && (
+                        <div className="mt-4 rounded-2xl bg-gray-50 p-4">
+
+                          <p className="text-sm font-bold text-gray-500">
+                            Note
+                          </p>
+
+                          <p className="mt-1 text-gray-700">
+                            {
+                              (
+                                request as RechargeRequest & {
+                                  note?: string;
+                                }
+                              ).note
+                            }
+                          </p>
+
+                        </div>
                       )}
 
-                    </div>
+                      {/* PAYMENT PROOF */}
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {(
+                        request as RechargeRequest & {
+                          proofUrl?: string;
+                        }
+                      ).proofUrl && (
+                        <div className="mt-4">
 
-                      {/* AMOUNT */}
-                      <div className="rounded-2xl bg-green-50 p-4">
-                        <p className="text-sm font-bold text-gray-500">
-                          Recharge Amount
-                        </p>
+                          <a
+                            href={
+                              (
+                                request as RechargeRequest & {
+                                  proofUrl?: string;
+                                }
+                              ).proofUrl
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex rounded-xl bg-blue-100 px-4 py-3 font-black text-blue-700 hover:bg-blue-200"
+                          >
+                            🔗 Open Payment Proof
+                          </a>
 
-                        <p className="mt-1 text-2xl font-black text-green-600">
-                          ₹{request.amount}
-                        </p>
-                      </div>
+                        </div>
+                      )}
 
-                      {/* DAYS */}
-                      <div className="rounded-2xl bg-purple-50 p-4">
-                        <p className="text-sm font-bold text-gray-500">
-                          Subscription
-                        </p>
+                      {/* ACTION BUTTONS */}
 
-                        <p className="mt-1 text-2xl font-black text-purple-700">
-                          {request.days} days
-                        </p>
-                      </div>
+                      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
 
-                      {/* UTR */}
-                      <div className="rounded-2xl bg-blue-50 p-4">
-                        <p className="text-sm font-bold text-gray-500">
-                          UTR
-                        </p>
-
-                        <p className="mt-1 break-all font-black text-blue-700">
-                          {request.utr || '—'}
-                        </p>
-                      </div>
-
-                      {/* DATE */}
-                      <div className="rounded-2xl bg-yellow-50 p-4">
-                        <p className="text-sm font-bold text-gray-500">
-                          Request Date
-                        </p>
-
-                        <p className="mt-1 text-sm font-black text-gray-800">
-                          {formatDate(
-                            request.createdAt
-                          )}
-                        </p>
-                      </div>
-
-                    </div>
-
-                    {/* NOTE */}
-                    {request.note && (
-                      <div className="mt-4 rounded-2xl bg-gray-50 p-4">
-                        <p className="text-sm font-bold text-gray-500">
-                          Note
-                        </p>
-
-                        <p className="mt-1 text-gray-700">
-                          {request.note}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* PAYMENT PROOF */}
-                    {request.proofUrl && (
-                      <div className="mt-4">
-                        <a
-                          href={request.proofUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex rounded-xl bg-blue-100 px-4 py-3 font-black text-blue-700 hover:bg-blue-200"
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            handleApprove(
+                              request.id
+                            )
+                          }
+                          className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(4,120,87)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
                         >
-                          🔗 Open Payment Proof
-                        </a>
+                          {busy
+                            ? '⏳ Processing...'
+                            : `✅ Approve ₹${request.amount} / ${request.days} Days`}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            handleReject(
+                              request.id
+                            )
+                          }
+                          className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(159,18,57)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                        >
+                          ❌ Reject Payment
+                        </button>
+
                       </div>
-                    )}
-
-                    {/* ACTION BUTTONS */}
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          handleApprove(request.id)
-                        }
-                        className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(4,120,87)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
-                      >
-                        {busy
-                          ? '⏳ Processing...'
-                          : `✅ Approve ₹${request.amount} / ${request.days} Days`}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          handleReject(request.id)
-                        }
-                        className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(159,18,57)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
-                      >
-                        ❌ Reject Payment
-                      </button>
 
                     </div>
-
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
 
             </div>
           )}
 
         </section>
 
-        {/* =====================================================
+        {/* =================================================
             ALL SCHOOLS
-        ====================================================== */}
+        ================================================== */}
+
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <div>
@@ -772,272 +1181,467 @@ export default function PlatformAdminPage() {
             </h2>
 
             <p className="mt-1 text-gray-600">
-              यहाँ से Admin paid या free दोनों तरीके से school activate
-              कर सकता है।
+              यहाँ से Admin paid या free दोनों तरीके से school activate कर सकता है।
             </p>
           </div>
 
           <div className="mt-5 space-y-5">
 
-            {schools.map((school) => {
-              const busy =
-                processingSchool === school.id;
+            {schools.map(
+              (school) => {
+                const busy =
+                  processingSchool ===
+                  school.id;
 
-              const currentFreeDays =
-                freeDays[school.id] || '';
+                const currentFreeDays =
+                  freeDays[
+                    school.id
+                  ] || '';
 
-              const subscriptionLabel =
-                getSubscriptionLabel(school);
+                const subscriptionLabel =
+                  getSubscriptionLabel(
+                    school
+                  );
 
-              return (
-                <div
-                  key={school.id}
-                  className="rounded-3xl border-2 border-gray-100 bg-gradient-to-br from-white to-gray-50 p-5 shadow-lg"
-                >
+                const whatsappState =
+                  getSchoolSubscriptionState(
+                    school
+                  );
 
-                  <div className="flex flex-col gap-5">
+                return (
+                  <div
+                    key={
+                      school.id
+                    }
+                    className="rounded-3xl border-2 border-gray-100 bg-gradient-to-br from-white to-gray-50 p-5 shadow-lg"
+                  >
 
-                    {/* SCHOOL DETAILS */}
-                    <div>
-                      <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-col gap-5">
 
-                        <h3 className="text-xl font-black text-gray-900">
-                          {school.name}
-                        </h3>
+                      {/* =================================
+                          SCHOOL DETAILS
+                      ================================== */}
 
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-black ${
-                            school.status === 'LIVE'
-                              ? 'bg-green-100 text-green-700'
-                              : school.status === 'SUSPENDED'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                          }`}
-                        >
-                          {school.status}
-                        </span>
+                      <div>
 
-                      </div>
+                        <div className="flex flex-wrap items-center gap-3">
 
-                      <p className="mt-1 break-all text-sm text-gray-500">
-                        /school/{school.slug}
-                      </p>
+                          <h3 className="text-xl font-black text-gray-900">
+                            {
+                              school.name
+                            }
+                          </h3>
 
-                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-
-                        <div className="rounded-2xl bg-white p-3 shadow-sm">
-                          <p className="text-xs font-bold text-gray-500">
-                            Subscription
-                          </p>
-
-                          <p
-                            className={`mt-1 font-black ${
-                              subscriptionLabel === 'ACTIVE'
-                                ? 'text-green-600'
-                                : subscriptionLabel === 'EXPIRED'
-                                  ? 'text-red-600'
-                                  : 'text-yellow-600'
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black ${
+                              school.status ===
+                              'LIVE'
+                                ? 'bg-green-100 text-green-700'
+                                : school.status ===
+                                    'SUSPENDED'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-yellow-100 text-yellow-700'
                             }`}
                           >
-                            {subscriptionLabel}
-                          </p>
+                            {
+                              school.status
+                            }
+                          </span>
+
                         </div>
 
-                        <div className="rounded-2xl bg-white p-3 shadow-sm">
-                          <p className="text-xs font-bold text-gray-500">
-                            Approval Type
-                          </p>
+                        <p className="mt-1 break-all text-sm text-gray-500">
+                          /school/
+                          {
+                            school.slug
+                          }
+                        </p>
 
-                          <p className="mt-1 font-black text-gray-800">
-                            {school.paymentApprovalType ||
-                              '—'}
-                          </p>
-                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
-                        <div className="rounded-2xl bg-white p-3 shadow-sm">
-                          <p className="text-xs font-bold text-gray-500">
-                            Days
-                          </p>
+                          {/* SUBSCRIPTION */}
 
-                          <p className="mt-1 font-black text-gray-800">
-                            {school.subscriptionDays
-                              ? `${school.subscriptionDays} days`
-                              : '—'}
-                          </p>
-                        </div>
+                          <div className="rounded-2xl bg-white p-3 shadow-sm">
 
-                        <div className="rounded-2xl bg-white p-3 shadow-sm">
-                          <p className="text-xs font-bold text-gray-500">
-                            Amount
-                          </p>
-
-                          <p className="mt-1 font-black text-gray-800">
-                            {school.paymentAmount !==
-                            undefined
-                              ? `₹${school.paymentAmount}`
-                              : '—'}
-                          </p>
-                        </div>
-
-                      </div>
-
-                      {/* DATES */}
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-
-                        <div className="rounded-2xl bg-blue-50 p-3">
-                          <p className="text-xs font-bold text-blue-600">
-                            Subscription Start
-                          </p>
-
-                          <p className="mt-1 text-sm font-black text-blue-900">
-                            {formatDate(
-                              school.subscriptionStartDate
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl bg-orange-50 p-3">
-                          <p className="text-xs font-bold text-orange-600">
-                            Subscription Expiry
-                          </p>
-
-                          <p className="mt-1 text-sm font-black text-orange-900">
-                            {formatDate(
-                              school.subscriptionExpiryDate
-                            )}
-                          </p>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    {/* ACTION AREA */}
-                    <div className="border-t-2 border-gray-100 pt-5">
-
-                      {/* FREE APPROVAL */}
-                      {school.status !== 'LIVE' && (
-                        <div className="rounded-3xl border-2 border-emerald-100 bg-emerald-50 p-4">
-
-                          <div className="mb-3">
-                            <h4 className="text-lg font-black text-emerald-800">
-                              🆓 Free / Waived Approval
-                            </h4>
-
-                            <p className="mt-1 text-sm text-emerald-700">
-                              बिना recharge के school को activate करें।
-                              Approval के समय से subscription शुरू होगा।
+                            <p className="text-xs font-bold text-gray-500">
+                              Subscription
                             </p>
-                          </div>
 
-                          <div className="flex flex-col gap-3 sm:flex-row">
-
-                            <div className="flex-1">
-                              <label className="mb-2 block text-sm font-black text-gray-700">
-                                Days
-                              </label>
-
-                              <input
-                                type="number"
-                                min="1"
-                                step="1"
-                                inputMode="numeric"
-                                value={currentFreeDays}
-                                onChange={(event) => {
-                                  const value =
-                                    event.target.value;
-
-                                  // Only digits or empty while typing
-                                  if (
-                                    value === '' ||
-                                    /^\d+$/.test(value)
-                                  ) {
-                                    setFreeDays(
-                                      (current) => ({
-                                        ...current,
-                                        [school.id]: value,
-                                      })
-                                    );
-                                  }
-                                }}
-                                placeholder="जैसे 30, 60, 365"
-                                className="w-full rounded-2xl border-2 border-emerald-200 bg-white px-4 py-3 font-black outline-none focus:border-emerald-500"
-                              />
-                            </div>
-
-                            <div className="flex items-end sm:w-64">
-                              <button
-                                type="button"
-                                disabled={
-                                  busy ||
-                                  !currentFreeDays
-                                }
-                                onClick={() =>
-                                  handleFreeApproval(
-                                    school
-                                  )
-                                }
-                                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
-                              >
-                                {busy
-                                  ? '⏳ Processing...'
-                                  : '🆓 Free Approve'}
-                              </button>
-                            </div>
+                            <p
+                              className={`mt-1 font-black ${
+                                subscriptionLabel ===
+                                'ACTIVE'
+                                  ? 'text-green-600'
+                                  : subscriptionLabel ===
+                                      'EXPIRED'
+                                    ? 'text-red-600'
+                                    : 'text-yellow-600'
+                              }`}
+                            >
+                              {
+                                subscriptionLabel
+                              }
+                            </p>
 
                           </div>
 
-                          <p className="mt-3 text-xs font-bold text-emerald-700">
-                            Minimum 1 day • कोई fixed maximum नहीं •
-                            Amount ₹0
-                          </p>
+                          {/* APPROVAL TYPE */}
+
+                          <div className="rounded-2xl bg-white p-3 shadow-sm">
+
+                            <p className="text-xs font-bold text-gray-500">
+                              Approval Type
+                            </p>
+
+                            <p className="mt-1 font-black text-gray-800">
+                              {
+                                school.paymentApprovalType ||
+                                '—'
+                              }
+                            </p>
+
+                          </div>
+
+                          {/* DAYS */}
+
+                          <div className="rounded-2xl bg-white p-3 shadow-sm">
+
+                            <p className="text-xs font-bold text-gray-500">
+                              Days
+                            </p>
+
+                            <p className="mt-1 font-black text-gray-800">
+                              {
+                                school.subscriptionDays
+                                  ? `${school.subscriptionDays} days`
+                                  : '—'
+                              }
+                            </p>
+
+                          </div>
+
+                          {/* AMOUNT */}
+
+                          <div className="rounded-2xl bg-white p-3 shadow-sm">
+
+                            <p className="text-xs font-bold text-gray-500">
+                              Amount
+                            </p>
+
+                            <p className="mt-1 font-black text-gray-800">
+                              {
+                                school.paymentAmount !==
+                                undefined
+                                  ? `₹${school.paymentAmount}`
+                                  : '—'
+                              }
+                            </p>
+
+                          </div>
 
                         </div>
-                      )}
 
-                      {/* SUSPEND / RESTORE */}
-                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                        {/* =================================
+                            DATES
+                        ================================== */}
 
-                        {school.status === 'SUSPENDED' ? (
+                        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+
+                          <div className="rounded-2xl bg-blue-50 p-3">
+
+                            <p className="text-xs font-bold text-blue-600">
+                              Subscription Start
+                            </p>
+
+                            <p className="mt-1 text-sm font-black text-blue-900">
+                              {
+                                formatDate(
+                                  school.subscriptionStartDate
+                                )
+                              }
+                            </p>
+
+                          </div>
+
+                          <div
+                            className={`rounded-2xl p-3 ${
+                              whatsappState ===
+                              'EXPIRED'
+                                ? 'bg-red-50'
+                                : whatsappState ===
+                                    'EXPIRING_SOON'
+                                  ? 'bg-yellow-50'
+                                  : 'bg-orange-50'
+                            }`}
+                          >
+
+                            <p
+                              className={`text-xs font-bold ${
+                                whatsappState ===
+                                'EXPIRED'
+                                  ? 'text-red-600'
+                                  : whatsappState ===
+                                      'EXPIRING_SOON'
+                                    ? 'text-yellow-700'
+                                    : 'text-orange-600'
+                              }`}
+                            >
+                              Subscription Expiry
+                            </p>
+
+                            <p
+                              className={`mt-1 text-sm font-black ${
+                                whatsappState ===
+                                'EXPIRED'
+                                  ? 'text-red-900'
+                                  : whatsappState ===
+                                      'EXPIRING_SOON'
+                                    ? 'text-yellow-900'
+                                    : 'text-orange-900'
+                              }`}
+                            >
+                              {
+                                formatDate(
+                                  school.subscriptionExpiryDate
+                                )
+                              }
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      {/* =================================
+                          ACTION AREA
+                      ================================== */}
+
+                      <div className="border-t-2 border-gray-100 pt-5">
+
+                        {/* =================================
+                            FREE APPROVAL
+                        ================================== */}
+
+                        {school.status !==
+                          'LIVE' && (
+                          <div className="rounded-3xl border-2 border-emerald-100 bg-emerald-50 p-4">
+
+                            <div className="mb-3">
+
+                              <h4 className="text-lg font-black text-emerald-800">
+                                🆓 Free / Waived Approval
+                              </h4>
+
+                              <p className="mt-1 text-sm text-emerald-700">
+                                बिना recharge के school को activate करें। Approval के समय से subscription शुरू होगा।
+                              </p>
+
+                            </div>
+
+                            <div className="flex flex-col gap-3 sm:flex-row">
+
+                              <div className="flex-1">
+
+                                <label className="mb-2 block text-sm font-black text-gray-700">
+                                  Days
+                                </label>
+
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  inputMode="numeric"
+                                  value={
+                                    currentFreeDays
+                                  }
+                                  onChange={(
+                                    event
+                                  ) => {
+                                    const value =
+                                      event
+                                        .target
+                                        .value;
+
+                                    /*
+                                     * Only digits or empty
+                                     */
+                                    if (
+                                      value ===
+                                        '' ||
+                                      /^\d+$/.test(
+                                        value
+                                      )
+                                    ) {
+                                      setFreeDays(
+                                        (
+                                          current
+                                        ) => ({
+                                          ...current,
+                                          [school.id]:
+                                            value,
+                                        })
+                                      );
+                                    }
+                                  }}
+                                  placeholder="जैसे 30, 60, 365"
+                                  className="w-full rounded-2xl border-2 border-emerald-200 bg-white px-4 py-3 font-black outline-none focus:border-emerald-500"
+                                />
+
+                              </div>
+
+                              <div className="flex items-end sm:w-64">
+
+                                <button
+                                  type="button"
+                                  disabled={
+                                    busy ||
+                                    !currentFreeDays
+                                  }
+                                  onClick={() =>
+                                    handleFreeApproval(
+                                      school
+                                    )
+                                  }
+                                  className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                                >
+                                  {busy
+                                    ? '⏳ Processing...'
+                                    : '🆓 Free Approve'}
+                                </button>
+
+                              </div>
+
+                            </div>
+
+                            <p className="mt-3 text-xs font-bold text-emerald-700">
+                              Minimum 1 day • कोई fixed maximum नहीं • Amount ₹0
+                            </p>
+
+                          </div>
+                        )}
+
+                        {/* =================================
+                            WHATSAPP + SUSPEND / RESTORE
+                        ================================== */}
+
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+
+                          {/* =================================
+                              WHATSAPP BUTTON
+                          ================================== */}
+
                           <button
                             type="button"
-                            disabled={busy}
                             onClick={() =>
-                              handleSchoolStatus(
-                                school.id,
-                                'LIVE'
+                              openSchoolWhatsApp(
+                                school
                               )
                             }
-                            className="rounded-xl bg-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                            className={`rounded-xl px-5 py-3 font-black text-white shadow-[0_5px_0] active:translate-y-1 active:shadow-none ${
+                              whatsappState ===
+                              'EXPIRED'
+                                ? 'bg-gradient-to-r from-red-600 to-rose-700 shadow-red-900'
+                                : whatsappState ===
+                                    'EXPIRING_SOON'
+                                  ? 'bg-gradient-to-r from-orange-500 to-amber-600 shadow-orange-800'
+                                  : 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-emerald-800'
+                            }`}
                           >
-                            🟢 Restore
+                            {whatsappState ===
+                            'EXPIRED'
+                              ? '🔴 Recharge Expired – WhatsApp'
+                              : whatsappState ===
+                                  'EXPIRING_SOON'
+                                ? '⚠️ Expiry Reminder – WhatsApp'
+                                : '📲 WhatsApp Reminder'}
                           </button>
-                        ) : school.status === 'LIVE' ? (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() =>
-                              handleSchoolStatus(
-                                school.id,
-                                'SUSPENDED'
-                              )
-                            }
-                            className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(185,28,28)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
-                          >
-                            ⛔ Suspend
-                          </button>
-                        ) : null}
+
+                          {/* =================================
+                              SUSPEND / RESTORE
+                          ================================== */}
+
+                          {school.status ===
+                          'SUSPENDED' ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                handleSchoolStatus(
+                                  school.id,
+                                  'LIVE'
+                                )
+                              }
+                              className="rounded-xl bg-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                            >
+                              🟢 Restore
+                            </button>
+                          ) : school.status ===
+                            'LIVE' ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                handleSchoolStatus(
+                                  school.id,
+                                  'SUSPENDED'
+                                )
+                              }
+                              className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(185,28,28)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                            >
+                              ⛔ Suspend
+                            </button>
+                          ) : null}
+
+                        </div>
+
+                        {/* =================================
+                            WHATSAPP STATUS INFO
+                        ================================== */}
+
+                        <div className="mt-3">
+
+                          {whatsappState ===
+                            'EXPIRED' && (
+                            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                              🔴 Subscription expired. Recharge reminder WhatsApp भेज सकते हैं।
+                            </p>
+                          )}
+
+                          {whatsappState ===
+                            'EXPIRING_SOON' && (
+                            <p className="rounded-xl bg-orange-50 px-4 py-3 text-sm font-bold text-orange-700">
+                              ⚠️ Subscription अगले 3 दिनों में expire होने वाला है।
+                            </p>
+                          )}
+
+                          {whatsappState ===
+                            'ACTIVE' && (
+                            <p className="rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+                              🟢 Subscription active है।
+                            </p>
+                          )}
+
+                          {whatsappState ===
+                            'NO_EXPIRY' && (
+                            <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm font-bold text-gray-600">
+                              ℹ️ Subscription expiry date उपलब्ध नहीं है।
+                            </p>
+                          )}
+
+                        </div>
 
                       </div>
 
                     </div>
 
                   </div>
+                );
+              }
+            )}
 
-                </div>
-              );
-            })}
-
-            {schools.length === 0 && (
+            {schools.length ===
+              0 && (
               <div className="rounded-2xl bg-gray-50 p-6 text-center text-gray-600">
                 No schools registered yet.
               </div>
@@ -1046,18 +1650,24 @@ export default function PlatformAdminPage() {
           </div>
         </section>
 
-        {/* =====================================================
+        {/* =================================================
             SUSPENDED SUMMARY
-        ====================================================== */}
-        {suspendedSchools.length > 0 && (
+        ================================================== */}
+
+        {suspendedSchools.length >
+          0 && (
           <div className="mt-6 rounded-3xl bg-white p-6 text-center shadow-2xl">
+
             <p className="text-sm font-bold text-gray-500">
               Suspended Schools
             </p>
 
             <p className="mt-1 text-3xl font-black text-red-600">
-              {suspendedSchools.length}
+              {
+                suspendedSchools.length
+              }
             </p>
+
           </div>
         )}
 
