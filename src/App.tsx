@@ -29,9 +29,7 @@ function App() {
       <AuthProvider>
         <Routes>
 
-          {/* =========================================
-              PUBLIC WEBSITE
-          ========================================= */}
+          {/* PUBLIC WEBSITE */}
 
           <Route element={<PublicLayout />}>
 
@@ -92,9 +90,7 @@ function App() {
 
           </Route>
 
-          {/* =========================================
-              PAYMENT / RECHARGE
-          ========================================= */}
+          {/* PAYMENT */}
 
           <Route
             path="/payment/recharge"
@@ -110,9 +106,7 @@ function App() {
             }
           />
 
-          {/* =========================================
-              PLATFORM ADMIN
-          ========================================= */}
+          {/* PLATFORM ADMIN */}
 
           <Route
             path="/admin"
@@ -127,9 +121,7 @@ function App() {
             }
           />
 
-          {/* =========================================
-              SCHOOL ADMIN
-          ========================================= */}
+          {/* SCHOOL ADMIN */}
 
           <Route
             path="/school-admin"
@@ -144,9 +136,7 @@ function App() {
             }
           />
 
-          {/* =========================================
-              FALLBACK
-          ========================================= */}
+          {/* FALLBACK */}
 
           <Route
             path="*"
@@ -164,13 +154,5 @@ function App() {
   );
 }
 
-/*
- * IMPORTANT:
- * main.tsx में:
- *
- * import App from './App.tsx';
- *
- * इसलिए App का DEFAULT EXPORT जरूरी है।
- */
 export default App;
 ```
