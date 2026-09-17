@@ -38,10 +38,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
 
-            {/* =========================
-                PUBLIC PLATFORM PAGES
-            ========================== */}
-
+            {/* PUBLIC PLATFORM */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/about" element={<AboutPage />} />
@@ -52,62 +49,40 @@ export default function App() {
               <Route path="/contact" element={<ContactPage />} />
             </Route>
 
-            {/* =========================
-                AUTH
-            ========================== */}
-
+            {/* LOGIN */}
             <Route path="/login" element={<LoginPage />} />
 
-            {/* =========================
-                SCHOOL REGISTRATION
-            ========================== */}
-
+            {/* SCHOOL REGISTRATION */}
             <Route
               path="/register-school"
               element={<RegisterSchoolPage />}
             />
 
-            {/* =========================
-                PUBLIC SCHOOL DIRECTORY
-            ========================== */}
-
+            {/* SCHOOL DIRECTORY */}
             <Route
               path="/schools"
               element={<SchoolsPage />}
             />
 
-            {/* =========================
-                INDIVIDUAL SCHOOL WEBSITE
-            ========================== */}
-
+            {/* PUBLIC SCHOOL WEBSITE */}
             <Route
               path="/school/:slug"
               element={<SchoolPublicPage />}
             />
 
-            {/* =========================
-                PAYMENT / RECHARGE
-            ========================== */}
-
+            {/* PAYMENT */}
             <Route
               path="/payment/recharge"
               element={
                 <ProtectedRoute
-                  allowedRoles={[
-                    'school_admin',
-                    'platform_admin',
-                  ]}
+                  allowedRoles={['school_admin', 'platform_admin']}
                 >
                   <PaymentRechargePage />
                 </ProtectedRoute>
               }
             />
 
-            {/* =========================
-                SUPER PLATFORM ADMIN
-                ngogrant454@gmail.com
-            ========================== */}
-
+            {/* SUPER PLATFORM ADMIN */}
             <Route
               path="/admin"
               element={
@@ -119,11 +94,7 @@ export default function App() {
               }
             />
 
-            {/* =========================
-                SCHOOL ADMIN
-                ONLY THEIR OWN SCHOOL
-            ========================== */}
-
+            {/* SCHOOL ADMIN */}
             <Route
               path="/school-admin"
               element={
@@ -135,12 +106,9 @@ export default function App() {
               }
             />
 
-            {/* =========================
-                PLATFORM ADMIN DASHBOARD
-                LEGACY / INTERNAL PAGES
-            ========================== */}
-
+            {/* PLATFORM ADMIN DASHBOARD */}
             <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -150,10 +118,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard"
             />
 
             <Route
+              path="/dashboard/school"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -163,10 +131,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/school"
             />
 
             <Route
+              path="/dashboard/announcements"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -176,10 +144,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/announcements"
             />
 
             <Route
+              path="/dashboard/events"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -189,10 +157,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/events"
             />
 
             <Route
+              path="/dashboard/teachers"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -202,10 +170,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/teachers"
             />
 
             <Route
+              path="/dashboard/users"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -215,10 +183,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/users"
             />
 
             <Route
+              path="/dashboard/faculty"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -228,10 +196,10 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/faculty"
             />
 
             <Route
+              path="/dashboard/admins"
               element={
                 <ProtectedRoute
                   allowedRoles={['platform_admin']}
@@ -241,13 +209,9 @@ export default function App() {
                   </DashboardLayout>
                 </ProtectedRoute>
               }
-              path="/dashboard/admins"
             />
 
-            {/* =========================
-                UNKNOWN URL
-            ========================== */}
-
+            {/* UNKNOWN URL */}
             <Route
               path="*"
               element={<Navigate to="/" replace />}
