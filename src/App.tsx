@@ -1,6 +1,4 @@
-```tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-
 import { AuthProvider } from '@/context/AuthContext';
 
 import PublicLayout from '@/components/layout/PublicLayout';
@@ -84,4 +82,3 @@ function App() {
 }
 
 export default App;
-```
