@@ -169,7 +169,7 @@ export default function LoginPage() {
               onClick={() =>
                 navigate('/school-admin', { replace: true })
               }
-              className="w-full px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold btn-3d hover:from-blue-700 hover:to-cyan-700 transition-all"
+              className="w-full px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold btn-3d hover:from-blue-700 hover:to-indigo-700 transition-all"
             >
               🏫 Open My School Dashboard
             </button>
@@ -396,7 +396,3 @@ export default function LoginPage() {
   );
 }
 ```
-
-इसे **पूरा replace करके GitHub में Commit** करें। फिर Vercel में नया deployment चलाएँ। इस version में `className={\`...`}` वाले तीनों हिस्से हटा दिए गए हैं, इसलिए पिछली template-literal parsing वाली समस्या नहीं आनी चाहिए।
-
-अगर Vercel अगली error दिखाता है, उसका पूरा log भेज दें।
