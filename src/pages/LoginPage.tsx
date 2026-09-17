@@ -27,25 +27,11 @@ export default function LoginPage() {
 
   const [signingIn, setSigningIn] = useState(false);
 
-  /*
-   * =========================================================
-   * AUTOMATIC REDIRECT AFTER LOGIN
-   * =========================================================
-   *
-   * platform_admin
-   *      -> /admin
-   *
-   * school_admin
-   *      -> /dashboard
-   *
-   * teacher
-   *      -> /dashboard
-   *
-   * user
-   *      -> /
-   */
+  // =========================================================
+  // AUTOMATIC REDIRECT AFTER LOGIN
+  // =========================================================
   useEffect(() => {
-    if (loading || !user || !role) {
+    if (loading || !user) {
       return;
     }
 
@@ -55,7 +41,7 @@ export default function LoginPage() {
     }
 
     if (role === 'school_admin') {
-      navigate('/dashboard', { replace: true });
+      navigate('/school-admin', { replace: true });
       return;
     }
 
@@ -67,11 +53,9 @@ export default function LoginPage() {
     navigate('/', { replace: true });
   }, [loading, user, role, navigate]);
 
-  /*
-   * =========================================================
-   * LOADING
-   * =========================================================
-   */
+  // =========================================================
+  // AUTH LOADING
+  // =========================================================
   if (loading) {
     return (
       <LoadingSpinner
@@ -81,22 +65,43 @@ export default function LoginPage() {
     );
   }
 
-  /*
-   * =========================================================
-   * USER ALREADY LOGGED IN
-   * =========================================================
-   *
-   * Normally useEffect will redirect automatically.
-   * This fallback prevents showing a wrong login screen.
-   */
+  // =========================================================
+  // USER ALREADY LOGGED IN
+  // =========================================================
   if (user) {
+    let roleTitle = 'Public User';
+    let roleDescription = 'You have public viewing access only.';
+    let roleBoxClass = 'bg-gray-50 border-gray-200';
+    let roleTextClass = 'text-gray-600';
+
+    if (role === 'platform_admin') {
+      roleTitle = 'Platform Administrator';
+      roleDescription =
+        'Full access to the entire school platform and all registered schools.';
+      roleBoxClass = 'bg-purple-50 border-purple-200';
+      roleTextClass = 'text-purple-700';
+    } else if (role === 'school_admin') {
+      roleTitle = 'School Administrator';
+      roleDescription =
+        'Access is limited to your own registered school.';
+      roleBoxClass = 'bg-blue-50 border-blue-200';
+      roleTextClass = 'text-blue-700';
+    } else if (role === 'teacher') {
+      roleTitle = 'Teacher / Faculty';
+      roleDescription =
+        'Access is limited to your assigned school/class.';
+      roleBoxClass = 'bg-emerald-50 border-emerald-200';
+      roleTextClass = 'text-emerald-700';
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 px-4">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center">
+
           {user.photoURL ? (
             <img
               src={user.photoURL}
-              alt={user.displayName ?? 'User'}
+              alt={user.displayName || 'User'}
               className="w-20 h-20 rounded-full mx-auto mb-4 border-4 border-blue-100 object-cover"
             />
           ) : (
@@ -114,76 +119,39 @@ export default function LoginPage() {
           </p>
 
           <div
-            className={`p-5 rounded-2xl mb-6 border ${
-              role === 'platform_admin'
-                ? 'bg-purple-50 border-purple-200'
-                : role === 'school_admin'
-                ? 'bg-blue-50 border-blue-200'
-                : role === 'teacher'
-                ? 'bg-emerald-50 border-emerald-200'
-                : 'bg-gray-50 border-gray-200'
-            }`}
+            className={`p-5 rounded-2xl mb-6 border ${roleBoxClass}`}
           >
             <div className="flex items-center justify-center gap-2 mb-2">
-              {role === 'platform_admin' ? (
+
+              {role === 'platform_admin' && (
                 <ShieldCheck className="w-6 h-6 text-purple-600" />
-              ) : role === 'school_admin' ? (
+              )}
+
+              {role === 'school_admin' && (
                 <School className="w-6 h-6 text-blue-600" />
-              ) : role === 'teacher' ? (
+              )}
+
+              {role === 'teacher' && (
                 <Users className="w-6 h-6 text-emerald-600" />
-              ) : (
+              )}
+
+              {role === 'user' && (
                 <User className="w-6 h-6 text-gray-500" />
               )}
 
-              <span
-                className={`font-bold ${
-                  role === 'platform_admin'
-                    ? 'text-purple-700'
-                    : role === 'school_admin'
-                    ? 'text-blue-700'
-                    : role === 'teacher'
-                    ? 'text-emerald-700'
-                    : 'text-gray-600'
-                }`}
-              >
-                {role === 'platform_admin'
-                  ? 'Platform Administrator'
-                  : role === 'school_admin'
-                  ? 'School Administrator'
-                  : role === 'teacher'
-                  ? 'Teacher / Faculty'
-                  : 'Public User'}
+              <span className={`font-bold ${roleTextClass}`}>
+                {roleTitle}
               </span>
             </div>
 
-            {role === 'platform_admin' && (
-              <p className="text-xs text-purple-700">
-                Full access to the entire school platform and all
-                registered schools.
-              </p>
-            )}
-
-            {role === 'school_admin' && (
-              <p className="text-xs text-blue-700">
-                Access is limited to your own registered school.
-              </p>
-            )}
-
-            {role === 'teacher' && (
-              <p className="text-xs text-emerald-700">
-                Access is limited to your assigned school/class.
-              </p>
-            )}
-
-            {role === 'user' && (
-              <p className="text-xs text-gray-500">
-                You have public viewing access only.
-              </p>
-            )}
+            <p className={`text-xs ${roleTextClass}`}>
+              {roleDescription}
+            </p>
           </div>
 
           {role === 'platform_admin' && (
             <button
+              type="button"
               onClick={() =>
                 navigate('/admin', { replace: true })
               }
@@ -195,8 +163,9 @@ export default function LoginPage() {
 
           {role === 'school_admin' && (
             <button
+              type="button"
               onClick={() =>
-                navigate('/dashboard', { replace: true })
+                navigate('/school-admin', { replace: true })
               }
               className="w-full px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold btn-3d hover:from-blue-700 hover:to-cyan-700 transition-all"
             >
@@ -206,6 +175,7 @@ export default function LoginPage() {
 
           {role === 'teacher' && (
             <button
+              type="button"
               onClick={() =>
                 navigate('/dashboard', { replace: true })
               }
@@ -217,6 +187,7 @@ export default function LoginPage() {
 
           {role === 'user' && (
             <button
+              type="button"
               onClick={() =>
                 navigate('/', { replace: true })
               }
@@ -225,18 +196,19 @@ export default function LoginPage() {
               🏠 Back to Home
             </button>
           )}
+
         </div>
       </div>
     );
   }
 
-  /*
-   * =========================================================
-   * GOOGLE LOGIN
-   * =========================================================
-   */
+  // =========================================================
+  // GOOGLE LOGIN
+  // =========================================================
   const handleSignIn = async () => {
-    if (signingIn) return;
+    if (signingIn) {
+      return;
+    }
 
     setSigningIn(true);
 
@@ -247,11 +219,6 @@ export default function LoginPage() {
         'Google sign-in successful. Checking your access...',
         'success'
       );
-
-      /*
-       * Redirect is handled by useEffect after AuthContext
-       * finishes loading the user's role.
-       */
     } catch (error) {
       console.error('Google sign-in failed:', error);
 
@@ -264,17 +231,16 @@ export default function LoginPage() {
     }
   };
 
-  /*
-   * =========================================================
-   * LOGIN SCREEN
-   * =========================================================
-   */
+  // =========================================================
+  // LOGIN SCREEN
+  // =========================================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 px-4 py-8">
       <div className="max-w-md w-full">
 
         {/* Header */}
         <div className="text-center mb-8">
+
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 flex items-center justify-center mx-auto mb-5 shadow-xl shadow-blue-600/30">
             <GraduationCap className="w-10 h-10 text-white" />
           </div>
@@ -286,6 +252,7 @@ export default function LoginPage() {
           <p className="text-sm text-gray-500 mt-2">
             Sign in with your Google account
           </p>
+
         </div>
 
         {/* Login Card */}
@@ -293,6 +260,7 @@ export default function LoginPage() {
 
           {/* Information */}
           <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-start gap-3 mb-6">
+
             <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
 
             <div>
@@ -305,6 +273,7 @@ export default function LoginPage() {
                 registered school membership and account permissions.
               </p>
             </div>
+
           </div>
 
           {/* Access Types */}
@@ -361,6 +330,7 @@ export default function LoginPage() {
             disabled={signingIn}
             className="w-full px-6 py-4 rounded-2xl bg-white border-2 border-gray-200 text-gray-800 font-bold hover:border-blue-400 hover:bg-blue-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-3 shadow-sm btn-3d"
           >
+
             {signingIn ? (
               <>
                 <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
@@ -397,6 +367,7 @@ export default function LoginPage() {
                 Continue with Google
               </>
             )}
+
           </button>
 
           <p className="text-center text-xs text-gray-400 mt-5">
@@ -407,6 +378,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="text-center mt-6">
+
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -414,6 +386,7 @@ export default function LoginPage() {
           >
             ← Back to Platform Home
           </button>
+
         </div>
 
       </div>
