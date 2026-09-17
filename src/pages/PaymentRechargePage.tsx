@@ -67,13 +67,14 @@ function getSchoolName(
 
 export default function PaymentRechargePage() {
   const { user } = useAuth();
+
   const navigate = useNavigate();
 
   const [searchParams] = useSearchParams();
 
   /*
-   * URL से School ID केवल Firebase lookup के लिए है।
-   * इसे WhatsApp message में कभी नहीं भेजना है।
+   * School ID केवल Firebase lookup के लिए।
+   * WhatsApp message में School ID नहीं जाएगी।
    */
   const urlSchoolId =
     searchParams.get('schoolId')?.trim() || '';
@@ -85,7 +86,9 @@ export default function PaymentRechargePage() {
   const [
     selectedPackage,
     setSelectedPackage,
-  ] = useState(BILLING_PACKAGES[1]);
+  ] = useState(
+    BILLING_PACKAGES[1]
+  );
 
   const [
     schoolId,
@@ -142,7 +145,7 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 1
-           URL schoolId से school पढ़ें
+           URL schoolId से school खोजें
         ================================================= */
 
         if (urlSchoolId) {
@@ -153,9 +156,8 @@ export default function PaymentRechargePage() {
               urlSchoolId
             );
 
-            const schoolSnap = await getDoc(
-              schoolRef
-            );
+            const schoolSnap =
+              await getDoc(schoolRef);
 
             if (schoolSnap.exists()) {
               const data =
@@ -167,10 +169,10 @@ export default function PaymentRechargePage() {
                   : '';
 
               /*
-               * केवल current Google user की school स्वीकार करें।
+               * Security:
+               * School उसी Google user की होनी चाहिए।
                */
               if (
-                ownerUid &&
                 ownerUid === user.uid
               ) {
                 resolvedSchoolId =
@@ -178,20 +180,11 @@ export default function PaymentRechargePage() {
 
                 resolvedSchoolName =
                   getSchoolName(data);
-              } else {
-                console.warn(
-                  'School owner does not match current user.'
-                );
               }
-            } else {
-              console.warn(
-                'School document not found:',
-                urlSchoolId
-              );
             }
           } catch (schoolError) {
             console.error(
-              'Unable to load school from URL schoolId:',
+              'Unable to load school from URL:',
               schoolError
             );
           }
@@ -199,23 +192,27 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 2
-           URL से नहीं मिली तो ownerUid से खोजें
+           URL school नहीं मिली तो ownerUid से खोजें
         ================================================= */
 
         if (!resolvedSchoolId) {
           try {
             const schoolsRef =
-              collection(db, 'schools');
+              collection(
+                db,
+                'schools'
+              );
 
-            const ownerQuery = query(
-              schoolsRef,
-              where(
-                'ownerUid',
-                '==',
-                user.uid
-              ),
-              limit(20)
-            );
+            const ownerQuery =
+              query(
+                schoolsRef,
+                where(
+                  'ownerUid',
+                  '==',
+                  user.uid
+                ),
+                limit(20)
+              );
 
             const ownerSnapshot =
               await getDocs(ownerQuery);
@@ -252,7 +249,7 @@ export default function PaymentRechargePage() {
                   });
 
               /*
-               * PENDING_PAYMENT school को प्राथमिकता।
+               * पहले pending registration लें।
                */
               const pendingSchool =
                 schools.find(
@@ -285,7 +282,7 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 3
-           अगर name खाली है तो slugReservations से लें
+           School name missing हो तो slugReservations
         ================================================= */
 
         if (
@@ -340,7 +337,7 @@ export default function PaymentRechargePage() {
             }
           } catch (reservationError) {
             console.error(
-              'Unable to load school name from slug reservation:',
+              'Unable to load school name:',
               reservationError
             );
           }
@@ -348,7 +345,7 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 4
-           STATE UPDATE
+           UPDATE STATE
         ================================================= */
 
         if (!cancelled) {
@@ -369,10 +366,6 @@ export default function PaymentRechargePage() {
               'School was found, but school name is missing in Firebase.'
             );
           } else {
-            /*
-             * School successfully loaded.
-             * Error clear रखें।
-             */
             setError('');
           }
         }
@@ -426,10 +419,13 @@ export default function PaymentRechargePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, urlSchoolId]);
+  }, [
+    user,
+    urlSchoolId,
+  ]);
 
   /* =======================================================
-     WHATSAPP PAYMENT REQUEST
+     WHATSAPP PAYMENT
   ======================================================= */
 
   const openWhatsApp = () => {
@@ -457,15 +453,13 @@ export default function PaymentRechargePage() {
 
     /*
      * IMPORTANT:
-     * School ID यहाँ बिल्कुल नहीं है।
+     * School ID intentionally NOT included.
      */
     const message = [
       '🏫 SCHOOL WEBSITE PAYMENT REQUEST',
       '',
       `School Name: ${schoolName}`,
-      `Admin Email: ${
-        user.email || 'Not available'
-      }`,
+      `Admin Email: ${user.email || 'Not available'}`,
       '',
       `Selected Package: ₹${selectedPackage.amount}`,
       `Subscription: ${selectedPackage.days} Days`,
@@ -477,9 +471,7 @@ export default function PaymentRechargePage() {
     ].join('\n');
 
     const whatsappUrl =
-      `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
-        message
-      )}`;
+      `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 
     window.open(
       whatsappUrl,
@@ -489,13 +481,24 @@ export default function PaymentRechargePage() {
   };
 
   /* =======================================================
-     LOADING
+     WHATSAPP BUTTON STATUS
+  ======================================================= */
+
+  const whatsappReady =
+    Boolean(
+      user &&
+      schoolName
+    );
+
+  /* =======================================================
+     LOADING SCREEN
   ======================================================= */
 
   if (loadingSchool) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4">
         <div className="w-full max-w-md rounded-3xl bg-white p-10 text-center shadow-2xl">
+
           <div className="text-6xl">
             🏫
           </div>
@@ -504,9 +507,10 @@ export default function PaymentRechargePage() {
             Loading payment page...
           </p>
 
-          <div className="mx-auto mt-5 h-2 w-48 overflow-hidden rounded-full bg-gray-200">
-            <div className="h-full w-1/2 animate-pulse rounded-full bg-purple-600" />
+          <div className="mx-auto mt-5 h-3 w-56 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
           </div>
+
         </div>
       </div>
     );
@@ -516,15 +520,17 @@ export default function PaymentRechargePage() {
      PAGE
   ======================================================= */
 
-  const whatsappReady =
-    Boolean(user && schoolName);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
+
       <div className="mx-auto max-w-5xl">
 
-        {/* HEADER */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
         <div className="mb-8 text-center text-white">
+
           <div className="text-6xl">
             💳
           </div>
@@ -536,13 +542,21 @@ export default function PaymentRechargePage() {
           <p className="mt-2 text-sm font-semibold text-white/90 md:text-base">
             Registration submitted successfully
           </p>
+
         </div>
 
-        {/* MAIN CARD */}
+        {/* =================================================
+            MAIN CARD
+        ================================================= */}
+
         <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
 
-          {/* SUCCESS */}
+          {/* =================================================
+              SUCCESS
+          ================================================= */}
+
           <div className="rounded-3xl border-2 border-green-200 bg-green-50 p-5">
+
             <div className="text-4xl">
               ✅
             </div>
@@ -558,7 +572,8 @@ export default function PaymentRechargePage() {
             </p>
 
             {schoolName && (
-              <div className="mt-4 rounded-2xl bg-white p-4 shadow">
+              <div className="mt-4 rounded-2xl bg-white p-4 shadow-lg">
+
                 <p className="text-xs font-bold uppercase text-gray-500">
                   School Name
                 </p>
@@ -566,12 +581,18 @@ export default function PaymentRechargePage() {
                 <p className="mt-1 break-words text-xl font-black text-gray-900">
                   {schoolName}
                 </p>
+
               </div>
             )}
+
           </div>
 
-          {/* STATUS */}
+          {/* =================================================
+              PAYMENT STATUS
+          ================================================= */}
+
           <div className="mt-6 rounded-3xl border-2 border-yellow-200 bg-yellow-50 p-5">
+
             <h2 className="text-xl font-black text-yellow-900">
               🟡 Payment Approval Required
             </h2>
@@ -581,10 +602,15 @@ export default function PaymentRechargePage() {
               Admin approval मिलने के बाद ही आपका school LIVE होगा और
               school management features unlock होंगे।
             </p>
+
           </div>
 
-          {/* PACKAGES */}
+          {/* =================================================
+              PACKAGES
+          ================================================= */}
+
           <div className="mt-8">
+
             <h2 className="text-2xl font-black text-gray-900">
               📦 Choose Subscription Package
             </h2>
@@ -593,9 +619,11 @@ export default function PaymentRechargePage() {
               अपना पसंदीदा package select करें।
             </p>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+
               {BILLING_PACKAGES.map(
                 (pkg) => {
+
                   const selected =
                     selectedPackage.amount ===
                     pkg.amount;
@@ -607,12 +635,13 @@ export default function PaymentRechargePage() {
                       onClick={() =>
                         setSelectedPackage(pkg)
                       }
-                      className={`rounded-2xl p-5 text-center transition active:translate-y-1 ${
+                      className={`group rounded-2xl p-5 text-center font-black transition-all duration-150 active:translate-y-2 ${
                         selected
-                          ? 'bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 text-white shadow-[0_7px_0_rgb(67,56,202)]'
-                          : 'bg-gray-100 text-gray-800 shadow-[0_6px_0_rgb(156,163,175)] hover:bg-gray-200'
+                          ? 'bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 text-white shadow-[0_8px_0_rgb(67,56,202)] hover:brightness-110'
+                          : 'bg-gradient-to-br from-cyan-100 via-blue-100 to-purple-100 text-gray-800 shadow-[0_8px_0_rgb(99,102,241)] hover:-translate-y-1 hover:brightness-105 active:shadow-none'
                       }`}
                     >
+
                       <div className="text-3xl font-black">
                         ₹{pkg.amount}
                       </div>
@@ -622,34 +651,51 @@ export default function PaymentRechargePage() {
                       </div>
 
                       {selected && (
-                        <div className="mt-3 rounded-full bg-white/20 px-3 py-1 text-sm font-black">
+                        <div className="mt-3 rounded-full bg-white/25 px-3 py-1 text-sm font-black">
                           ✓ Selected
                         </div>
                       )}
+
+                      {!selected && (
+                        <div className="mt-3 rounded-full bg-white/70 px-3 py-1 text-xs font-black text-purple-700">
+                          SELECT
+                        </div>
+                      )}
+
                     </button>
                   );
                 }
               )}
+
             </div>
+
           </div>
 
-          {/* SELECTED PACKAGE */}
-          <div className="mt-8 rounded-3xl bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 p-6 text-center">
+          {/* =================================================
+              SELECTED PACKAGE
+          ================================================= */}
+
+          <div className="mt-8 rounded-3xl bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 p-6 text-center shadow-inner">
+
             <p className="text-sm font-bold text-gray-600">
               Selected Package
             </p>
 
-            <p className="mt-2 text-4xl font-black text-purple-700">
+            <p className="mt-2 text-5xl font-black text-purple-700">
               ₹{selectedPackage.amount}
             </p>
 
             <p className="mt-1 text-lg font-extrabold text-gray-800">
               {selectedPackage.days} Days Subscription
             </p>
+
           </div>
 
-          {/* WHATSAPP */}
-          <div className="mt-8 rounded-3xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 text-center">
+          {/* =================================================
+              WHATSAPP
+          ================================================= */}
+
+          <div className="mt-8 rounded-3xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 text-center shadow-lg">
 
             <div className="text-6xl">
               📲
@@ -666,6 +712,7 @@ export default function PaymentRechargePage() {
             </p>
 
             <div className="mx-auto mt-5 max-w-md rounded-2xl bg-white p-4 shadow-lg">
+
               <p className="text-sm font-bold text-gray-500">
                 WhatsApp Payment Number
               </p>
@@ -673,29 +720,35 @@ export default function PaymentRechargePage() {
               <p className="mt-1 text-2xl font-black text-green-700">
                 9112170192
               </p>
+
             </div>
 
-            {/* DEBUG / STATUS */}
-            {schoolName && (
-              <div className="mx-auto mt-5 max-w-md rounded-2xl border-2 border-green-200 bg-green-100 p-3">
-                <p className="text-sm font-bold text-green-800">
-                  ✅ School Ready for Payment
+            {/* SCHOOL READY STATUS */}
+
+            {whatsappReady && (
+              <div className="mx-auto mt-5 max-w-md rounded-2xl border-2 border-green-300 bg-green-100 p-4 shadow">
+
+                <p className="text-sm font-black text-green-800">
+                  ✅ School Ready
                 </p>
 
-                <p className="mt-1 text-base font-black text-green-900">
+                <p className="mt-1 break-words text-lg font-black text-green-900">
                   {schoolName}
                 </p>
+
               </div>
             )}
+
+            {/* 3D WHATSAPP BUTTON */}
 
             <button
               type="button"
               onClick={openWhatsApp}
               disabled={!whatsappReady}
-              className={`mt-6 w-full rounded-2xl px-6 py-5 text-xl font-black text-white transition ${
+              className={`mt-6 w-full rounded-2xl px-6 py-5 text-xl font-black transition-all duration-150 ${
                 whatsappReady
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-[0_8px_0_rgb(4,120,87)] hover:brightness-110 active:translate-y-2 active:shadow-none'
-                  : 'cursor-not-allowed bg-gray-400 shadow-[0_8px_0_rgb(107,114,128)]'
+                  ? 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-700 text-white shadow-[0_9px_0_rgb(4,120,87),0_14px_25px_rgba(0,0,0,0.20)] hover:-translate-y-1 hover:brightness-110 active:translate-y-2 active:shadow-[0_2px_0_rgb(4,120,87)]'
+                  : 'cursor-not-allowed bg-gray-400 text-white shadow-[0_8px_0_rgb(107,114,128)]'
               }`}
             >
               📲 WhatsApp पर Payment के लिए संपर्क करें
@@ -704,80 +757,129 @@ export default function PaymentRechargePage() {
             <p className="mt-4 text-xs font-semibold text-green-700">
               WhatsApp पर message भेजने के बाद आपको UPI ID / QR दिया जाएगा।
             </p>
+
           </div>
 
-          {/* PAYMENT PROCESS */}
-          <div className="mt-8 rounded-3xl bg-gray-50 p-6">
+          {/* =================================================
+              PAYMENT PROCESS
+          ================================================= */}
+
+          <div className="mt-8 rounded-3xl bg-gradient-to-br from-gray-50 to-blue-50 p-6 shadow-inner">
+
             <h2 className="text-2xl font-black text-gray-900">
               📝 Payment Process
             </h2>
 
             <div className="mt-5 space-y-4">
 
-              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">1️⃣</div>
+              {/* STEP 1 */}
+
+              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_5px_0_rgb(209,213,219)]">
+
+                <div className="text-3xl">
+                  1️⃣
+                </div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     Package Select करें
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     ऊपर से अपना subscription package चुनें।
                   </p>
                 </div>
+
               </div>
 
-              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">2️⃣</div>
+              {/* STEP 2 */}
+
+              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_5px_0_rgb(209,213,219)]">
+
+                <div className="text-3xl">
+                  2️⃣
+                </div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     WhatsApp पर Contact करें
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     WhatsApp button दबाकर payment request भेजें।
                   </p>
                 </div>
+
               </div>
 
-              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">3️⃣</div>
+              {/* STEP 3 */}
+
+              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_5px_0_rgb(209,213,219)]">
+
+                <div className="text-3xl">
+                  3️⃣
+                </div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     UPI QR से Payment करें
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     आपको WhatsApp पर UPI ID या QR code दिया जाएगा।
                   </p>
                 </div>
+
               </div>
 
-              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">4️⃣</div>
+              {/* STEP 4 */}
+
+              <div className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_5px_0_rgb(209,213,219)]">
+
+                <div className="text-3xl">
+                  4️⃣
+                </div>
+
                 <div>
                   <p className="font-black text-gray-900">
                     Admin Verification
                   </p>
+
                   <p className="mt-1 text-sm text-gray-600">
                     Payment verify होने के बाद Admin approval करेगा।
                   </p>
                 </div>
+
               </div>
 
-              <div className="flex gap-4 rounded-2xl bg-green-50 p-4 shadow">
-                <div className="text-3xl">5️⃣</div>
+              {/* STEP 5 */}
+
+              <div className="flex gap-4 rounded-2xl bg-green-50 p-4 shadow-[0_5px_0_rgb(16,185,129)]">
+
+                <div className="text-3xl">
+                  5️⃣
+                </div>
+
                 <div>
                   <p className="font-black text-green-900">
                     School LIVE
                   </p>
+
                   <p className="mt-1 text-sm text-green-700">
                     Approval के बाद school LIVE हो जाएगा।
                   </p>
                 </div>
+
               </div>
 
             </div>
+
           </div>
 
-          {/* ERROR */}
+          {/* =================================================
+              ERROR
+          ================================================= */}
+
           {error && (
             <div className="mt-6 rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-semibold text-red-700">
               ❌ {error}
@@ -786,7 +888,10 @@ export default function PaymentRechargePage() {
 
         </div>
 
-        {/* PAYMENT HISTORY */}
+        {/* =================================================
+            PAYMENT HISTORY
+        ================================================= */}
+
         {user && (
           <div className="mt-6 rounded-3xl bg-white p-6 shadow-2xl">
 
@@ -800,15 +905,18 @@ export default function PaymentRechargePage() {
               </p>
             ) : (
               <div className="mt-5 space-y-4">
+
                 {requests.map(
                   (request) => (
                     <div
                       key={request.id}
-                      className="rounded-2xl border-2 border-gray-100 p-4"
+                      className="rounded-2xl border-2 border-gray-100 bg-gradient-to-r from-white to-blue-50 p-4 shadow"
                     >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
                         <div>
+
                           <p className="font-black text-gray-900">
                             ₹{request.amount} • {request.days} Days
                           </p>
@@ -824,45 +932,55 @@ export default function PaymentRechargePage() {
                               🏫 {request.schoolName}
                             </p>
                           )}
+
                         </div>
 
                         <span
-                          className={`rounded-full px-4 py-2 text-sm font-black ${
+                          className={`rounded-full px-4 py-2 text-sm font-black shadow-[0_3px_0_rgba(0,0,0,0.15)] ${
                             request.status === 'APPROVED'
-                              ? 'bg-green-100 text-green-700'
+                              ? 'bg-gradient-to-r from-green-400 to-emerald-600 text-white'
                               : request.status === 'REJECTED'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-yellow-100 text-yellow-700'
+                                ? 'bg-gradient-to-r from-red-400 to-rose-600 text-white'
+                                : 'bg-gradient-to-r from-yellow-300 to-orange-400 text-gray-900'
                           }`}
                         >
                           {request.status}
                         </span>
 
                       </div>
+
                     </div>
                   )
                 )}
+
               </div>
             )}
 
           </div>
         )}
 
-        {/* NAVIGATION */}
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-center">
+        {/* =================================================
+            NAVIGATION
+        ================================================= */}
+
+        <div className="mt-7 flex flex-col gap-5 sm:flex-row sm:justify-center">
+
+          {/* SCHOOLS 3D BUTTON */}
 
           <button
             type="button"
             onClick={() => navigate('/schools')}
-            className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none"
+            className="rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-8 py-4 text-lg font-black text-white shadow-[0_7px_0_rgb(49,46,129),0_12px_20px_rgba(0,0,0,0.20)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-2 active:shadow-[0_2px_0_rgb(49,46,129)]"
           >
             🔎 Schools
           </button>
 
+          {/* HOME 3D BUTTON */}
+
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none"
+            className="rounded-2xl bg-gradient-to-r from-orange-400 via-pink-500 to-rose-600 px-8 py-4 text-lg font-black text-white shadow-[0_7px_0_rgb(159,18,57),0_12px_20px_rgba(0,0,0,0.20)] transition-all hover:-translate-y-1 hover:brightness-110 active:translate-y-2 active:shadow-[0_2px_0_rgb(159,18,57)]"
           >
             🏠 Home
           </button>
