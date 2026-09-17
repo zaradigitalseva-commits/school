@@ -1,3 +1,35 @@
+import {
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+  writeBatch,
+} from 'firebase/firestore';
+
+import { db } from './config';
+
+/* =========================================================
+   PLATFORM ADMIN
+========================================================= */
+
+export function isPlatformAdminEmail(
+  email?: string | null
+): boolean {
+  if (!email) return false;
+
+  const platformAdminEmails = [
+    'zaradigitalseva@gmail.com',
+  ];
+
+  const normalizedEmail = email
+    .trim()
+    .toLowerCase();
+
+  return platformAdminEmails.includes(
+    normalizedEmail
+  );
+}
+
 /* =========================================================
    REGISTER SCHOOL
 ========================================================= */
@@ -7,30 +39,45 @@ export async function registerSchool(
   input: SchoolRegistrationInput,
   ownerEmail: string
 ): Promise<School> {
+  /* =======================================================
+     BASIC INPUT
+  ======================================================= */
+
   if (!ownerUid) {
     throw new Error(
       'Owner UID is required.'
     );
   }
 
+  if (!input) {
+    throw new Error(
+      'School registration data is required.'
+    );
+  }
+
+  /* =======================================================
+     CLEAN DATA
+  ======================================================= */
+
   const cleanName =
-    input.name?.trim();
+    input.name?.trim() || '';
 
   const cleanSlug =
     input.slug
       ?.trim()
-      .toLowerCase();
+      .toLowerCase() || '';
 
   const cleanPhone =
     input.phone?.trim() || '';
 
   const cleanWhatsappNumber =
-    input.whatsappNumber?.trim();
+    input.whatsappNumber
+      ?.trim() || '';
 
   const cleanEmail =
     ownerEmail
       ?.trim()
-      .toLowerCase();
+      .toLowerCase() || '';
 
   /* =======================================================
      BASIC VALIDATION
@@ -47,6 +94,24 @@ export async function registerSchool(
       'School URL/slug is required.'
     );
   }
+
+  /* =======================================================
+     SLUG VALIDATION
+  ======================================================= */
+
+  if (
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(
+      cleanSlug
+    )
+  ) {
+    throw new Error(
+      'School URL can contain only lowercase letters, numbers and hyphens.'
+    );
+  }
+
+  /* =======================================================
+     EMAIL VALIDATION
+  ======================================================= */
 
   if (!cleanEmail) {
     throw new Error(
@@ -74,10 +139,14 @@ export async function registerSchool(
     );
   }
 
-  /*
-   * This is owner confirmation only.
-   * It is NOT OTP verification.
-   */
+  /* =======================================================
+     WHATSAPP CONFIRMATION
+     
+     IMPORTANT:
+     This is only owner confirmation.
+     It is NOT OTP verification.
+  ======================================================= */
+
   if (
     input.whatsappVerified !== true
   ) {
@@ -102,7 +171,7 @@ export async function registerSchool(
   }
 
   /* =======================================================
-     CHECK SLUG
+     CHECK SCHOOL URL / SLUG
   ======================================================= */
 
   const slugRef = doc(
@@ -124,13 +193,12 @@ export async function registerSchool(
      GENERATE SCHOOL ID
   ======================================================= */
 
-  const schoolRef =
-    doc(
-      collection(
-        db,
-        'schools'
-      )
-    );
+  const schoolRef = doc(
+    collection(
+      db,
+      'schools'
+    )
+  );
 
   const schoolId =
     schoolRef.id;
@@ -142,12 +210,15 @@ export async function registerSchool(
   const membershipId =
     `${ownerUid}_${schoolId}`;
 
-  const membershipRef =
-    doc(
-      db,
-      'schoolMemberships',
-      membershipId
-    );
+  const membershipRef = doc(
+    db,
+    'schoolMemberships',
+    membershipId
+  );
+
+  /* =======================================================
+     TIMESTAMP
+  ======================================================= */
 
   const now =
     new Date().toISOString();
@@ -167,9 +238,7 @@ export async function registerSchool(
 
     ownerEmail: cleanEmail,
 
-    /*
-     * New school starts as pending payment.
-     */
+    /* New school starts pending payment */
     status:
       'PENDING_PAYMENT',
 
@@ -177,42 +246,28 @@ export async function registerSchool(
 
     updatedAt: now,
 
-    /*
-     * Normal phone is optional.
-     */
+    /* Optional phone */
     phone: cleanPhone,
 
-    /*
-     * IMPORTANT:
-     * School's own WhatsApp number.
-     */
+    /* School's own WhatsApp number */
     whatsappNumber:
       cleanWhatsappNumber,
 
-    /*
-     * Owner confirmed the number.
-     * This is NOT OTP verification.
-     */
+    /* Owner confirmed number */
     whatsappVerified: true,
 
-    /*
-     * School address.
-     */
+    /* School address */
     address:
       input.address?.trim() || '',
 
-    /*
-     * Optional school information.
-     */
+    /* Optional school information */
     tagline:
       input.tagline?.trim() || '',
 
     description:
       input.description?.trim() || '',
 
-    /*
-     * Initial payment state.
-     */
+    /* Initial payment state */
     paymentStatus:
       'PENDING',
 
@@ -224,8 +279,7 @@ export async function registerSchool(
      SCHOOL ADMIN MEMBERSHIP
   ======================================================= */
 
-  const membership:
-    SchoolMembership = {
+  const membership: SchoolMembership = {
     id: membershipId,
 
     schoolId,
