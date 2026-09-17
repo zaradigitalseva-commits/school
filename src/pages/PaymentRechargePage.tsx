@@ -1,3 +1,4 @@
+```tsx
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -66,19 +67,13 @@ function getSchoolName(
 
 export default function PaymentRechargePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const navigate =
-    useNavigate();
-
-  const [searchParams] =
-    useSearchParams();
+  const [searchParams] = useSearchParams();
 
   /*
-   * URL में School ID हो सकती है।
-   *
-   * IMPORTANT:
-   * यह ID केवल Firebase lookup के लिए है।
-   * WhatsApp message में School ID कभी नहीं भेजी जाएगी।
+   * URL से School ID केवल Firebase lookup के लिए है।
+   * इसे WhatsApp message में कभी नहीं भेजना है।
    */
   const urlSchoolId =
     searchParams.get('schoolId')?.trim() || '';
@@ -90,9 +85,7 @@ export default function PaymentRechargePage() {
   const [
     selectedPackage,
     setSelectedPackage,
-  ] = useState(
-    BILLING_PACKAGES[1]
-  );
+  ] = useState(BILLING_PACKAGES[1]);
 
   const [
     schoolId,
@@ -130,6 +123,8 @@ export default function PaymentRechargePage() {
       if (!user) {
         if (!cancelled) {
           setLoadingSchool(false);
+          setSchoolId('');
+          setSchoolName('');
           setError(
             'Please sign in with Google first.'
           );
@@ -147,50 +142,52 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 1
-           URL schoolId से school खोजें
+           URL schoolId से school पढ़ें
         ================================================= */
 
         if (urlSchoolId) {
           try {
-            const schoolRef =
-              doc(
-                db,
-                'schools',
-                urlSchoolId
-              );
+            const schoolRef = doc(
+              db,
+              'schools',
+              urlSchoolId
+            );
 
-            const schoolSnap =
-              await getDoc(
-                schoolRef
-              );
+            const schoolSnap = await getDoc(
+              schoolRef
+            );
 
-            if (
-              schoolSnap.exists()
-            ) {
+            if (schoolSnap.exists()) {
               const data =
                 schoolSnap.data();
 
-              /*
-               * SECURITY:
-               * URL की school तभी स्वीकार करें
-               * जब वह current Google user की school हो।
-               */
               const ownerUid =
-                String(
-                  data.ownerUid || ''
-                );
+                typeof data.ownerUid === 'string'
+                  ? data.ownerUid.trim()
+                  : '';
 
+              /*
+               * केवल current Google user की school स्वीकार करें।
+               */
               if (
+                ownerUid &&
                 ownerUid === user.uid
               ) {
                 resolvedSchoolId =
                   schoolSnap.id;
 
                 resolvedSchoolName =
-                  getSchoolName(
-                    data
-                  );
+                  getSchoolName(data);
+              } else {
+                console.warn(
+                  'School owner does not match current user.'
+                );
               }
+            } else {
+              console.warn(
+                'School document not found:',
+                urlSchoolId
+              );
             }
           } catch (schoolError) {
             console.error(
@@ -202,76 +199,60 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 2
-           अगर URL schoolId से school नहीं मिली,
-           तो current Google user की school खोजें।
+           URL से नहीं मिली तो ownerUid से खोजें
         ================================================= */
 
-        if (
-          !resolvedSchoolId
-        ) {
+        if (!resolvedSchoolId) {
           try {
             const schoolsRef =
-              collection(
-                db,
-                'schools'
-              );
+              collection(db, 'schools');
 
-            const ownerQuery =
-              query(
-                schoolsRef,
-                where(
-                  'ownerUid',
-                  '==',
-                  user.uid
-                ),
-                limit(20)
-              );
+            const ownerQuery = query(
+              schoolsRef,
+              where(
+                'ownerUid',
+                '==',
+                user.uid
+              ),
+              limit(20)
+            );
 
             const ownerSnapshot =
-              await getDocs(
-                ownerQuery
-              );
+              await getDocs(ownerQuery);
 
-            if (
-              !ownerSnapshot.empty
-            ) {
-              /*
-               * सभी matching schools में से
-               * latest/current registration चुनें।
-               */
+            if (!ownerSnapshot.empty) {
               const schools =
                 ownerSnapshot.docs
                   .map((item) => ({
                     id: item.id,
                     ...item.data(),
                   }))
-                  .sort(
-                    (a, b) => {
-                      const aTime =
-                        typeof a.createdAt ===
-                        'string'
-                          ? new Date(
-                              a.createdAt
-                            ).getTime()
-                          : 0;
+                  .sort((a, b) => {
+                    const aCreated =
+                      a.createdAt;
 
-                      const bTime =
-                        typeof b.createdAt ===
-                        'string'
-                          ? new Date(
-                              b.createdAt
-                            ).getTime()
-                          : 0;
+                    const bCreated =
+                      b.createdAt;
 
-                      return (
-                        bTime - aTime
-                      );
-                    }
-                  );
+                    const aTime =
+                      typeof aCreated === 'string'
+                        ? new Date(
+                            aCreated
+                          ).getTime()
+                        : 0;
+
+                    const bTime =
+                      typeof bCreated === 'string'
+                        ? new Date(
+                            bCreated
+                          ).getTime()
+                        : 0;
+
+                    return bTime - aTime;
+                  });
 
               /*
-               * पहले PENDING_PAYMENT school खोजें।
-               * नहीं मिले तो latest school लें।
+               * PENDING_PAYMENT school को प्राथमिकता।
                */
               const pendingSchool =
                 schools.find(
@@ -284,9 +265,7 @@ export default function PaymentRechargePage() {
                 pendingSchool ||
                 schools[0];
 
-              if (
-                selectedSchool
-              ) {
+              if (selectedSchool) {
                 resolvedSchoolId =
                   selectedSchool.id;
 
@@ -306,8 +285,7 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 3
-           अगर school document में name नहीं है,
-           slugReservations से नाम खोजें।
+           अगर name खाली है तो slugReservations से लें
         ================================================= */
 
         if (
@@ -343,7 +321,8 @@ export default function PaymentRechargePage() {
 
               if (
                 typeof reservationData.schoolName ===
-                'string'
+                  'string' &&
+                reservationData.schoolName.trim()
               ) {
                 resolvedSchoolName =
                   reservationData.schoolName.trim();
@@ -352,15 +331,14 @@ export default function PaymentRechargePage() {
               if (
                 !resolvedSchoolName &&
                 typeof reservationData.name ===
-                  'string'
+                  'string' &&
+                reservationData.name.trim()
               ) {
                 resolvedSchoolName =
                   reservationData.name.trim();
               }
             }
-          } catch (
-            reservationError
-          ) {
+          } catch (reservationError) {
             console.error(
               'Unable to load school name from slug reservation:',
               reservationError
@@ -370,34 +348,32 @@ export default function PaymentRechargePage() {
 
         /* =================================================
            STEP 4
-           State update
+           STATE UPDATE
         ================================================= */
 
         if (!cancelled) {
-          if (
+          setSchoolId(
             resolvedSchoolId
-          ) {
-            setSchoolId(
-              resolvedSchoolId
-            );
-          }
+          );
 
           setSchoolName(
             resolvedSchoolName
           );
 
-          if (
-            !resolvedSchoolId
-          ) {
+          if (!resolvedSchoolId) {
             setError(
               'Your school registration was not found. Please register your school again or contact support.'
             );
-          } else if (
-            !resolvedSchoolName
-          ) {
+          } else if (!resolvedSchoolName) {
             setError(
               'School was found, but school name is missing in Firebase.'
             );
+          } else {
+            /*
+             * School successfully loaded.
+             * Error clear रखें।
+             */
+            setError('');
           }
         }
 
@@ -413,13 +389,9 @@ export default function PaymentRechargePage() {
             );
 
           if (!cancelled) {
-            setRequests(
-              history
-            );
+            setRequests(history);
           }
-        } catch (
-          historyError
-        ) {
+        } catch (historyError) {
           console.error(
             'Unable to load payment history:',
             historyError
@@ -444,9 +416,7 @@ export default function PaymentRechargePage() {
         }
       } finally {
         if (!cancelled) {
-          setLoadingSchool(
-            false
-          );
+          setLoadingSchool(false);
         }
       }
     }
@@ -456,85 +426,70 @@ export default function PaymentRechargePage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    user,
-    urlSchoolId,
-  ]);
+  }, [user, urlSchoolId]);
 
   /* =======================================================
      WHATSAPP PAYMENT REQUEST
   ======================================================= */
 
-  const openWhatsApp =
-    () => {
-      setError('');
+  const openWhatsApp = () => {
+    setError('');
 
-      if (!user) {
-        setError(
-          'Please sign in with Google first.'
-        );
-
-        return;
-      }
-
-      if (!schoolId) {
-        setError(
-          'School information is missing.'
-        );
-
-        return;
-      }
-
-      if (!schoolName) {
-        setError(
-          'School name is not available. Please refresh the page and try again.'
-        );
-
-        return;
-      }
-
-      /*
-       * WhatsApp number
-       */
-      const phoneNumber =
-        '919112170192';
-
-      /*
-       * IMPORTANT:
-       * School ID deliberately NOT included.
-       */
-      const message = [
-        '🏫 SCHOOL WEBSITE PAYMENT REQUEST',
-        '',
-        `School Name: ${schoolName}`,
-        `Admin Email: ${
-          user.email ||
-          'Not available'
-        }`,
-        '',
-        `Selected Package: ₹${selectedPackage.amount}`,
-        `Subscription: ${selectedPackage.days} Days`,
-        '',
-        'I want to make the payment for my school website.',
-        'Please send me the UPI ID / UPI QR code for payment.',
-        '',
-        'Thank you.',
-      ].join('\n');
-
-      const whatsappUrl =
-        `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
-          message
-        )}`;
-
-      window.open(
-        whatsappUrl,
-        '_blank',
-        'noopener,noreferrer'
+    if (!user) {
+      setError(
+        'Please sign in with Google first.'
       );
-    };
+      return;
+    }
+
+    if (!schoolName) {
+      setError(
+        'School name is not available. Please refresh the page and try again.'
+      );
+      return;
+    }
+
+    /*
+     * WhatsApp number
+     */
+    const phoneNumber =
+      '919112170192';
+
+    /*
+     * IMPORTANT:
+     * School ID यहाँ बिल्कुल नहीं है।
+     */
+    const message = [
+      '🏫 SCHOOL WEBSITE PAYMENT REQUEST',
+      '',
+      `School Name: ${schoolName}`,
+      `Admin Email: ${
+        user.email || 'Not available'
+      }`,
+      '',
+      `Selected Package: ₹${selectedPackage.amount}`,
+      `Subscription: ${selectedPackage.days} Days`,
+      '',
+      'I want to make the payment for my school website.',
+      'Please send me the UPI ID / UPI QR code for payment.',
+      '',
+      'Thank you.',
+    ].join('\n');
+
+    const whatsappUrl =
+      `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
+        message
+      )}`;
+
+    window.open(
+      whatsappUrl,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
 
   /* =======================================================
-     LOADING SCREEN
+     LOADING
   ======================================================= */
 
   if (loadingSchool) {
@@ -561,14 +516,14 @@ export default function PaymentRechargePage() {
      PAGE
   ======================================================= */
 
+  const whatsappReady =
+    Boolean(user && schoolName);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-5xl">
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
+        {/* HEADER */}
         <div className="mb-8 text-center text-white">
           <div className="text-6xl">
             💳
@@ -583,16 +538,10 @@ export default function PaymentRechargePage() {
           </p>
         </div>
 
-        {/* =================================================
-            MAIN CARD
-        ================================================= */}
-
+        {/* MAIN CARD */}
         <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
 
-          {/* =================================================
-              SUCCESS INFORMATION
-          ================================================= */}
-
+          {/* SUCCESS */}
           <div className="rounded-3xl border-2 border-green-200 bg-green-50 p-5">
             <div className="text-4xl">
               ✅
@@ -621,10 +570,7 @@ export default function PaymentRechargePage() {
             )}
           </div>
 
-          {/* =================================================
-              PENDING STATUS
-          ================================================= */}
-
+          {/* STATUS */}
           <div className="mt-6 rounded-3xl border-2 border-yellow-200 bg-yellow-50 p-5">
             <h2 className="text-xl font-black text-yellow-900">
               🟡 Payment Approval Required
@@ -637,10 +583,7 @@ export default function PaymentRechargePage() {
             </p>
           </div>
 
-          {/* =================================================
-              PACKAGES
-          ================================================= */}
-
+          {/* PACKAGES */}
           <div className="mt-8">
             <h2 className="text-2xl font-black text-gray-900">
               📦 Choose Subscription Package
@@ -662,9 +605,7 @@ export default function PaymentRechargePage() {
                       key={`${pkg.amount}-${pkg.days}`}
                       type="button"
                       onClick={() =>
-                        setSelectedPackage(
-                          pkg
-                        )
+                        setSelectedPackage(pkg)
                       }
                       className={`rounded-2xl p-5 text-center transition active:translate-y-1 ${
                         selected
@@ -673,17 +614,11 @@ export default function PaymentRechargePage() {
                       }`}
                     >
                       <div className="text-3xl font-black">
-                        ₹
-                        {
-                          pkg.amount
-                        }
+                        ₹{pkg.amount}
                       </div>
 
                       <div className="mt-2 text-lg font-extrabold">
-                        {
-                          pkg.days
-                        }{' '}
-                        Days
+                        {pkg.days} Days
                       </div>
 
                       {selected && (
@@ -698,34 +633,22 @@ export default function PaymentRechargePage() {
             </div>
           </div>
 
-          {/* =================================================
-              SELECTED PACKAGE
-          ================================================= */}
-
+          {/* SELECTED PACKAGE */}
           <div className="mt-8 rounded-3xl bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 p-6 text-center">
             <p className="text-sm font-bold text-gray-600">
               Selected Package
             </p>
 
             <p className="mt-2 text-4xl font-black text-purple-700">
-              ₹
-              {
-                selectedPackage.amount
-              }
+              ₹{selectedPackage.amount}
             </p>
 
             <p className="mt-1 text-lg font-extrabold text-gray-800">
-              {
-                selectedPackage.days
-              }{' '}
-              Days Subscription
+              {selectedPackage.days} Days Subscription
             </p>
           </div>
 
-          {/* =================================================
-              WHATSAPP
-          ================================================= */}
-
+          {/* WHATSAPP */}
           <div className="mt-8 rounded-3xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 text-center">
 
             <div className="text-6xl">
@@ -752,18 +675,25 @@ export default function PaymentRechargePage() {
               </p>
             </div>
 
+            {/* DEBUG / STATUS */}
+            {schoolName && (
+              <div className="mx-auto mt-5 max-w-md rounded-2xl border-2 border-green-200 bg-green-100 p-3">
+                <p className="text-sm font-bold text-green-800">
+                  ✅ School Ready for Payment
+                </p>
+
+                <p className="mt-1 text-base font-black text-green-900">
+                  {schoolName}
+                </p>
+              </div>
+            )}
+
             <button
               type="button"
-              onClick={
-                openWhatsApp
-              }
-              disabled={
-                !schoolName ||
-                !schoolId
-              }
+              onClick={openWhatsApp}
+              disabled={!whatsappReady}
               className={`mt-6 w-full rounded-2xl px-6 py-5 text-xl font-black text-white transition ${
-                schoolName &&
-                schoolId
+                whatsappReady
                   ? 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-[0_8px_0_rgb(4,120,87)] hover:brightness-110 active:translate-y-2 active:shadow-none'
                   : 'cursor-not-allowed bg-gray-400 shadow-[0_8px_0_rgb(107,114,128)]'
               }`}
@@ -776,10 +706,7 @@ export default function PaymentRechargePage() {
             </p>
           </div>
 
-          {/* =================================================
-              PAYMENT PROCESS
-          ================================================= */}
-
+          {/* PAYMENT PROCESS */}
           <div className="mt-8 rounded-3xl bg-gray-50 p-6">
             <h2 className="text-2xl font-black text-gray-900">
               📝 Payment Process
@@ -787,85 +714,60 @@ export default function PaymentRechargePage() {
 
             <div className="mt-5 space-y-4">
 
-              {/* STEP 1 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">
-                  1️⃣
-                </div>
-
+                <div className="text-3xl">1️⃣</div>
                 <div>
                   <p className="font-black text-gray-900">
                     Package Select करें
                   </p>
-
                   <p className="mt-1 text-sm text-gray-600">
                     ऊपर से अपना subscription package चुनें।
                   </p>
                 </div>
               </div>
 
-              {/* STEP 2 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">
-                  2️⃣
-                </div>
-
+                <div className="text-3xl">2️⃣</div>
                 <div>
                   <p className="font-black text-gray-900">
                     WhatsApp पर Contact करें
                   </p>
-
                   <p className="mt-1 text-sm text-gray-600">
                     WhatsApp button दबाकर payment request भेजें।
                   </p>
                 </div>
               </div>
 
-              {/* STEP 3 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">
-                  3️⃣
-                </div>
-
+                <div className="text-3xl">3️⃣</div>
                 <div>
                   <p className="font-black text-gray-900">
                     UPI QR से Payment करें
                   </p>
-
                   <p className="mt-1 text-sm text-gray-600">
                     आपको WhatsApp पर UPI ID या QR code दिया जाएगा।
                   </p>
                 </div>
               </div>
 
-              {/* STEP 4 */}
               <div className="flex gap-4 rounded-2xl bg-white p-4 shadow">
-                <div className="text-3xl">
-                  4️⃣
-                </div>
-
+                <div className="text-3xl">4️⃣</div>
                 <div>
                   <p className="font-black text-gray-900">
                     Admin Verification
                   </p>
-
                   <p className="mt-1 text-sm text-gray-600">
                     Payment verify होने के बाद Admin approval करेगा।
                   </p>
                 </div>
               </div>
 
-              {/* STEP 5 */}
               <div className="flex gap-4 rounded-2xl bg-green-50 p-4 shadow">
-                <div className="text-3xl">
-                  5️⃣
-                </div>
-
+                <div className="text-3xl">5️⃣</div>
                 <div>
                   <p className="font-black text-green-900">
                     School LIVE
                   </p>
-
                   <p className="mt-1 text-sm text-green-700">
                     Approval के बाद school LIVE हो जाएगा।
                   </p>
@@ -875,10 +777,7 @@ export default function PaymentRechargePage() {
             </div>
           </div>
 
-          {/* =================================================
-              ERROR
-          ================================================= */}
-
+          {/* ERROR */}
           {error && (
             <div className="mt-6 rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-semibold text-red-700">
               ❌ {error}
@@ -887,10 +786,7 @@ export default function PaymentRechargePage() {
 
         </div>
 
-        {/* =================================================
-            PAYMENT HISTORY
-        ================================================= */}
-
+        {/* PAYMENT HISTORY */}
         {user && (
           <div className="mt-6 rounded-3xl bg-white p-6 shadow-2xl">
 
@@ -907,59 +803,39 @@ export default function PaymentRechargePage() {
                 {requests.map(
                   (request) => (
                     <div
-                      key={
-                        request.id
-                      }
+                      key={request.id}
                       className="rounded-2xl border-2 border-gray-100 p-4"
                     >
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
                         <div>
                           <p className="font-black text-gray-900">
-                            ₹
-                            {
-                              request.amount
-                            }{' '}
-                            •{' '}
-                            {
-                              request.days
-                            }{' '}
-                            Days
+                            ₹{request.amount} • {request.days} Days
                           </p>
 
                           {request.utr && (
                             <p className="mt-1 text-sm text-gray-500">
-                              UTR:{' '}
-                              {
-                                request.utr
-                              }
+                              UTR: {request.utr}
                             </p>
                           )}
 
                           {request.schoolName && (
                             <p className="mt-1 text-sm font-semibold text-gray-500">
-                              🏫{' '}
-                              {
-                                request.schoolName
-                              }
+                              🏫 {request.schoolName}
                             </p>
                           )}
                         </div>
 
                         <span
                           className={`rounded-full px-4 py-2 text-sm font-black ${
-                            request.status ===
-                            'APPROVED'
+                            request.status === 'APPROVED'
                               ? 'bg-green-100 text-green-700'
-                              : request.status ===
-                                  'REJECTED'
+                              : request.status === 'REJECTED'
                                 ? 'bg-red-100 text-red-700'
                                 : 'bg-yellow-100 text-yellow-700'
                           }`}
                         >
-                          {
-                            request.status
-                          }
+                          {request.status}
                         </span>
 
                       </div>
@@ -972,19 +848,12 @@ export default function PaymentRechargePage() {
           </div>
         )}
 
-        {/* =================================================
-            NAVIGATION
-        ================================================= */}
-
+        {/* NAVIGATION */}
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-center">
 
           <button
             type="button"
-            onClick={() =>
-              navigate(
-                '/schools'
-              )
-            }
+            onClick={() => navigate('/schools')}
             className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none"
           >
             🔎 Schools
@@ -992,9 +861,7 @@ export default function PaymentRechargePage() {
 
           <button
             type="button"
-            onClick={() =>
-              navigate('/')
-            }
+            onClick={() => navigate('/')}
             className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-800 shadow-[0_5px_0_rgb(156,163,175)] transition hover:bg-gray-100 active:translate-y-1 active:shadow-none"
           >
             🏠 Home
@@ -1006,3 +873,4 @@ export default function PaymentRechargePage() {
     </div>
   );
 }
+```
