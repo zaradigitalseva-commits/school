@@ -11,7 +11,7 @@ import {
 import { db } from './config';
 
 /* =========================================================
-   PLATFORM ADMIN EMAIL
+   PLATFORM ADMIN
 ========================================================= */
 
 export function isPlatformAdminEmail(
@@ -68,6 +68,7 @@ export async function ensureUserRecord(
       userRef,
       {
         uid,
+
         email: cleanEmail,
 
         role:
@@ -114,11 +115,9 @@ export async function fetchUserRole(
   const data =
     userSnapshot.data();
 
-  return (
-    typeof data.role === 'string'
-      ? data.role
-      : null
-  );
+  return typeof data.role === 'string'
+    ? data.role
+    : null;
 }
 
 /* =========================================================
@@ -234,7 +233,7 @@ export async function registerSchool(
      WHATSAPP CONFIRMATION
 
      IMPORTANT:
-     This is owner confirmation only.
+     This is owner confirmation.
      It is NOT OTP verification.
   ======================================================= */
 
@@ -299,7 +298,7 @@ export async function registerSchool(
   ======================================================= */
 
   const membershipId =
-    `${ownerUid}_${schoolId}`;
+    ownerUid + '_' + schoolId;
 
   const membershipRef = doc(
     db,
@@ -329,9 +328,6 @@ export async function registerSchool(
 
     ownerEmail: cleanEmail,
 
-    /*
-     * New school starts as pending payment.
-     */
     status:
       'PENDING_PAYMENT',
 
@@ -339,41 +335,22 @@ export async function registerSchool(
 
     updatedAt: now,
 
-    /*
-     * Optional phone.
-     */
     phone: cleanPhone,
 
-    /*
-     * School's own WhatsApp number.
-     */
     whatsappNumber:
       cleanWhatsappNumber,
 
-    /*
-     * Owner confirmed the number.
-     * This is NOT OTP verification.
-     */
     whatsappVerified: true,
 
-    /*
-     * School address.
-     */
     address:
       input.address?.trim() || '',
 
-    /*
-     * Optional school information.
-     */
     tagline:
       input.tagline?.trim() || '',
 
     description:
       input.description?.trim() || '',
 
-    /*
-     * Initial payment state.
-     */
     paymentStatus:
       'PENDING',
 
@@ -461,3 +438,25 @@ export async function registerSchool(
   return school;
 }
 ```
+
+**अब यही पूरा code** `src/firebase/firestore.ts` में replace करें।
+
+फिर:
+
+```bash
+git add src/firebase/firestore.ts
+git commit -m "fix firestore functions and syntax"
+git push
+```
+
+### एक और जरूरी बात
+
+अगर अगला Vercel error ऐसा आता है:
+
+```text
+Cannot find name 'School'
+Cannot find name 'SchoolMembership'
+Cannot find name 'SchoolRegistrationInput'
+```
+
+तो घबराने की जरूरत नहीं है। इसका मतलब सिर्फ यह होगा कि इन तीन TypeScript types का **import missing** है। तब आप मुझे अगला Vercel error भेजें, या `src/types` वाली file दिखा दें; मैं exact import लगाकर दूँगा।
