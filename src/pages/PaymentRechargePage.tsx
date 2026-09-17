@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+
 import { useAuth } from '@/context/AuthContext';
 
 import {
@@ -13,91 +14,75 @@ import type {
   RechargeRequest,
 } from '@/firebase/payment';
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  where,
-} from 'firebase/firestore';
-
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 
-const PACKAGES = [
+const BILLING_PACKAGES = [
   { amount: 300, days: 28 },
   { amount: 600, days: 56 },
   { amount: 900, days: 84 },
   { amount: 1200, days: 112 },
   { amount: 3000, days: 280 },
-];
+] as const;
 
 const WHATSAPP_NUMBER = '919112170192';
 
-interface SchoolData {
-  id: string;
-  name?: string;
-  schoolName?: string;
-  ownerUid?: string;
-}
-
-function getSchoolName(school: SchoolData | null) {
-  if (!school) return 'School';
-  return school.schoolName || school.name || 'School';
-}
-
-function formatDate(value: any) {
+function formatDate(value: unknown): string {
   if (!value) return '-';
 
-  try {
-    if (typeof value?.toDate === 'function') {
-      return value.toDate().toLocaleString('en-IN');
-    }
-
-    if (value instanceof Date) {
-      return value.toLocaleString('en-IN');
-    }
-
-    if (typeof value === 'number') {
-      return new Date(value).toLocaleString('en-IN');
-    }
-
-    return new Date(value).toLocaleString('en-IN');
-  } catch {
-    return '-';
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toDate' in value &&
+    typeof (value as { toDate?: unknown }).toDate === 'function'
+  ) {
+    return (value as { toDate: () => Date }).toDate().toLocaleString(
+      'en-IN',
+      {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }
+    );
   }
-}
 
-function getStatusClass(status: RechargeRequest['status']) {
-  switch (status) {
-    case 'APPROVED':
-      return 'bg-green-100 text-green-700 border-green-300';
-
-    case 'REJECTED':
-      return 'bg-red-100 text-red-700 border-red-300';
-
-    default:
-      return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+  if (value instanceof Date) {
+    return value.toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
   }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+    }
+  }
+
+  return '-';
 }
 
 export default function PaymentRechargePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
   const { user } = useAuth();
 
   const [schoolId, setSchoolId] = useState('');
   const [schoolName, setSchoolName] = useState('');
 
-  const [selectedPackage, setSelectedPackage] = useState(PACKAGES[1]);
-
-  const [paymentSettings, setPaymentSettings] =
-    useState<PaymentSettings | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState(
+    BILLING_PACKAGES[1]
+  );
 
   const [utr, setUtr] = useState('');
   const [proofImageUrl, setProofImageUrl] = useState('');
+
+  const [paymentSettings, setPaymentSettings] =
+    useState<PaymentSettings | null>(null);
 
   const [history, setHistory] = useState<RechargeRequest[]>([]);
 
@@ -105,117 +90,145 @@ export default function PaymentRechargePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [message, setMessage] = useState('');
 
   /*
-   * Load school + payment settings + payment history
+   * ---------------------------------------------------------
+   * LOAD SCHOOL + PAYMENT SETTINGS + HISTORY
+   * ---------------------------------------------------------
    */
   useEffect(() => {
-    if (!user?.uid) return;
+    async function loadPage() {
+      try {
+        setLoading(true);
+        setError('');
 
-    loadPage();
-  }, [user?.uid]);
+        if (!user?.uid) {
+          setError('Please login first.');
+          return;
+        }
 
-  const loadPage = async () => {
-    if (!user?.uid) return;
+        const requestedSchoolId =
+          searchParams.get('schoolId')?.trim() || '';
 
-    setLoading(true);
-    setError('');
+        let currentSchoolId = requestedSchoolId;
+        let currentSchoolName = '';
 
-    try {
-      let foundSchool: SchoolData | null = null;
+        /*
+         * If schoolId is available in URL, load that school.
+         * Otherwise find school owned by logged-in user.
+         */
+        if (currentSchoolId) {
+          const schoolRef = collection(db, 'schools');
 
-      /*
-       * 1. First try schoolId from URL
-       */
-      const urlSchoolId = searchParams.get('schoolId');
+          const q = query(
+            schoolRef,
+            where('id', '==', currentSchoolId)
+          );
 
-      if (urlSchoolId) {
-        const schoolRef = doc(db, 'schools', urlSchoolId);
-        const schoolSnap = await getDoc(schoolRef);
+          const snapshot = await getDocs(q);
 
-        if (schoolSnap.exists()) {
-          const data = schoolSnap.data();
+          if (!snapshot.empty) {
+            const schoolData = snapshot.docs[0].data();
 
-          if (data.ownerUid === user.uid) {
-            foundSchool = {
-              id: schoolSnap.id,
-              ...data,
-            } as SchoolData;
+            if (
+              String(schoolData.ownerUid || '') !== user.uid
+            ) {
+              throw new Error(
+                'You are not authorized to access this school payment page.'
+              );
+            }
+
+            currentSchoolName = String(
+              schoolData.name ||
+                schoolData.schoolName ||
+                ''
+            ).trim();
           }
         }
-      }
 
-      /*
-       * 2. If schoolId was not found,
-       * find school by ownerUid.
-       */
-      if (!foundSchool) {
-        const q = query(
-          collection(db, 'schools'),
-          where('ownerUid', '==', user.uid),
-          limit(1)
-        );
+        /*
+         * Fallback:
+         * Find school using ownerUid.
+         */
+        if (!currentSchoolId || !currentSchoolName) {
+          const schoolRef = collection(db, 'schools');
 
-        const snap = await getDocs(q);
+          const q = query(
+            schoolRef,
+            where('ownerUid', '==', user.uid)
+          );
 
-        if (!snap.empty) {
-          const first = snap.docs[0];
+          const snapshot = await getDocs(q);
 
-          foundSchool = {
-            id: first.id,
-            ...first.data(),
-          } as SchoolData;
+          if (snapshot.empty) {
+            throw new Error(
+              'आपके account से कोई school नहीं मिला।'
+            );
+          }
+
+          const schoolDoc = snapshot.docs[0];
+          const schoolData = schoolDoc.data();
+
+          currentSchoolId = String(
+            schoolData.id || schoolDoc.id
+          );
+
+          currentSchoolName = String(
+            schoolData.name ||
+              schoolData.schoolName ||
+              ''
+          ).trim();
         }
-      }
 
-      /*
-       * 3. Set school information
-       */
-      if (foundSchool) {
-        setSchoolId(foundSchool.id);
-        setSchoolName(getSchoolName(foundSchool));
-      } else {
+        if (!currentSchoolId) {
+          throw new Error('School information नहीं मिली।');
+        }
+
+        setSchoolId(currentSchoolId);
+        setSchoolName(currentSchoolName);
+
+        const [settings, requests] = await Promise.all([
+          fetchPaymentSettings(),
+          fetchMyRechargeRequests(user.uid),
+        ]);
+
+        setPaymentSettings(settings);
+        setHistory(requests);
+      } catch (err) {
+        console.error(err);
+
         setError(
-          'आपके account से कोई School नहीं मिली। कृपया पहले School Registration पूरा करें।'
+          err instanceof Error
+            ? err.message
+            : 'Payment page load नहीं हो सका।'
         );
+      } finally {
+        setLoading(false);
       }
-
-      /*
-       * 4. Payment settings
-       */
-      const settings = await fetchPaymentSettings();
-      setPaymentSettings(settings);
-
-      /*
-       * 5. Payment history
-       */
-      const paymentHistory =
-        await fetchMyRechargeRequests(user.uid);
-
-      setHistory(paymentHistory);
-    } catch (err: any) {
-      console.error(err);
-
-      setError(
-        err?.message ||
-          'Payment page load नहीं हो सका। कृपया दोबारा कोशिश करें।'
-      );
-    } finally {
-      setLoading(false);
     }
-  };
+
+    loadPage();
+  }, [user?.uid, searchParams]);
 
   /*
-   * Open the user's installed UPI app.
-   * The receiver UPI ID is kept out of the visible UI.
+   * ---------------------------------------------------------
+   * UPI PAYMENT URL
+   * ---------------------------------------------------------
+   *
+   * UPI ID कभी hardcode नहीं होगी.
+   * Admin Payment Settings से आएगी.
    */
   const buildUpiPaymentUrl = () => {
-    const upiId = '8806940156@okbizaxis';
+    const upiId = paymentSettings?.upiId?.trim();
+
+    if (!upiId) {
+      return '';
+    }
 
     const params = new URLSearchParams({
       pa: upiId,
-      pn: schoolName || 'School Website',
+      pn: 'School Website',
       am: String(selectedPackage.amount),
       cu: 'INR',
     });
@@ -223,596 +236,714 @@ export default function PaymentRechargePage() {
     return `upi://pay?${params.toString()}`;
   };
 
-  const handleUPIPayment = () => {
-    if (!schoolId) {
-      setError('School information नहीं मिली।');
-      return;
-    }
-
-    window.location.href = buildUpiPaymentUrl();
-  };
-
-  // QR is useful when the payment page is opened on a PC,
-  // or when the user wants to pay from a second mobile.
-  const upiPaymentUrl = buildUpiPaymentUrl();
-  const qrCodeUrl =
-    `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=10&data=${encodeURIComponent(upiPaymentUrl)}`;
-
   /*
-   * Submit UPI payment request
+   * ---------------------------------------------------------
+   * PAY NOW
+   * ---------------------------------------------------------
    */
-  const handleSubmitPayment = async () => {
+  const handleUPIPayment = () => {
     setError('');
-    setSuccess('');
-
-    if (!user?.uid) {
-      setError('कृपया पहले Google Login करें।');
-      return;
-    }
+    setMessage('');
 
     if (!schoolId) {
       setError('School information नहीं मिली।');
       return;
     }
 
-    const cleanUTR = utr
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, '');
+    if (!paymentSettings?.upiId?.trim()) {
+      setError(
+        'Payment सुविधा अभी Admin द्वारा configure नहीं की गई है। कृपया Admin से संपर्क करें।'
+      );
+      return;
+    }
 
-    if (!cleanUTR) {
-      setError('कृपया UTR Number डालें।');
+    const paymentUrl = buildUpiPaymentUrl();
+
+    if (!paymentUrl) {
+      setError('UPI Payment Link नहीं बन सका।');
       return;
     }
 
     /*
-     * Basic UTR validation
+     * Mobile में installed UPI app open होगी.
      */
-    if (cleanUTR.length < 6) {
-      setError('कृपया सही UTR Number डालें।');
+    window.location.href = paymentUrl;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * DYNAMIC QR
+   * ---------------------------------------------------------
+   *
+   * QR तभी दिखेगा जब Admin ने UPI ID configure की हो.
+   */
+  const upiPaymentUrl = useMemo(
+    () => buildUpiPaymentUrl(),
+    [
+      paymentSettings?.upiId,
+      selectedPackage.amount,
+    ]
+  );
+
+  const dynamicQrUrl = useMemo(() => {
+    if (!upiPaymentUrl) {
+      return '';
+    }
+
+    return (
+      'https://api.qrserver.com/v1/create-qr-code/' +
+      '?size=280x280&margin=10&data=' +
+      encodeURIComponent(upiPaymentUrl)
+    );
+  }, [upiPaymentUrl]);
+
+  /*
+   * ---------------------------------------------------------
+   * SUBMIT PAYMENT REQUEST
+   * ---------------------------------------------------------
+   */
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setError('');
+    setMessage('');
+
+    if (!user?.uid) {
+      setError('Please login first.');
       return;
     }
 
-    setSubmitting(true);
+    if (!schoolId) {
+      setError('School information नहीं मिली।');
+      return;
+    }
+
+    const cleanUtr = utr.trim();
+
+    if (!cleanUtr) {
+      setError('UTR Number दर्ज करें।');
+      return;
+    }
+
+    if (cleanUtr.length < 4) {
+      setError('Valid UTR Number दर्ज करें।');
+      return;
+    }
 
     try {
+      setSubmitting(true);
+
       /*
-       * Backend transaction also checks whether
-       * this UTR has already been used.
+       * createRechargeRequest()
+       * Firebase transaction के अंदर UTR को
+       * utrReservations collection में reserve करता है.
+       *
+       * इसलिए एक UTR सिर्फ एक बार पूरे system में
+       * submit हो सकता है.
        */
       await createRechargeRequest({
         schoolId,
         uid: user.uid,
         amount: selectedPackage.amount,
         days: selectedPackage.days,
-        utr: cleanUTR,
-        proofImageUrl: proofImageUrl.trim(),
+        utr: cleanUtr,
+        proofImageUrl: proofImageUrl.trim() || undefined,
       });
 
-      /*
-       * SUCCESS
-       */
+      setMessage(
+        '✅ Payment request सफलतापूर्वक submit हो गई है। Admin approval का इंतजार करें।'
+      );
+
       setUtr('');
       setProofImageUrl('');
 
-      await loadPage();
+      /*
+       * Refresh history
+       */
+      const updatedHistory =
+        await fetchMyRechargeRequests(user.uid);
 
-      setSuccess(
-        '✅ Payment Request सफलतापूर्वक Submit हो गई है। Admin Payment verify करने के बाद Subscription Activate करेगा।'
-      );
+      setHistory(updatedHistory);
 
       /*
-       * Open WhatsApp only AFTER the payment request has been
-       * successfully saved. The message contains the complete
-       * payment/request details.
+       * WhatsApp message
+       *
+       * School ID intentionally नहीं भेजा जा रहा.
        */
-      const whatsappMessage = `
-💳 SCHOOL WEBSITE PAYMENT REQUEST
-
-👤 Name: ${user?.displayName || 'Not available'}
-📧 Email: ${user?.email || 'Not available'}
-
-🏫 School Name: ${schoolName || 'Not available'}
-
-📦 Package: ₹${selectedPackage.amount}
-📅 Validity: ${selectedPackage.days} Days
-💰 Amount: ₹${selectedPackage.amount}
-
-🔢 UTR Number: ${cleanUTR}
-
-🖼️ Screenshot:
-${proofImageUrl.trim() || 'Not provided'}
-
-🕐 Submitted: ${new Date().toLocaleString('en-IN')}
-
-✅ Payment request successfully submitted.
-Please verify the payment and approve/reject it from the Admin Panel.
-      `.trim();
+      const whatsappMessage =
+        `SCHOOL WEBSITE PAYMENT REQUEST\n\n` +
+        `School Name: ${schoolName || 'Not available'}\n` +
+        `Admin Email: ${user.email || 'Not available'}\n\n` +
+        `Selected Package: ₹${selectedPackage.amount}\n` +
+        `Subscription: ${selectedPackage.days} Days\n` +
+        `Amount: ₹${selectedPackage.amount}\n` +
+        `UTR Number: ${cleanUtr}\n` +
+        `Screenshot/Proof: ${
+          proofImageUrl.trim() || 'Not provided'
+        }\n` +
+        `Submitted Time: ${new Date().toLocaleString(
+          'en-IN'
+        )}\n\n` +
+        `Please verify my payment and approve the subscription.\n\n` +
+        `Thank you.`;
 
       const whatsappUrl =
         `https://wa.me/${WHATSAPP_NUMBER}` +
         `?text=${encodeURIComponent(whatsappMessage)}`;
 
-      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-    } catch (err: any) {
-      const message = String(err?.message || '');
+      window.open(
+        whatsappUrl,
+        '_blank',
+        'noopener,noreferrer'
+      );
+    } catch (err) {
+      console.error(err);
+
+      const errorText =
+        err instanceof Error
+          ? err.message
+          : 'Payment request submit नहीं हो सकी।';
 
       /*
-       * DUPLICATE UTR
+       * Duplicate UTR के लिए साफ message.
        */
       if (
-        message.includes('already been submitted') ||
-        message.includes('UTR Number has already') ||
-        message.toLowerCase().includes('duplicate utr') ||
-        message.toLowerCase().includes('utr already')
+        errorText
+          .toLowerCase()
+          .includes('utr number has already been submitted')
       ) {
-        /*
-         * Old UTR clear कर दें ताकि user
-         * नया UTR डाल सके.
-         */
-        setUtr('');
-
         setError(
-          '⚠️ यह UTR Number पहले ही इस्तेमाल हो चुका है। यह UTR दोबारा स्वीकार नहीं किया जाएगा। कृपया नया UPI Payment करें और नया UTR Number डालकर फिर Submit करें।'
+          '❌ यह UTR Number पहले ही submit हो चुका है। कृपया दूसरा valid UTR डालें।'
         );
-
-        return;
+      } else {
+        setError(errorText);
       }
-
-      setError(
-        message ||
-          '❌ Payment Request Submit नहीं हो सकी। कृपया दोबारा कोशिश करें।'
-      );
     } finally {
       setSubmitting(false);
     }
-  };
-
-
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-white to-purple-100 p-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 text-center">
-          <div className="text-5xl mb-4 animate-pulse">
-            💳
-          </div>
-
-          <h2 className="text-xl font-bold text-gray-800">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6">
+        <div className="rounded-3xl bg-white px-8 py-6 text-center shadow-2xl">
+          <div className="text-3xl">⏳</div>
+          <div className="mt-2 font-black text-slate-800">
             Payment Page Loading...
-          </h2>
-
-          <p className="text-gray-500 mt-2">
-            कृपया प्रतीक्षा करें
-          </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-100 p-3 sm:p-6">
-
-      {/* Header */}
-      <div className="max-w-6xl mx-auto mb-5">
-        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl shadow-2xl p-5 text-white">
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black">
-                💳 School Website Payment
-              </h1>
-
-              <p className="mt-1 opacity-90">
-                {schoolName || 'School'}
-              </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 px-4 py-6 md:px-8">
+      <div className="mx-auto max-w-6xl">
+        {/* HEADER */}
+        <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/10 p-5 text-white shadow-2xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-bold text-blue-200">
+              SCHOOL WEBSITE
             </div>
 
-            <button
-              onClick={() => navigate(-1)}
-              className="bg-white text-purple-700 px-5 py-3 rounded-2xl font-bold shadow-[0_5px_0_#c4b5fd] active:shadow-[0_2px_0_#c4b5fd] active:translate-y-[3px] transition"
-            >
-              ← Back
-            </button>
+            <h1 className="mt-1 text-2xl font-black md:text-3xl">
+              💳 Recharge / Payment
+            </h1>
 
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-5">
-
-        {/* LEFT SIDE */}
-        <div className="space-y-5">
-
-          {/* Packages */}
-          <div className="bg-white rounded-3xl shadow-xl p-5">
-
-            <h2 className="text-xl font-black text-gray-800 mb-4">
-              📦 Select Package
-            </h2>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-
-              {PACKAGES.map((pkg) => {
-                const selected =
-                  selectedPackage.amount === pkg.amount &&
-                  selectedPackage.days === pkg.days;
-
-                return (
-                  <button
-                    key={`${pkg.amount}-${pkg.days}`}
-                    onClick={() => {
-                      setSelectedPackage(pkg);
-                      setError('');
-                      setSuccess('');
-                    }}
-                    className={`
-                      rounded-2xl p-4 font-bold
-                      border-2 transition
-                      shadow-[0_5px_0_rgba(0,0,0,0.18)]
-                      active:shadow-[0_2px_0_rgba(0,0,0,0.18)]
-                      active:translate-y-[3px]
-                      ${
-                        selected
-                          ? 'bg-gradient-to-br from-green-400 to-emerald-600 text-white border-green-700'
-                          : 'bg-gradient-to-br from-yellow-100 to-orange-200 text-gray-800 border-orange-300'
-                      }
-                    `}
-                  >
-                    <div className="text-xl">
-                      ₹{pkg.amount}
-                    </div>
-
-                    <div className="text-sm mt-1">
-                      {pkg.days} Days
-                    </div>
-
-                    {selected && (
-                      <div className="text-xs mt-2">
-                        ✓ Selected
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-
-            </div>
+            <p className="mt-1 text-sm text-slate-300">
+              {schoolName || 'School'}
+            </p>
           </div>
 
-          {/* Payment Details */}
-          <div className="bg-white rounded-3xl shadow-xl p-5">
-
-            <h2 className="text-xl font-black text-gray-800 mb-4">
-              💰 Make UPI Payment
-            </h2>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4">
-
-              <div className="text-sm text-gray-500">
-                Selected Package
-              </div>
-
-              <div className="text-2xl font-black text-blue-700">
-                ₹{selectedPackage.amount}
-              </div>
-
-              <div className="text-gray-600">
-                Validity: {selectedPackage.days} Days
-              </div>
-
-            </div>
-
-            {/* QR Payment - useful on PC or when paying from another mobile */}
-            <div className="mb-5 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50 p-4 text-center">
-              <div className="font-black text-gray-800 mb-2">
-                📷 PC / दूसरे Mobile से Payment
-              </div>
-              <div className="text-sm text-gray-600 mb-3">
-                इस QR Code को अपने UPI वाले mobile से scan करें।
-              </div>
-
-              <div className="inline-flex rounded-2xl bg-white p-3 shadow-md">
-                <img
-                  src={qrCodeUrl}
-                  alt={`UPI payment QR for ₹${selectedPackage.amount}`}
-                  width={240}
-                  height={240}
-                  className="h-60 w-60 max-w-full"
-                  loading="eager"
-                />
-              </div>
-
-              <div className="mt-3 text-xs text-gray-500">
-                Amount: <span className="font-bold">₹{selectedPackage.amount}</span>
-              </div>
-            </div>
-
-            {/* Direct UPI Payment - opens the UPI app on the same mobile */}
-            <button
-              type="button"
-              onClick={handleUPIPayment}
-              disabled={!schoolId}
-              className="
-                w-full
-                mb-5
-                py-4
-                rounded-2xl
-                bg-gradient-to-r
-                from-blue-600
-                via-purple-600
-                to-pink-600
-                text-white
-                text-lg
-                font-black
-                shadow-[0_6px_0_#312e81]
-                active:shadow-[0_2px_0_#312e81]
-                active:translate-y-[4px]
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-                transition
-              "
-            >
-              💳 Pay ₹{selectedPackage.amount} Now
-            </button>
-
-            <div className="text-center text-sm text-gray-500 mb-5">
-              📱 Button दबाने पर आपके mobile का UPI app खुलेगा।
-            </div>
-
-            {/* Instructions */}
-            {paymentSettings?.instructions && (
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 mb-5">
-
-                <div className="font-black text-yellow-800 mb-2">
-                  📌 Payment Instructions
-                </div>
-
-                <div className="text-sm text-gray-700 whitespace-pre-line">
-                  {paymentSettings.instructions}
-                </div>
-
-              </div>
-            )}
-
-            {/* UTR */}
-            <div className="mb-4">
-
-              <label className="block font-bold text-gray-700 mb-2">
-                UTR / Transaction Number *
-              </label>
-
-              <input
-                type="text"
-                value={utr}
-                onChange={(e) => {
-                  setUtr(e.target.value);
-                  setError('');
-                  setSuccess('');
-                }}
-                placeholder="Payment के बाद UTR Number डालें"
-                className="w-full border-2 border-gray-300 focus:border-blue-500 rounded-2xl px-4 py-4 text-lg font-semibold outline-none"
-                autoComplete="off"
-              />
-
-              <p className="text-xs text-gray-500 mt-2">
-                ⚠️ एक UTR Number केवल एक बार इस्तेमाल किया जा सकता है।
-              </p>
-
-            </div>
-
-            {/* Proof URL */}
-            <div className="mb-5">
-
-              <label className="block font-bold text-gray-700 mb-2">
-                Payment Screenshot URL
-                <span className="text-gray-400 font-normal">
-                  {' '}(Optional)
-                </span>
-              </label>
-
-              <input
-                type="url"
-                value={proofImageUrl}
-                onChange={(e) =>
-                  setProofImageUrl(e.target.value)
-                }
-                placeholder="https://..."
-                className="w-full border-2 border-gray-300 focus:border-blue-500 rounded-2xl px-4 py-3 outline-none"
-              />
-
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="mb-4 bg-red-50 border-2 border-red-300 text-red-700 rounded-2xl p-4 font-semibold">
-
-                <div className="font-black mb-1">
-                  ⚠️ Payment Submit नहीं हुआ
-                </div>
-
-                <div>
-                  {error}
-                </div>
-
-              </div>
-            )}
-
-            {/* Success */}
-            {success && (
-              <div className="mb-4 bg-green-50 border-2 border-green-300 text-green-700 rounded-2xl p-4 font-semibold">
-
-                {success}
-
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              onClick={handleSubmitPayment}
-              disabled={
-                submitting ||
-                !utr.trim() ||
-                !schoolId
-              }
-              className="
-                w-full
-                py-4
-                rounded-2xl
-                bg-gradient-to-r
-                from-green-500
-                via-emerald-500
-                to-teal-600
-                text-white
-                text-lg
-                font-black
-                shadow-[0_6px_0_#047857]
-                active:shadow-[0_2px_0_#047857]
-                active:translate-y-[4px]
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-                transition
-              "
-            >
-              {submitting
-                ? '⏳ Submitting...'
-                : '✅ Submit Payment'}
-            </button>
-
-          </div>
-
-
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="
+              rounded-2xl
+              bg-gradient-to-r from-slate-200 to-white
+              px-5 py-3
+              font-black text-slate-900
+              shadow-[0_5px_0_rgb(100,116,139)]
+              transition
+              active:translate-y-1
+              active:shadow-none
+            "
+          >
+            ← Back
+          </button>
         </div>
 
-        {/* RIGHT SIDE */}
-        <div className="bg-white rounded-3xl shadow-xl p-5 h-fit">
+        {/* ALERTS */}
+        {error && (
+          <div className="mb-5 rounded-2xl border border-red-300 bg-red-50 px-5 py-4 font-bold text-red-700 shadow-lg">
+            ❌ {error}
+          </div>
+        )}
 
-          <h2 className="text-xl font-black text-gray-800 mb-4">
-            📜 Payment History
-          </h2>
+        {message && (
+          <div className="mb-5 rounded-2xl border border-green-300 bg-green-50 px-5 py-4 font-bold text-green-700 shadow-lg">
+            {message}
+          </div>
+        )}
 
-          {history.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* LEFT - PACKAGE + PAYMENT */}
+          <div className="space-y-6">
+            {/* PACKAGES */}
+            <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
+              <h2 className="text-xl font-black text-slate-900">
+                📦 Select Package
+              </h2>
 
-              <div className="text-5xl mb-3">
-                💳
-              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {BILLING_PACKAGES.map((item) => {
+                  const selected =
+                    selectedPackage.amount === item.amount &&
+                    selectedPackage.days === item.days;
 
-              <p className="font-semibold">
-                अभी कोई Payment Request नहीं है।
-              </p>
-
-            </div>
-          ) : (
-            <div className="space-y-4">
-
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="border-2 border-gray-100 rounded-2xl p-4 shadow-sm"
-                >
-
-                  <div className="flex justify-between items-start gap-3">
-
-                    <div>
-                      <div className="text-xl font-black text-blue-700">
+                  return (
+                    <button
+                      key={`${item.amount}-${item.days}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPackage(item);
+                        setError('');
+                        setMessage('');
+                      }}
+                      className={`
+                        rounded-2xl
+                        border-2
+                        p-4
+                        text-left
+                        transition
+                        ${
+                          selected
+                            ? 'border-blue-600 bg-blue-50 shadow-[0_5px_0_rgb(37,99,235)]'
+                            : 'border-slate-200 bg-white shadow-[0_4px_0_rgb(203,213,225)]'
+                        }
+                        active:translate-y-1
+                        active:shadow-none
+                      `}
+                    >
+                      <div className="text-2xl font-black text-slate-900">
                         ₹{item.amount}
                       </div>
 
-                      <div className="text-sm text-gray-500">
+                      <div className="mt-1 font-bold text-slate-600">
                         {item.days} Days
                       </div>
-                    </div>
 
-                    <span
-                      className={`
-                        px-3
-                        py-1
-                        rounded-full
-                        border
-                        text-xs
-                        font-black
-                        ${getStatusClass(item.status)}
-                      `}
-                    >
-                      {item.status}
+                      {selected && (
+                        <div className="mt-2 text-sm font-black text-blue-600">
+                          ✓ Selected
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* PAYMENT */}
+            <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
+              <h2 className="text-xl font-black text-slate-900">
+                💰 Make Payment
+              </h2>
+
+              <div className="mt-4 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 p-5 text-center">
+                <div className="text-sm font-bold text-slate-500">
+                  Selected Amount
+                </div>
+
+                <div className="mt-1 text-4xl font-black text-slate-900">
+                  ₹{selectedPackage.amount}
+                </div>
+
+                <div className="mt-1 font-bold text-slate-600">
+                  {selectedPackage.days} Days Subscription
+                </div>
+              </div>
+
+              {paymentSettings?.upiId?.trim() ? (
+                <>
+                  {/* QR */}
+                  {dynamicQrUrl && (
+                    <div className="mt-5 flex justify-center">
+                      <div className="rounded-3xl bg-white p-4 shadow-[0_6px_0_rgb(203,213,225)]">
+                        <img
+                          src={dynamicQrUrl}
+                          alt="UPI Payment QR"
+                          className="h-64 w-64 rounded-2xl object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="mt-4 text-center text-sm font-bold text-slate-500">
+                    QR scan करके payment करें या नीचे Pay Now दबाएँ।
+                  </p>
+
+                  {/* PAY NOW */}
+                  <button
+                    type="button"
+                    onClick={handleUPIPayment}
+                    disabled={
+                      !schoolId ||
+                      !paymentSettings?.upiId?.trim()
+                    }
+                    className="
+                      mt-5
+                      w-full
+                      rounded-2xl
+                      bg-gradient-to-r
+                      from-green-500
+                      via-emerald-500
+                      to-teal-500
+                      px-6 py-4
+                      text-lg
+                      font-black
+                      text-white
+                      shadow-[0_7px_0_rgb(4,120,87)]
+                      transition
+                      hover:brightness-105
+                      active:translate-y-1
+                      active:shadow-none
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                    "
+                  >
+                    💳 Pay ₹{selectedPackage.amount} Now
+                  </button>
+
+                  <p className="mt-3 text-center text-xs font-bold text-slate-400">
+                    Pay Now दबाने पर आपके mobile में available UPI
+                    payment app खुल जाएगी।
+                  </p>
+                </>
+              ) : (
+                <div className="mt-5 rounded-2xl border-2 border-orange-200 bg-orange-50 p-5 text-center">
+                  <div className="text-3xl">⚠️</div>
+
+                  <div className="mt-2 font-black text-orange-700">
+                    Payment अभी configure नहीं है
+                  </div>
+
+                  <p className="mt-1 text-sm font-semibold text-orange-600">
+                    कृपया Platform Admin से payment setup करने के लिए
+                    संपर्क करें।
+                  </p>
+                </div>
+              )}
+
+              {/* SUPPORT */}
+              {paymentSettings?.supportPhone?.trim() && (
+                <div className="mt-5 rounded-2xl bg-slate-100 p-4 text-center">
+                  <div className="text-sm font-bold text-slate-500">
+                    Payment Help
+                  </div>
+
+                  <a
+                    href={`tel:${paymentSettings.supportPhone.trim()}`}
+                    className="mt-1 inline-block font-black text-blue-600"
+                  >
+                    📞 {paymentSettings.supportPhone.trim()}
+                  </a>
+                </div>
+              )}
+
+              {/* INSTRUCTIONS */}
+              {paymentSettings?.instructions?.trim() && (
+                <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                  <h3 className="font-black text-slate-900">
+                    📋 Payment Instructions
+                  </h3>
+
+                  <div className="mt-3 whitespace-pre-line text-sm font-semibold leading-6 text-slate-600">
+                    {paymentSettings.instructions}
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* RIGHT - FORM + HISTORY */}
+          <div className="space-y-6">
+            {/* SUBMIT FORM */}
+            <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
+              <h2 className="text-xl font-black text-slate-900">
+                🧾 Submit Payment Details
+              </h2>
+
+              <form
+                onSubmit={handleSubmit}
+                className="mt-5 space-y-5"
+              >
+                {/* UTR */}
+                <div>
+                  <label className="mb-2 block font-black text-slate-700">
+                    UTR Number *
+                  </label>
+
+                  <input
+                    type="text"
+                    value={utr}
+                    onChange={(event) =>
+                      setUtr(event.target.value)
+                    }
+                    placeholder="Payment का UTR Number डालें"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="
+                      w-full
+                      rounded-2xl
+                      border-2
+                      border-slate-200
+                      bg-white
+                      px-4 py-4
+                      font-bold
+                      text-slate-900
+                      outline-none
+                      transition
+                      focus:border-blue-500
+                      focus:ring-4
+                      focus:ring-blue-100
+                    "
+                  />
+
+                  <p className="mt-2 text-xs font-bold text-slate-400">
+                    ⚠️ एक UTR Number केवल एक बार submit किया जा सकता है।
+                  </p>
+                </div>
+
+                {/* PROOF */}
+                <div>
+                  <label className="mb-2 block font-black text-slate-700">
+                    Payment Screenshot / Proof URL
+                    <span className="ml-1 text-sm font-semibold text-slate-400">
+                      (Optional)
+                    </span>
+                  </label>
+
+                  <input
+                    type="url"
+                    value={proofImageUrl}
+                    onChange={(event) =>
+                      setProofImageUrl(event.target.value)
+                    }
+                    placeholder="https://..."
+                    className="
+                      w-full
+                      rounded-2xl
+                      border-2
+                      border-slate-200
+                      bg-white
+                      px-4 py-4
+                      font-bold
+                      text-slate-900
+                      outline-none
+                      transition
+                      focus:border-purple-500
+                      focus:ring-4
+                      focus:ring-purple-100
+                    "
+                  />
+
+                  <p className="mt-2 text-xs font-bold text-slate-400">
+                    यदि screenshot किसी image hosting पर है तो उसका
+                    URL डाल सकते हैं।
+                  </p>
+                </div>
+
+                {/* SUMMARY */}
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <span className="font-bold text-slate-500">
+                      School
                     </span>
 
+                    <span className="max-w-[60%] text-right font-black text-slate-900">
+                      {schoolName || '-'}
+                    </span>
                   </div>
 
-                  <div className="mt-4 space-y-2 text-sm">
+                  <div className="mt-3 flex items-center justify-between border-b border-slate-200 pb-3">
+                    <span className="font-bold text-slate-500">
+                      Package
+                    </span>
 
-                    <div>
-                      <span className="font-bold">
-                        UTR:
-                      </span>{' '}
-                      <span className="font-mono break-all">
-                        {item.utr}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="font-bold">
-                        Submitted:
-                      </span>{' '}
-                      {formatDate(item.createdAt)}
-                    </div>
-
-                    {item.rejectionReason && (
-                      <div className="bg-red-50 text-red-700 rounded-xl p-3">
-                        <span className="font-bold">
-                          Rejection Reason:
-                        </span>{' '}
-                        {item.rejectionReason}
-                      </div>
-                    )}
-
-                    {item.status === 'APPROVED' && (
-                      <div className="bg-green-50 text-green-700 rounded-xl p-3 font-semibold">
-                        ✅ Payment Approved
-                      </div>
-                    )}
-
-                    {item.status === 'PENDING' && (
-                      <div className="bg-yellow-50 text-yellow-700 rounded-xl p-3 font-semibold">
-                        ⏳ Admin Payment verify कर रहा है।
-                      </div>
-                    )}
-
-                    {item.status === 'REJECTED' && (
-                      <div className="bg-red-50 text-red-700 rounded-xl p-3 font-semibold">
-                        ❌ यह Payment Request Reject हो गई है।
-                        <br />
-                        कृपया नया Payment करें और नया UTR डालें।
-                      </div>
-                    )}
-
+                    <span className="font-black text-slate-900">
+                      ₹{selectedPackage.amount}
+                    </span>
                   </div>
 
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="font-bold text-slate-500">
+                      Validity
+                    </span>
+
+                    <span className="font-black text-slate-900">
+                      {selectedPackage.days} Days
+                    </span>
+                  </div>
                 </div>
-              ))}
 
-            </div>
-          )}
+                {/* SUBMIT */}
+                <button
+                  type="submit"
+                  disabled={submitting || !schoolId}
+                  className="
+                    w-full
+                    rounded-2xl
+                    bg-gradient-to-r
+                    from-blue-600
+                    via-purple-600
+                    to-pink-600
+                    px-6 py-4
+                    text-lg
+                    font-black
+                    text-white
+                    shadow-[0_7px_0_rgb(67,56,202)]
+                    transition
+                    hover:brightness-105
+                    active:translate-y-1
+                    active:shadow-none
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
+                >
+                  {submitting
+                    ? '⏳ Submitting...'
+                    : '✅ Submit Payment Request'}
+                </button>
+              </form>
+            </section>
 
+            {/* HISTORY */}
+            <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
+              <h2 className="text-xl font-black text-slate-900">
+                📜 Payment History
+              </h2>
+
+              {history.length === 0 ? (
+                <div className="mt-5 rounded-2xl bg-slate-50 p-6 text-center">
+                  <div className="text-3xl">📭</div>
+
+                  <div className="mt-2 font-black text-slate-700">
+                    अभी कोई payment request नहीं है।
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  {history.map((item) => {
+                    const status = String(
+                      item.status || ''
+                    ).toUpperCase();
+
+                    const statusClass =
+                      status === 'APPROVED'
+                        ? 'bg-green-100 text-green-700'
+                        : status === 'REJECTED'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-orange-100 text-orange-700';
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border-2 border-slate-100 bg-slate-50 p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="text-lg font-black text-slate-900">
+                              ₹{item.amount}
+                            </div>
+
+                            <div className="text-sm font-bold text-slate-500">
+                              {item.days} Days
+                            </div>
+                          </div>
+
+                          <span
+                            className={`
+                              inline-flex
+                              w-fit
+                              rounded-full
+                              px-3 py-1
+                              text-xs
+                              font-black
+                              ${statusClass}
+                            `}
+                          >
+                            {status}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-2 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <span className="font-bold text-slate-400">
+                              UTR
+                            </span>
+
+                            <span className="break-all text-right font-black text-slate-700">
+                              {item.utr || '-'}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between gap-4">
+                            <span className="font-bold text-slate-400">
+                              Submitted
+                            </span>
+
+                            <span className="text-right font-bold text-slate-700">
+                              {formatDate(item.createdAt)}
+                            </span>
+                          </div>
+
+                          {item.approvedAt && (
+                            <div className="flex justify-between gap-4">
+                              <span className="font-bold text-slate-400">
+                                Approved
+                              </span>
+
+                              <span className="text-right font-bold text-green-700">
+                                {formatDate(item.approvedAt)}
+                              </span>
+                            </div>
+                          )}
+
+                          {item.rejectionReason && (
+                            <div className="mt-2 rounded-xl bg-red-50 p-3">
+                              <div className="font-black text-red-700">
+                                Rejection Reason
+                              </div>
+
+                              <div className="mt-1 text-sm font-semibold text-red-600">
+                                {item.rejectionReason}
+                              </div>
+                            </div>
+                          )}
+
+                          {item.proofImageUrl && (
+                            <a
+                              href={item.proofImageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-flex w-fit rounded-xl bg-white px-3 py-2 text-sm font-black text-blue-600 shadow"
+                            >
+                              🖼️ View Payment Proof
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
-
       </div>
-
-      {/* Bottom information */}
-      <div className="max-w-6xl mx-auto mt-5">
-
-        <div className="bg-white/80 backdrop-blur rounded-3xl shadow-lg p-4 text-center text-sm text-gray-600">
-
-          🔐 <strong>Important:</strong> एक UTR Number
-          केवल एक बार इस्तेमाल किया जा सकता है। अगर कोई
-          UTR पहले Submit हो चुका है, तो वह दोबारा स्वीकार
-          नहीं किया जाएगा।
-
-        </div>
-
-      </div>
-
     </div>
   );
 }
