@@ -29,123 +29,52 @@ function App() {
       <AuthProvider>
         <Routes>
 
-          {/* PUBLIC WEBSITE */}
-
           <Route element={<PublicLayout />}>
-
-            <Route
-              path="/"
-              element={<PlatformHomePage />}
-            />
-
-            <Route
-              path="/about"
-              element={<AboutPage />}
-            />
-
-            <Route
-              path="/academics"
-              element={<AcademicsPage />}
-            />
-
-            <Route
-              path="/teachers"
-              element={<TeachersPage />}
-            />
-
-            <Route
-              path="/notices"
-              element={<NoticesPage />}
-            />
-
-            <Route
-              path="/events"
-              element={<EventsPage />}
-            />
-
-            <Route
-              path="/contact"
-              element={<ContactPage />}
-            />
-
-            <Route
-              path="/login"
-              element={<LoginPage />}
-            />
-
-            <Route
-              path="/register-school"
-              element={<RegisterSchoolPage />}
-            />
-
-            <Route
-              path="/schools"
-              element={<SchoolsPage />}
-            />
-
-            <Route
-              path="/school/:slug"
-              element={<SchoolPublicPage />}
-            />
-
+            <Route path="/" element={<PlatformHomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/academics" element={<AcademicsPage />} />
+            <Route path="/teachers" element={<TeachersPage />} />
+            <Route path="/notices" element={<NoticesPage />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register-school" element={<RegisterSchoolPage />} />
+            <Route path="/schools" element={<SchoolsPage />} />
+            <Route path="/school/:slug" element={<SchoolPublicPage />} />
           </Route>
-
-          {/* PAYMENT */}
 
           <Route
             path="/payment/recharge"
             element={
               <ProtectedRoute
-                allowedRoles={[
-                  'school_admin',
-                  'platform_admin',
-                ]}
+                allowedRoles={['school_admin', 'platform_admin']}
               >
                 <PaymentRechargePage />
               </ProtectedRoute>
             }
           />
 
-          {/* PLATFORM ADMIN */}
-
           <Route
             path="/admin"
             element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'platform_admin',
-                ]}
-              >
+              <ProtectedRoute allowedRoles={['platform_admin']}>
                 <PlatformAdminPage />
               </ProtectedRoute>
             }
           />
 
-          {/* SCHOOL ADMIN */}
-
           <Route
             path="/school-admin"
             element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'school_admin',
-                ]}
-              >
+              <ProtectedRoute allowedRoles={['school_admin']}>
                 <SchoolAdminPage />
               </ProtectedRoute>
             }
           />
 
-          {/* FALLBACK */}
-
           <Route
             path="*"
-            element={
-              <Navigate
-                to="/"
-                replace
-              />
-            }
+            element={<Navigate to="/" replace />}
           />
 
         </Routes>
