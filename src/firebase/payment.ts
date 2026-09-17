@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -82,6 +83,10 @@ function normalizeUTR(
     .replace(/\s+/g, '');
 }
 
+/* =========================================================
+   GET BILLING PACKAGE
+========================================================= */
+
 function getPackage(
   amount: number,
   days: number
@@ -101,6 +106,10 @@ function getPackage(
 
   return found;
 }
+
+/* =========================================================
+   TIMESTAMP HELPER
+========================================================= */
 
 function timestampToMillis(
   value: unknown
@@ -134,9 +143,7 @@ function timestampToMillis(
     return value;
   }
 
-  if (
-    typeof value === 'string'
-  ) {
+  if (typeof value === 'string') {
     const time =
       new Date(value).getTime();
 
@@ -153,20 +160,33 @@ function timestampToMillis(
 ========================================================= */
 
 /*
- * यह आपकी website के public folder में रहेगा:
+ * अगर Admin Firebase में QR Image URL नहीं डालता,
+ * तो यह local QR image इस्तेमाल होगी:
  *
  * public/payment-qr.jpeg
- *
- * Firebase में QR URL खाली होने पर
- * यही QR automatically इस्तेमाल होगा।
  */
 
 const DEFAULT_QR_IMAGE =
   '/payment-qr.jpeg';
 
 /* =========================================================
+   DEFAULT PAYMENT INSTRUCTIONS
+========================================================= */
+
+const DEFAULT_PAYMENT_INSTRUCTIONS =
+  '1. QR Code scan करके payment करें.\n' +
+  '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
+  '3. Submit Payment दबाएँ.';
+
+/* =========================================================
    PAYMENT SETTINGS
 ========================================================= */
+
+/*
+ * Firebase path:
+ *
+ * platformSettings/payment
+ */
 
 export async function fetchPaymentSettings():
   Promise<PaymentSettings> {
@@ -181,8 +201,9 @@ export async function fetchPaymentSettings():
     await getDoc(ref);
 
   /*
-   * Payment settings document मौजूद नहीं है
+   * Settings document मौजूद नहीं है
    */
+
   if (!snapshot.exists()) {
     return {
       upiId: '',
@@ -193,9 +214,7 @@ export async function fetchPaymentSettings():
       supportPhone: '',
 
       instructions:
-        '1. QR Code scan करके payment करें.\n' +
-        '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
-        '3. Submit Payment दबाएँ.',
+        DEFAULT_PAYMENT_INSTRUCTIONS,
     };
   }
 
@@ -203,16 +222,11 @@ export async function fetchPaymentSettings():
     snapshot.data();
 
   return {
-    upiId: String(
-      data.upiId || ''
-    ).trim(),
+    upiId:
+      String(
+        data.upiId || ''
+      ).trim(),
 
-    /*
-     * Firebase में QR URL है तो वही।
-     *
-     * नहीं है तो:
-     * /payment-qr.jpeg
-     */
     qrImageUrl:
       String(
         data.qrImageUrl || ''
@@ -228,15 +242,24 @@ export async function fetchPaymentSettings():
       String(
         data.instructions || ''
       ).trim() ||
-      '1. QR Code scan करके payment करें.\n' +
-      '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
-      '3. Submit Payment दबाएँ.',
+      DEFAULT_PAYMENT_INSTRUCTIONS,
   };
 }
 
 /* =========================================================
-   SAVE PAYMENT SETTINGS
+   SAVE / EDIT PAYMENT SETTINGS
 ========================================================= */
+
+/*
+ * Platform Admin इस function से:
+ *
+ * - UPI ID
+ * - QR Image URL
+ * - Support Phone
+ * - Instructions
+ *
+ * Save/Edit कर सकता है.
+ */
 
 export async function savePaymentSettings(
   settings: PaymentSettings
@@ -259,10 +282,6 @@ export async function savePaymentSettings(
             settings.upiId?.trim() ||
             '',
 
-          /*
-           * Admin QR URL नहीं डाले तो
-           * local QR automatically रहेगा।
-           */
           qrImageUrl:
             settings.qrImageUrl?.trim() ||
             DEFAULT_QR_IMAGE,
@@ -273,9 +292,7 @@ export async function savePaymentSettings(
 
           instructions:
             settings.instructions?.trim() ||
-            '1. QR Code scan करके payment करें.\n' +
-            '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
-            '3. Submit Payment दबाएँ.',
+            DEFAULT_PAYMENT_INSTRUCTIONS,
 
           updatedAt:
             serverTimestamp(),
@@ -286,6 +303,31 @@ export async function savePaymentSettings(
       );
     }
   );
+}
+
+/* =========================================================
+   DELETE PAYMENT SETTINGS
+========================================================= */
+
+/*
+ * Platform Admin Payment Settings delete कर सकता है.
+ *
+ * Delete होने के बाद fetchPaymentSettings()
+ * default values लौटाएगा.
+ *
+ * UPI ID खाली हो जाएगी.
+ */
+
+export async function deletePaymentSettings():
+  Promise<void> {
+
+  const ref = doc(
+    db,
+    'platformSettings',
+    'payment'
+  );
+
+  await deleteDoc(ref);
 }
 
 /* =========================================================
@@ -315,11 +357,19 @@ export async function createRechargeRequest(
     );
   }
 
+  /*
+   * Package verify
+   */
+
   const selectedPackage =
     getPackage(
       params.amount,
       params.days
     );
+
+  /*
+   * Normalize UTR
+   */
 
   const utrNormalized =
     normalizeUTR(params.utr);
@@ -330,15 +380,16 @@ export async function createRechargeRequest(
     );
   }
 
-  /* =====================================================
+  /* =======================================================
      VERIFY SCHOOL
-  ===================================================== */
+  ======================================================= */
 
-  const schoolRef = doc(
-    db,
-    'schools',
-    params.schoolId
-  );
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      params.schoolId
+    );
 
   const schoolSnapshot =
     await getDoc(schoolRef);
@@ -353,8 +404,10 @@ export async function createRechargeRequest(
     schoolSnapshot.data();
 
   /*
-   * केवल school owner payment request बना सकता है।
+   * केवल school owner payment request
+   * बना सकता है.
    */
+
   if (
     String(
       schoolData.ownerUid || ''
@@ -378,9 +431,9 @@ export async function createRechargeRequest(
     );
   }
 
-  /* =====================================================
+  /* =======================================================
      REFERENCES
-  ===================================================== */
+  ======================================================= */
 
   const rechargeRef =
     doc(
@@ -390,6 +443,12 @@ export async function createRechargeRequest(
       )
     );
 
+  /*
+   * UTR को document ID बनाया गया है.
+   *
+   * इससे same UTR दोबारा submit नहीं होगा.
+   */
+
   const utrRef =
     doc(
       db,
@@ -397,9 +456,9 @@ export async function createRechargeRequest(
       utrNormalized
     );
 
-  /* =====================================================
+  /* =======================================================
      TRANSACTION
-  ===================================================== */
+  ======================================================= */
 
   await runTransaction(
     db,
@@ -408,6 +467,7 @@ export async function createRechargeRequest(
       /*
        * Duplicate UTR check
        */
+
       const existingUTR =
         await transaction.get(
           utrRef
@@ -422,6 +482,7 @@ export async function createRechargeRequest(
       /*
        * Reserve UTR
        */
+
       transaction.set(
         utrRef,
         {
@@ -444,8 +505,9 @@ export async function createRechargeRequest(
       );
 
       /*
-       * Create payment request
+       * Create Payment Request
        */
+
       transaction.set(
         rechargeRef,
         {
@@ -599,6 +661,10 @@ export async function approveRecharge(
     db,
     async (transaction) => {
 
+      /* ===================================================
+         RECHARGE REQUEST
+      =================================================== */
+
       const rechargeSnap =
         await transaction.get(
           rechargeRef
@@ -616,6 +682,7 @@ export async function approveRecharge(
       /*
        * Already approved
        */
+
       if (
         recharge.status ===
         'APPROVED'
@@ -626,6 +693,7 @@ export async function approveRecharge(
       /*
        * Only PENDING
        */
+
       if (
         recharge.status !==
         'PENDING'
@@ -634,6 +702,10 @@ export async function approveRecharge(
           'This recharge is no longer pending.'
         );
       }
+
+      /* ===================================================
+         BASIC DATA
+      =================================================== */
 
       const schoolId =
         String(
@@ -670,6 +742,7 @@ export async function approveRecharge(
       /*
        * Verify package
        */
+
       getPackage(
         amount,
         days
@@ -748,9 +821,10 @@ export async function approveRecharge(
       const school =
         schoolSnap.data();
 
-      /*
-       * Security check
-       */
+      /* ===================================================
+         SECURITY CHECK
+      =================================================== */
+
       if (
         String(
           school.ownerUid || ''
@@ -840,6 +914,14 @@ export async function approveRecharge(
           existingSubscription.expiresAt
         );
 
+      /*
+       * अगर पुरानी subscription अभी active है
+       * तो नई validity old expiry के बाद लगेगी.
+       *
+       * अगर पुरानी subscription expire हो चुकी है
+       * तो नई validity approval के समय से शुरू होगी.
+       */
+
       const baseTime =
         Math.max(
           Date.now(),
@@ -856,6 +938,10 @@ export async function approveRecharge(
               1000
         );
 
+      /* ===================================================
+         SUBSCRIPTION WRITE
+      =================================================== */
+
       transaction.set(
         subscriptionRef,
         {
@@ -870,9 +956,14 @@ export async function approveRecharge(
           planDays:
             days,
 
+          /*
+           * इस recharge period का start
+           */
+
           startedAt:
-            existingSubscription.startedAt ||
-            serverTimestamp(),
+            new Date(
+              baseTime
+            ),
 
           expiresAt:
             newExpiry,
@@ -889,7 +980,7 @@ export async function approveRecharge(
       );
 
       /* ===================================================
-         SCHOOL LIVE
+         SCHOOL UPDATE
       =================================================== */
 
       transaction.update(
@@ -904,18 +995,46 @@ export async function approveRecharge(
           subscriptionStatus:
             'ACTIVE',
 
+          /*
+           * नया recharge period
+           */
+
+          subscriptionStartDate:
+            new Date(
+              baseTime
+            ).toISOString(),
+
+          subscriptionExpiryDate:
+            newExpiry.toISOString(),
+
+          subscriptionDays:
+            days,
+
+          paymentApprovalType:
+            'PAID',
+
+          paymentAmount:
+            amount,
+
+          paymentId:
+            rechargeId,
+
+          paymentDate:
+            new Date().toISOString(),
+
           updatedAt:
             serverTimestamp(),
         }
       );
 
       /* ===================================================
-         SCHOOL ADMIN
+         SCHOOL ADMIN MEMBERSHIP
       =================================================== */
 
       if (
         !membershipSnap.exists()
       ) {
+
         transaction.set(
           membershipRef,
           {
@@ -947,7 +1066,9 @@ export async function approveRecharge(
               serverTimestamp(),
           }
         );
+
       } else {
+
         transaction.update(
           membershipRef,
           {
@@ -967,7 +1088,7 @@ export async function approveRecharge(
       }
 
       /* ===================================================
-         APPROVED
+         APPROVE RECHARGE REQUEST
       =================================================== */
 
       transaction.update(
@@ -1025,6 +1146,11 @@ export async function rejectRecharge(
       const data =
         snapshot.data();
 
+      /*
+       * Approved payment को reject
+       * नहीं किया जा सकता.
+       */
+
       if (
         data.status ===
         'APPROVED'
@@ -1033,6 +1159,10 @@ export async function rejectRecharge(
           'Approved recharge cannot be rejected.'
         );
       }
+
+      /*
+       * Already rejected
+       */
 
       if (
         data.status ===
