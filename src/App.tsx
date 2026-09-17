@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 
 import PublicLayout from '@/components/layout/PublicLayout';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 import PlatformHomePage from '@/pages/PlatformHomePage';
 import AboutPage from '@/pages/AboutPage';
