@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { fetchMyRechargeRequests } from '@/firebase/payment';
-import type { RechargeRequest } from '@/firebase/payment';
+
+import {
+  createRechargeRequest,
+  fetchMyRechargeRequests,
+  fetchPaymentSettings,
+} from '@/firebase/payment';
+
+import type {
+  PaymentSettings,
+  RechargeRequest,
+} from '@/firebase/payment';
 
 import {
   collection,
@@ -16,27 +25,7 @@ import {
 
 import { db } from '@/firebase/config';
 
-type PackageType = {
-  amount: number;
-  days: number;
-};
-
-type SchoolData = {
-  id: string;
-  name?: string;
-  schoolName?: string;
-  title?: string;
-  ownerUid?: string;
-  ownerEmail?: string;
-  phone?: string;
-  slug?: string;
-  status?: string;
-  paymentStatus?: string;
-  subscriptionStatus?: string;
-  createdAt?: string;
-};
-
-const PACKAGES: PackageType[] = [
+const PACKAGES = [
   { amount: 300, days: 28 },
   { amount: 600, days: 56 },
   { amount: 900, days: 84 },
@@ -46,612 +35,795 @@ const PACKAGES: PackageType[] = [
 
 const WHATSAPP_NUMBER = '919112170192';
 
-function getSchoolName(data: SchoolData | null): string {
-  if (!data) return '';
-
-  return (
-    data.name?.trim() ||
-    data.schoolName?.trim() ||
-    data.title?.trim() ||
-    ''
-  );
+interface SchoolData {
+  id: string;
+  name?: string;
+  schoolName?: string;
+  ownerUid?: string;
 }
 
-function formatDate(value: unknown): string {
+function getSchoolName(school: SchoolData | null) {
+  if (!school) return 'School';
+  return school.schoolName || school.name || 'School';
+}
+
+function formatDate(value: any) {
   if (!value) return '-';
 
   try {
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      'toDate' in value &&
-      typeof (value as { toDate?: unknown }).toDate === 'function'
-    ) {
-      return (value as { toDate: () => Date }).toDate().toLocaleString(
-        'en-IN'
-      );
+    if (typeof value?.toDate === 'function') {
+      return value.toDate().toLocaleString('en-IN');
     }
 
-    const date = new Date(String(value));
-
-    if (Number.isNaN(date.getTime())) {
-      return String(value);
+    if (value instanceof Date) {
+      return value.toLocaleString('en-IN');
     }
 
-    return date.toLocaleString('en-IN');
+    if (typeof value === 'number') {
+      return new Date(value).toLocaleString('en-IN');
+    }
+
+    return new Date(value).toLocaleString('en-IN');
   } catch {
-    return String(value);
+    return '-';
+  }
+}
+
+function getStatusClass(status: RechargeRequest['status']) {
+  switch (status) {
+    case 'APPROVED':
+      return 'bg-green-100 text-green-700 border-green-300';
+
+    case 'REJECTED':
+      return 'bg-red-100 text-red-700 border-red-300';
+
+    default:
+      return 'bg-yellow-100 text-yellow-700 border-yellow-300';
   }
 }
 
 export default function PaymentRechargePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
   const { user } = useAuth();
 
   const [schoolId, setSchoolId] = useState('');
   const [schoolName, setSchoolName] = useState('');
-  const [selectedPackage, setSelectedPackage] = useState<PackageType>(
-    PACKAGES[1]
-  );
+
+  const [selectedPackage, setSelectedPackage] = useState(PACKAGES[1]);
+
+  const [paymentSettings, setPaymentSettings] =
+    useState<PaymentSettings | null>(null);
+
+  const [utr, setUtr] = useState('');
+  const [proofImageUrl, setProofImageUrl] = useState('');
 
   const [history, setHistory] = useState<RechargeRequest[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [sending, setSending] = useState(false);
+
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
+  /*
+   * Load school + payment settings + payment history
+   */
   useEffect(() => {
-    let mounted = true;
+    if (!user?.uid) return;
 
-    async function loadSchool() {
-      if (!user) {
-        if (mounted) {
-          setLoading(false);
-          setError('Please login with your Google account first.');
-        }
-        return;
-      }
+    loadPage();
+  }, [user?.uid]);
 
-      try {
-        setLoading(true);
-        setError('');
+  const loadPage = async () => {
+    if (!user?.uid) return;
 
-        let selectedSchool: SchoolData | null = null;
+    setLoading(true);
+    setError('');
 
-        // ---------------------------------------------------------
-        // 1. Try schoolId from URL
-        // ---------------------------------------------------------
-        const urlSchoolId = searchParams.get('schoolId');
+    try {
+      let foundSchool: SchoolData | null = null;
 
-        if (urlSchoolId) {
-          const schoolRef = doc(db, 'schools', urlSchoolId);
-          const schoolSnap = await getDoc(schoolRef);
+      /*
+       * 1. First try schoolId from URL
+       */
+      const urlSchoolId = searchParams.get('schoolId');
 
-          if (schoolSnap.exists()) {
-            const data = schoolSnap.data() as Omit<SchoolData, 'id'>;
+      if (urlSchoolId) {
+        const schoolRef = doc(db, 'schools', urlSchoolId);
+        const schoolSnap = await getDoc(schoolRef);
 
-            if (data.ownerUid === user.uid) {
-              selectedSchool = {
-                id: schoolSnap.id,
-                ...data,
-              };
-            }
-          }
-        }
+        if (schoolSnap.exists()) {
+          const data = schoolSnap.data();
 
-        // ---------------------------------------------------------
-        // 2. If URL schoolId is not found, find owner's school
-        // ---------------------------------------------------------
-        if (!selectedSchool) {
-          const schoolsRef = collection(db, 'schools');
-
-          const ownerQuery = query(
-            schoolsRef,
-            where('ownerUid', '==', user.uid),
-            limit(20)
-          );
-
-          const ownerSnapshot = await getDocs(ownerQuery);
-
-          const schools: SchoolData[] = ownerSnapshot.docs.map((item) => {
-            const data = item.data() as Omit<SchoolData, 'id'>;
-
-            return {
-              id: item.id,
+          if (data.ownerUid === user.uid) {
+            foundSchool = {
+              id: schoolSnap.id,
               ...data,
-            };
-          });
-
-          if (schools.length > 0) {
-            // Prefer pending payment school
-            selectedSchool =
-              schools.find(
-                (item) =>
-                  item.status === 'PENDING_PAYMENT' ||
-                  item.paymentStatus === 'PENDING'
-              ) || schools[0];
+            } as SchoolData;
           }
-        }
-
-        // ---------------------------------------------------------
-        // 3. Extra fallback through slugReservations
-        // ---------------------------------------------------------
-        if (selectedSchool && !getSchoolName(selectedSchool)) {
-          try {
-            const reservationQuery = query(
-              collection(db, 'slugReservations'),
-              where('schoolId', '==', selectedSchool.id),
-              limit(1)
-            );
-
-            const reservationSnapshot = await getDocs(reservationQuery);
-
-            if (!reservationSnapshot.empty) {
-              const reservationData =
-                reservationSnapshot.docs[0].data() as Record<string, unknown>;
-
-              const reservedName =
-                typeof reservationData.schoolName === 'string'
-                  ? reservationData.schoolName
-                  : typeof reservationData.name === 'string'
-                    ? reservationData.name
-                    : '';
-
-              if (reservedName) {
-                selectedSchool = {
-                  ...selectedSchool,
-                  name: reservedName,
-                };
-              }
-            }
-          } catch {
-            // This fallback is optional.
-          }
-        }
-
-        if (!selectedSchool) {
-          if (mounted) {
-            setError(
-              'School record was not found for this Google account.'
-            );
-          }
-          return;
-        }
-
-        const finalName = getSchoolName(selectedSchool);
-
-        if (!finalName) {
-          if (mounted) {
-            setError('School name was not found.');
-          }
-          return;
-        }
-
-        if (mounted) {
-          setSchoolId(selectedSchool.id);
-          setSchoolName(finalName);
-        }
-
-        // ---------------------------------------------------------
-        // 4. Load payment history
-        // ---------------------------------------------------------
-        try {
-          const requests = await fetchMyRechargeRequests(user.uid);
-
-          if (mounted) {
-            setHistory(requests || []);
-          }
-        } catch (historyError) {
-          console.error('Payment history error:', historyError);
-
-          if (mounted) {
-            setHistory([]);
-          }
-        }
-      } catch (err) {
-        console.error('Payment page error:', err);
-
-        if (mounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Unable to load school information.'
-          );
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
         }
       }
+
+      /*
+       * 2. If schoolId was not found,
+       * find school by ownerUid.
+       */
+      if (!foundSchool) {
+        const q = query(
+          collection(db, 'schools'),
+          where('ownerUid', '==', user.uid),
+          limit(1)
+        );
+
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+          const first = snap.docs[0];
+
+          foundSchool = {
+            id: first.id,
+            ...first.data(),
+          } as SchoolData;
+        }
+      }
+
+      /*
+       * 3. Set school information
+       */
+      if (foundSchool) {
+        setSchoolId(foundSchool.id);
+        setSchoolName(getSchoolName(foundSchool));
+      } else {
+        setError(
+          'आपके account से कोई School नहीं मिली। कृपया पहले School Registration पूरा करें।'
+        );
+      }
+
+      /*
+       * 4. Payment settings
+       */
+      const settings = await fetchPaymentSettings();
+      setPaymentSettings(settings);
+
+      /*
+       * 5. Payment history
+       */
+      const paymentHistory =
+        await fetchMyRechargeRequests(user.uid);
+
+      setHistory(paymentHistory);
+    } catch (err: any) {
+      console.error(err);
+
+      setError(
+        err?.message ||
+          'Payment page load नहीं हो सका। कृपया दोबारा कोशिश करें।'
+      );
+    } finally {
+      setLoading(false);
     }
+  };
 
-    loadSchool();
+  /*
+   * Submit UPI payment request
+   */
+  const handleSubmitPayment = async () => {
+    setError('');
+    setSuccess('');
 
-    return () => {
-      mounted = false;
-    };
-  }, [user, searchParams]);
-
-  // ---------------------------------------------------------------
-  // WhatsApp Payment Request
-  // ---------------------------------------------------------------
-  const handleWhatsAppPayment = () => {
-    if (!schoolName || !schoolId || !user) {
+    if (!user?.uid) {
+      setError('कृपया पहले Google Login करें।');
       return;
     }
 
+    if (!schoolId) {
+      setError('School information नहीं मिली।');
+      return;
+    }
+
+    const cleanUTR = utr
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '');
+
+    if (!cleanUTR) {
+      setError('कृपया UTR Number डालें।');
+      return;
+    }
+
+    /*
+     * Basic UTR validation
+     */
+    if (cleanUTR.length < 6) {
+      setError('कृपया सही UTR Number डालें।');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      /*
+       * Backend transaction also checks whether
+       * this UTR has already been used.
+       */
+      await createRechargeRequest({
+        schoolId,
+        uid: user.uid,
+        amount: selectedPackage.amount,
+        days: selectedPackage.days,
+        utr: cleanUTR,
+        proofImageUrl: proofImageUrl.trim(),
+      });
+
+      /*
+       * SUCCESS
+       */
+      setUtr('');
+      setProofImageUrl('');
+
+      await loadPage();
+
+      setSuccess(
+        '✅ Payment Request सफलतापूर्वक Submit हो गई है। Admin Payment verify करने के बाद Subscription Activate करेगा।'
+      );
+    } catch (err: any) {
+      const message = String(err?.message || '');
+
+      /*
+       * DUPLICATE UTR
+       */
+      if (
+        message.includes('already been submitted') ||
+        message.includes('UTR Number has already') ||
+        message.toLowerCase().includes('utr')
+      ) {
+        /*
+         * Old UTR clear कर दें ताकि user
+         * नया UTR डाल सके.
+         */
+        setUtr('');
+
+        setError(
+          '⚠️ यह UTR Number पहले ही इस्तेमाल हो चुका है। यह UTR दोबारा स्वीकार नहीं किया जाएगा। कृपया नया UPI Payment करें और नया UTR Number डालकर फिर Submit करें।'
+        );
+
+        return;
+      }
+
+      setError(
+        message ||
+          '❌ Payment Request Submit नहीं हो सकी। कृपया दोबारा कोशिश करें।'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /*
+   * WhatsApp payment help
+   */
+  const handleWhatsAppPayment = () => {
+    if (sending) return;
+
     setSending(true);
 
-    const message = [
-      '🏫 SCHOOL WEBSITE PAYMENT REQUEST',
-      '',
-      `School Name: ${schoolName}`,
-      `Admin Email: ${user.email || 'Not available'}`,
-      '',
-      `Selected Package: ₹${selectedPackage.amount}`,
-      `Subscription: ${selectedPackage.days} Days`,
-      '',
-      'I want to make the payment for my school website.',
-      'Please send me the UPI ID / UPI QR code for payment.',
-      '',
-      'Thank you.',
-    ].join('\n');
+    const message = `
+🏫 SCHOOL WEBSITE PAYMENT REQUEST
 
-    const whatsappUrl =
-      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+School Name: ${schoolName || 'Not available'}
+Admin Email: ${user?.email || 'Not available'}
 
-    window.open(
-      whatsappUrl,
-      '_blank',
-      'noopener,noreferrer'
-    );
+Selected Package: ₹${selectedPackage.amount}
+Subscription: ${selectedPackage.days} Days
+
+I want to make the payment for my school website.
+Please send me the UPI ID / UPI QR code for payment.
+
+Thank you.
+`.trim();
+
+    const url =
+      `https://wa.me/${WHATSAPP_NUMBER}` +
+      `?text=${encodeURIComponent(message)}`;
+
+    window.open(url, '_blank', 'noopener,noreferrer');
 
     setTimeout(() => {
       setSending(false);
-    }, 700);
+    }, 1000);
   };
 
-  const handleBack = () => {
-    navigate(-1);
-  };
+  /*
+   * Copy UPI ID
+   */
+  const handleCopyUPI = async () => {
+    if (!paymentSettings?.upiId) {
+      setError('UPI ID उपलब्ध नहीं है।');
+      return;
+    }
 
-  const handleHome = () => {
-    navigate('/');
+    try {
+      await navigator.clipboard.writeText(
+        paymentSettings.upiId
+      );
+
+      setSuccess('✅ UPI ID Copy हो गई है।');
+      setError('');
+    } catch {
+      setError('UPI ID Copy नहीं हो सकी।');
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-3xl bg-white/95 p-8 text-center shadow-2xl border border-white">
-          <div className="mx-auto mb-5 h-14 w-14 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-
-          <h1 className="text-2xl font-extrabold text-gray-800">
-            Loading School...
-          </h1>
-
-          <p className="mt-2 text-gray-600">
-            Please wait while we load your school information.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-100 via-orange-100 to-yellow-100 p-5">
-        <div className="mx-auto max-w-xl pt-10">
-          <div className="rounded-3xl bg-white p-7 shadow-2xl border border-red-100">
-            <div className="mb-5 text-center">
-              <div className="text-5xl">⚠️</div>
-
-              <h1 className="mt-3 text-2xl font-extrabold text-red-700">
-                School Information Not Found
-              </h1>
-            </div>
-
-            <div className="rounded-2xl bg-red-50 p-4 text-red-700">
-              {error}
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 px-5 py-4 font-extrabold text-white shadow-[0_7px_0_#b91c1c] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_#b91c1c]"
-              >
-                ← Back
-              </button>
-
-              <button
-                type="button"
-                onClick={handleHome}
-                className="rounded-2xl bg-gradient-to-br from-blue-400 to-indigo-600 px-5 py-4 font-extrabold text-white shadow-[0_7px_0_#3730a3] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_#3730a3]"
-              >
-                🏠 Home
-              </button>
-            </div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-white to-purple-100 p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 text-center">
+          <div className="text-5xl mb-4 animate-pulse">
+            💳
           </div>
+
+          <h2 className="text-xl font-bold text-gray-800">
+            Payment Page Loading...
+          </h2>
+
+          <p className="text-gray-500 mt-2">
+            कृपया प्रतीक्षा करें
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 px-4 py-6 sm:px-6">
-      <div className="mx-auto max-w-5xl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-100 p-3 sm:p-6">
 
-        {/* Header */}
-        <div className="mb-6 rounded-3xl bg-white/95 p-5 shadow-2xl border border-white">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header */}
+      <div className="max-w-6xl mx-auto mb-5">
+        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl shadow-2xl p-5 text-white">
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
             <div>
-              <div className="text-sm font-bold uppercase tracking-wider text-blue-600">
-                School Website
-              </div>
-
-              <h1 className="mt-1 text-2xl font-extrabold text-gray-900 sm:text-3xl">
-                Recharge / Subscription
+              <h1 className="text-2xl sm:text-3xl font-black">
+                💳 School Website Payment
               </h1>
 
-              <p className="mt-1 text-gray-600">
-                Complete your payment to activate the school website.
+              <p className="mt-1 opacity-90">
+                {schoolName || 'School'}
               </p>
             </div>
 
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 px-5 py-3 font-extrabold text-white shadow-[0_6px_0_#b91c1c] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_2px_0_#b91c1c]"
-              >
-                ← Back
-              </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="bg-white text-purple-700 px-5 py-3 rounded-2xl font-bold shadow-[0_5px_0_#c4b5fd] active:shadow-[0_2px_0_#c4b5fd] active:translate-y-[3px] transition"
+            >
+              ← Back
+            </button>
 
-              <button
-                type="button"
-                onClick={handleHome}
-                className="rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 px-5 py-3 font-extrabold text-white shadow-[0_6px_0_#1d4ed8] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_2px_0_#1d4ed8]"
-              >
-                🏠 Home
-              </button>
-            </div>
           </div>
         </div>
+      </div>
 
-        {/* School Information */}
-        <div className="mb-6 rounded-3xl bg-white p-6 shadow-2xl">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 text-2xl shadow-lg">
-              🏫
-            </div>
+      <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-5">
 
-            <div>
-              <h2 className="text-xl font-extrabold text-gray-900">
-                {schoolName}
-              </h2>
+        {/* LEFT SIDE */}
+        <div className="space-y-5">
 
-              <p className="text-sm text-gray-500">
-                School Registration
-              </p>
+          {/* Packages */}
+          <div className="bg-white rounded-3xl shadow-xl p-5">
+
+            <h2 className="text-xl font-black text-gray-800 mb-4">
+              📦 Select Package
+            </h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+
+              {PACKAGES.map((pkg) => {
+                const selected =
+                  selectedPackage.amount === pkg.amount &&
+                  selectedPackage.days === pkg.days;
+
+                return (
+                  <button
+                    key={`${pkg.amount}-${pkg.days}`}
+                    onClick={() => {
+                      setSelectedPackage(pkg);
+                      setError('');
+                      setSuccess('');
+                    }}
+                    className={`
+                      rounded-2xl p-4 font-bold
+                      border-2 transition
+                      shadow-[0_5px_0_rgba(0,0,0,0.18)]
+                      active:shadow-[0_2px_0_rgba(0,0,0,0.18)]
+                      active:translate-y-[3px]
+                      ${
+                        selected
+                          ? 'bg-gradient-to-br from-green-400 to-emerald-600 text-white border-green-700'
+                          : 'bg-gradient-to-br from-yellow-100 to-orange-200 text-gray-800 border-orange-300'
+                      }
+                    `}
+                  >
+                    <div className="text-xl">
+                      ₹{pkg.amount}
+                    </div>
+
+                    <div className="text-sm mt-1">
+                      {pkg.days} Days
+                    </div>
+
+                    {selected && (
+                      <div className="text-xs mt-2">
+                        ✓ Selected
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-blue-50 p-4">
-              <div className="text-xs font-bold uppercase text-blue-500">
-                Admin Email
+          {/* Payment Details */}
+          <div className="bg-white rounded-3xl shadow-xl p-5">
+
+            <h2 className="text-xl font-black text-gray-800 mb-4">
+              💰 Make UPI Payment
+            </h2>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4">
+
+              <div className="text-sm text-gray-500">
+                Selected Package
               </div>
 
-              <div className="mt-1 break-all font-bold text-gray-800">
-                {user?.email || '-'}
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-purple-50 p-4">
-              <div className="text-xs font-bold uppercase text-purple-500">
-                Payment Status
-              </div>
-
-              <div className="mt-1 font-bold text-orange-600">
-                PENDING PAYMENT
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Packages */}
-        <div className="mb-6 rounded-3xl bg-white p-6 shadow-2xl">
-          <h2 className="mb-2 text-2xl font-extrabold text-gray-900">
-            Select Subscription
-          </h2>
-
-          <p className="mb-5 text-gray-600">
-            Choose your website subscription package.
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {PACKAGES.map((item) => {
-              const selected =
-                selectedPackage.amount === item.amount &&
-                selectedPackage.days === item.days;
-
-              return (
-                <button
-                  key={`${item.amount}-${item.days}`}
-                  type="button"
-                  onClick={() => setSelectedPackage(item)}
-                  className={
-                    selected
-                      ? 'rounded-3xl bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 p-5 text-left text-white shadow-[0_8px_0_#6d28d9] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_#6d28d9]'
-                      : 'rounded-3xl bg-gradient-to-br from-cyan-50 to-blue-100 p-5 text-left text-blue-950 shadow-[0_8px_0_#0e7490] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_3px_0_#0e7490]'
-                  }
-                >
-                  <div className="text-sm font-bold uppercase tracking-wide opacity-80">
-                    {selected ? '✓ Selected' : 'Select Package'}
-                  </div>
-
-                  <div className="mt-2 text-3xl font-black">
-                    ₹{item.amount}
-                  </div>
-
-                  <div className="mt-1 text-lg font-extrabold">
-                    {item.days} Days
-                  </div>
-
-                  <div className="mt-3 text-sm font-semibold opacity-80">
-                    School Website Subscription
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Selected Package */}
-        <div className="mb-6 rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6 text-white shadow-2xl">
-          <div className="text-sm font-bold uppercase tracking-widest opacity-80">
-            Selected Package
-          </div>
-
-          <div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <div className="text-4xl font-black">
+              <div className="text-2xl font-black text-blue-700">
                 ₹{selectedPackage.amount}
               </div>
 
-              <div className="mt-1 text-lg font-bold">
-                {selectedPackage.days} Days Subscription
+              <div className="text-gray-600">
+                Validity: {selectedPackage.days} Days
+              </div>
+
+            </div>
+
+            {/* UPI ID */}
+            <div className="mb-4">
+
+              <label className="block font-bold text-gray-700 mb-2">
+                UPI ID
+              </label>
+
+              <div className="flex gap-2">
+
+                <input
+                  value={paymentSettings?.upiId || ''}
+                  readOnly
+                  className="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-3 bg-gray-50 font-semibold"
+                />
+
+                <button
+                  onClick={handleCopyUPI}
+                  className="px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold shadow-[0_4px_0_#3730a3] active:shadow-[0_1px_0_#3730a3] active:translate-y-[3px]"
+                >
+                  Copy
+                </button>
+
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white/20 px-5 py-4 text-center backdrop-blur">
-              <div className="text-sm font-semibold">
-                School
-              </div>
+            {/* QR */}
+            {paymentSettings?.qrImageUrl && (
+              <div className="text-center mb-5">
 
-              <div className="font-black">
-                {schoolName}
+                <p className="font-bold text-gray-700 mb-3">
+                  📱 Scan QR Code से Payment करें
+                </p>
+
+                <div className="inline-block bg-white p-3 rounded-2xl shadow-lg border">
+                  <img
+                    src={paymentSettings.qrImageUrl}
+                    alt="UPI QR Code"
+                    className="w-56 h-56 object-contain rounded-xl"
+                  />
+                </div>
+
               </div>
+            )}
+
+            {/* Instructions */}
+            {paymentSettings?.instructions && (
+              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 mb-5">
+
+                <div className="font-black text-yellow-800 mb-2">
+                  📌 Payment Instructions
+                </div>
+
+                <div className="text-sm text-gray-700 whitespace-pre-line">
+                  {paymentSettings.instructions}
+                </div>
+
+              </div>
+            )}
+
+            {/* UTR */}
+            <div className="mb-4">
+
+              <label className="block font-bold text-gray-700 mb-2">
+                UTR / Transaction Number *
+              </label>
+
+              <input
+                type="text"
+                value={utr}
+                onChange={(e) => {
+                  setUtr(e.target.value);
+                  setError('');
+                  setSuccess('');
+                }}
+                placeholder="Payment के बाद UTR Number डालें"
+                className="w-full border-2 border-gray-300 focus:border-blue-500 rounded-2xl px-4 py-4 text-lg font-semibold outline-none"
+                autoComplete="off"
+              />
+
+              <p className="text-xs text-gray-500 mt-2">
+                ⚠️ एक UTR Number केवल एक बार इस्तेमाल किया जा सकता है।
+              </p>
+
             </div>
+
+            {/* Proof URL */}
+            <div className="mb-5">
+
+              <label className="block font-bold text-gray-700 mb-2">
+                Payment Screenshot URL
+                <span className="text-gray-400 font-normal">
+                  {' '}(Optional)
+                </span>
+              </label>
+
+              <input
+                type="url"
+                value={proofImageUrl}
+                onChange={(e) =>
+                  setProofImageUrl(e.target.value)
+                }
+                placeholder="https://..."
+                className="w-full border-2 border-gray-300 focus:border-blue-500 rounded-2xl px-4 py-3 outline-none"
+              />
+
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="mb-4 bg-red-50 border-2 border-red-300 text-red-700 rounded-2xl p-4 font-semibold">
+
+                <div className="font-black mb-1">
+                  ⚠️ Payment Submit नहीं हुआ
+                </div>
+
+                <div>
+                  {error}
+                </div>
+
+              </div>
+            )}
+
+            {/* Success */}
+            {success && (
+              <div className="mb-4 bg-green-50 border-2 border-green-300 text-green-700 rounded-2xl p-4 font-semibold">
+
+                {success}
+
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              onClick={handleSubmitPayment}
+              disabled={
+                submitting ||
+                !utr.trim() ||
+                !schoolId
+              }
+              className="
+                w-full
+                py-4
+                rounded-2xl
+                bg-gradient-to-r
+                from-green-500
+                via-emerald-500
+                to-teal-600
+                text-white
+                text-lg
+                font-black
+                shadow-[0_6px_0_#047857]
+                active:shadow-[0_2px_0_#047857]
+                active:translate-y-[4px]
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+                transition
+              "
+            >
+              {submitting
+                ? '⏳ Submitting...'
+                : '✅ Submit Payment'}
+            </button>
+
           </div>
-        </div>
 
-        {/* WhatsApp Payment */}
-        <div className="mb-6 rounded-3xl bg-white p-6 shadow-2xl">
-          <div className="text-center">
-            <div className="text-5xl">💳</div>
+          {/* WhatsApp */}
+          <div className="bg-white rounded-3xl shadow-xl p-5">
 
-            <h2 className="mt-3 text-2xl font-extrabold text-gray-900">
-              Payment Request
+            <h2 className="text-xl font-black text-gray-800 mb-3">
+              📲 UPI की जानकारी चाहिए?
             </h2>
 
-            <p className="mx-auto mt-2 max-w-xl text-gray-600">
-              WhatsApp पर payment request भेजें। आपको UPI ID या UPI QR code
-              भेज दिया जाएगा।
+            <p className="text-gray-600 mb-4">
+              अगर आपको UPI ID या QR Code की जानकारी चाहिए तो
+              WhatsApp पर message भेजें।
             </p>
 
             <button
-              type="button"
               onClick={handleWhatsAppPayment}
-              disabled={sending || !schoolName || !schoolId}
-              className="mt-6 w-full rounded-3xl bg-gradient-to-br from-green-400 via-emerald-500 to-green-700 px-6 py-5 text-lg font-black text-white shadow-[0_9px_0_#166534] transition-all hover:-translate-y-1 active:translate-y-1 active:shadow-[0_4px_0_#166534] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 sm:w-auto sm:min-w-[380px]"
+              disabled={sending}
+              className="
+                w-full
+                py-4
+                rounded-2xl
+                bg-gradient-to-r
+                from-green-500
+                to-green-700
+                text-white
+                font-black
+                text-lg
+                shadow-[0_6px_0_#166534]
+                active:shadow-[0_2px_0_#166534]
+                active:translate-y-[4px]
+                disabled:opacity-60
+              "
             >
               {sending
-                ? '⏳ Opening WhatsApp...'
-                : '📲 Send Payment Request on WhatsApp'}
+                ? 'Opening WhatsApp...'
+                : '💬 WhatsApp पर UPI पूछें'}
             </button>
 
-            <p className="mt-4 text-xs text-gray-500">
-              School ID WhatsApp message में नहीं भेजा जाएगा।
-            </p>
           </div>
+
         </div>
 
-        {/* Payment History */}
-        <div className="rounded-3xl bg-white p-6 shadow-2xl">
-          <div className="mb-5">
-            <h2 className="text-2xl font-extrabold text-gray-900">
-              Payment History
-            </h2>
+        {/* RIGHT SIDE */}
+        <div className="bg-white rounded-3xl shadow-xl p-5 h-fit">
 
-            <p className="mt-1 text-gray-600">
-              आपके payment/recharge requests यहाँ दिखाई देंगे।
-            </p>
-          </div>
+          <h2 className="text-xl font-black text-gray-800 mb-4">
+            📜 Payment History
+          </h2>
 
           {history.length === 0 ? (
-            <div className="rounded-2xl bg-gray-50 p-8 text-center">
-              <div className="text-4xl">📄</div>
+            <div className="text-center py-12 text-gray-500">
 
-              <p className="mt-3 font-bold text-gray-700">
-                No payment request found.
+              <div className="text-5xl mb-3">
+                💳
+              </div>
+
+              <p className="font-semibold">
+                अभी कोई Payment Request नहीं है।
               </p>
 
-              <p className="mt-1 text-sm text-gray-500">
-                WhatsApp से payment request भेजने के बाद admin approval
-                process शुरू होगा।
-              </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {history.map((request, index) => {
-                const item = request as RechargeRequest & {
-                  amount?: number;
-                  days?: number;
-                  status?: string;
-                  createdAt?: unknown;
-                };
 
-                return (
-                  <div
-                    key={
-                      'id' in item && item.id
-                        ? String(item.id)
-                        : `${index}-${item.amount}-${item.days}`
-                    }
-                    className="rounded-2xl border border-gray-200 bg-gradient-to-r from-gray-50 to-white p-5 shadow-md"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-2xl font-black text-blue-700">
-                          ₹{item.amount ?? '-'}
-                        </div>
+              {history.map((item) => (
+                <div
+                  key={item.id}
+                  className="border-2 border-gray-100 rounded-2xl p-4 shadow-sm"
+                >
 
-                        <div className="font-bold text-gray-800">
-                          {item.days ?? '-'} Days
-                        </div>
+                  <div className="flex justify-between items-start gap-3">
 
-                        <div className="mt-1 text-sm text-gray-500">
-                          {formatDate(item.createdAt)}
-                        </div>
+                    <div>
+                      <div className="text-xl font-black text-blue-700">
+                        ₹{item.amount}
                       </div>
 
-                      <div>
-                        <span
-                          className={
-                            item.status === 'APPROVED'
-                              ? 'inline-flex rounded-full bg-green-100 px-4 py-2 text-sm font-black text-green-700'
-                              : item.status === 'REJECTED'
-                                ? 'inline-flex rounded-full bg-red-100 px-4 py-2 text-sm font-black text-red-700'
-                                : 'inline-flex rounded-full bg-orange-100 px-4 py-2 text-sm font-black text-orange-700'
-                          }
-                        >
-                          {item.status || 'PENDING'}
-                        </span>
+                      <div className="text-sm text-gray-500">
+                        {item.days} Days
                       </div>
                     </div>
+
+                    <span
+                      className={`
+                        px-3
+                        py-1
+                        rounded-full
+                        border
+                        text-xs
+                        font-black
+                        ${getStatusClass(item.status)}
+                      `}
+                    >
+                      {item.status}
+                    </span>
+
                   </div>
-                );
-              })}
+
+                  <div className="mt-4 space-y-2 text-sm">
+
+                    <div>
+                      <span className="font-bold">
+                        UTR:
+                      </span>{' '}
+                      <span className="font-mono break-all">
+                        {item.utr}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="font-bold">
+                        Submitted:
+                      </span>{' '}
+                      {formatDate(item.createdAt)}
+                    </div>
+
+                    {item.rejectionReason && (
+                      <div className="bg-red-50 text-red-700 rounded-xl p-3">
+                        <span className="font-bold">
+                          Rejection Reason:
+                        </span>{' '}
+                        {item.rejectionReason}
+                      </div>
+                    )}
+
+                    {item.status === 'APPROVED' && (
+                      <div className="bg-green-50 text-green-700 rounded-xl p-3 font-semibold">
+                        ✅ Payment Approved
+                      </div>
+                    )}
+
+                    {item.status === 'PENDING' && (
+                      <div className="bg-yellow-50 text-yellow-700 rounded-xl p-3 font-semibold">
+                        ⏳ Admin Payment verify कर रहा है।
+                      </div>
+                    )}
+
+                    {item.status === 'REJECTED' && (
+                      <div className="bg-red-50 text-red-700 rounded-xl p-3 font-semibold">
+                        ❌ यह Payment Request Reject हो गई है।
+                        <br />
+                        कृपया नया Payment करें और नया UTR डालें।
+                      </div>
+                    )}
+
+                  </div>
+
+                </div>
+              ))}
+
             </div>
           )}
+
         </div>
 
-        {/* Footer */}
-        <div className="py-8 text-center text-sm font-semibold text-gray-500">
-          School Website Management System
-        </div>
       </div>
+
+      {/* Bottom information */}
+      <div className="max-w-6xl mx-auto mt-5">
+
+        <div className="bg-white/80 backdrop-blur rounded-3xl shadow-lg p-4 text-center text-sm text-gray-600">
+
+          🔐 <strong>Important:</strong> एक UTR Number
+          केवल एक बार इस्तेमाल किया जा सकता है। अगर कोई
+          UTR पहले Submit हो चुका है, तो वह दोबारा स्वीकार
+          नहीं किया जाएगा।
+
+        </div>
+
+      </div>
+
     </div>
   );
 }
