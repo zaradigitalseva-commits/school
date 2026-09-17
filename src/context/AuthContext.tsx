@@ -1,3 +1,4 @@
+```tsx
 import {
   createContext,
   useContext,
@@ -24,37 +25,87 @@ import {
 
 import type { UserRole } from '@/firebase/types';
 
+/*
+ * =========================================================
+ * AUTH CONTEXT TYPE
+ * =========================================================
+ */
+
 interface AuthContextValue {
   user: User | null;
   role: UserRole;
   loading: boolean;
 
-  // New role helpers
+  /*
+   * Current role helpers
+   */
   isPlatformAdmin: boolean;
   isSchoolAdmin: boolean;
   isTeacher: boolean;
   isUser: boolean;
 
-  // Legacy compatibility
+  /*
+   * Legacy compatibility
+   */
   isAdmin: boolean;
   isFaculty: boolean;
 
+  /*
+   * Authentication
+   */
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+/*
+ * =========================================================
+ * CONTEXT
+ * =========================================================
+ */
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+const AuthContext =
+  createContext<AuthContextValue | undefined>(undefined);
+
+/*
+ * =========================================================
+ * PROVIDER
+ * =========================================================
+ */
+
+export function AuthProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<UserRole>('user');
-  const [loading, setLoading] = useState(true);
+
+  const [role, setRole] =
+    useState<UserRole>('user');
+
+  const [loading, setLoading] =
+    useState(true);
+
+  /*
+   * =======================================================
+   * FIREBASE AUTH STATE
+   * =======================================================
+   */
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
       auth,
       async (firebaseUser) => {
+        /*
+         * Always enter loading state while resolving
+         * authentication + application role.
+         */
         setLoading(true);
+
+        /*
+         * ---------------------------------------------------
+         * NO LOGIN
+         * ---------------------------------------------------
+         */
 
         if (!firebaseUser) {
           setUser(null);
@@ -63,44 +114,131 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        /*
+         * ---------------------------------------------------
+         * USER LOGGED IN
+         * ---------------------------------------------------
+         */
+
         setUser(firebaseUser);
+
+        /*
+         * Normalize email once.
+         */
+        const email =
+          firebaseUser.email
+            ?.trim()
+            .toLowerCase() ?? '';
 
         try {
           /*
-           * Create/update the user's basic Firestore record.
-           * The Firestore helper decides the platform-admin role
-           * from the configured platform-admin email.
+           * -------------------------------------------------
+           * 1. PLATFORM ADMIN
+           * -------------------------------------------------
+           *
+           * This is the highest priority role.
+           *
+           * The fixed platform-admin email must ALWAYS
+           * receive platform_admin.
+           *
+           * This check happens before Firestore role lookup.
            */
+          if (isPlatformAdminEmail(email)) {
+            /*
+             * Make sure the normal user record also exists.
+             */
+            try {
+              await ensureUserRecord(
+                firebaseUser.uid,
+                email,
+                firebaseUser.displayName,
+                firebaseUser.photoURL
+              );
+            } catch (recordError) {
+              /*
+               * A user-record write failure should not remove
+               * the fixed Platform Admin role.
+               */
+              console.error(
+                'Platform admin user record update failed:',
+                recordError
+              );
+            }
+
+            setRole('platform_admin');
+            setLoading(false);
+            return;
+          }
+
+          /*
+           * -------------------------------------------------
+           * 2. NORMAL USER RECORD
+           * -------------------------------------------------
+           */
+
           await ensureUserRecord(
             firebaseUser.uid,
-            firebaseUser.email,
+            email,
             firebaseUser.displayName,
             firebaseUser.photoURL
           );
 
           /*
-           * Resolve the actual application role.
+           * -------------------------------------------------
+           * 3. RESOLVE APPLICATION ROLE
+           * -------------------------------------------------
            *
-           * Priority:
-           * 1. Platform Admin
-           * 2. Active School Admin
-           * 3. Active Teacher
-           * 4. Normal User
+           * fetchUserRole is responsible for checking:
+           *
+           * - active school_admin membership
+           * - active teacher membership
+           * - normal user
            */
-          const userRole = await fetchUserRole(
-            firebaseUser.uid,
-            firebaseUser.email
-          );
-
-          setRole(userRole);
-        } catch (error) {
-          console.error('Auth role resolution failed:', error);
+          const resolvedRole =
+            await fetchUserRole(
+              firebaseUser.uid,
+              email
+            );
 
           /*
-           * Safe fallback.
-           * Never give management access when role lookup fails.
+           * -------------------------------------------------
+           * 4. ACCEPT ONLY KNOWN ROLES
+           * -------------------------------------------------
+           *
+           * Prevent unexpected Firestore values from becoming
+           * management access.
            */
-          if (isPlatformAdminEmail(firebaseUser.email)) {
+          if (
+            resolvedRole === 'school_admin'
+          ) {
+            setRole('school_admin');
+          } else if (
+            resolvedRole === 'teacher'
+          ) {
+            setRole('teacher');
+          } else {
+            setRole('user');
+          }
+        } catch (error) {
+          /*
+           * -------------------------------------------------
+           * ROLE LOOKUP FAILED
+           * -------------------------------------------------
+           *
+           * Safe fallback:
+           *
+           * - Fixed Platform Admin -> platform_admin
+           * - Everyone else -> user
+           *
+           * Never give school-admin/teacher access if lookup
+           * fails.
+           */
+          console.error(
+            'Auth role resolution failed:',
+            error
+          );
+
+          if (isPlatformAdminEmail(email)) {
             setRole('platform_admin');
           } else {
             setRole('user');
@@ -115,36 +253,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /*
-   * Google Login
+   * =========================================================
+   * GOOGLE LOGIN
+   * =========================================================
    */
-  const signInWithGoogle = useCallback(async () => {
-    await signInWithPopup(auth, googleProvider);
-  }, []);
+
+  const signInWithGoogle =
+    useCallback(async () => {
+      await signInWithPopup(
+        auth,
+        googleProvider
+      );
+    }, []);
 
   /*
-   * Logout
+   * =========================================================
+   * LOGOUT
+   * =========================================================
    */
-  const signOut = useCallback(async () => {
-    await firebaseSignOut(auth);
 
-    setUser(null);
-    setRole('user');
-  }, []);
-
-  const isPlatformAdmin = role === 'platform_admin';
-  const isSchoolAdmin = role === 'school_admin';
-  const isTeacher = role === 'teacher';
-  const isUser = role === 'user';
+  const signOut =
+    useCallback(async () => {
+      try {
+        await firebaseSignOut(auth);
+      } finally {
+        /*
+         * Clear local state immediately.
+         */
+        setUser(null);
+        setRole('user');
+        setLoading(false);
+      }
+    }, []);
 
   /*
-   * Legacy compatibility:
+   * =========================================================
+   * ROLE HELPERS
+   * =========================================================
+   */
+
+  const isPlatformAdmin =
+    role === 'platform_admin';
+
+  const isSchoolAdmin =
+    role === 'school_admin';
+
+  const isTeacher =
+    role === 'teacher';
+
+  const isUser =
+    role === 'user';
+
+  /*
+   * =========================================================
+   * LEGACY HELPERS
+   * =========================================================
    *
-   * Existing old components may still use isAdmin/isFaculty.
-   * Keeping these prevents unnecessary breakage while we migrate
-   * the remaining old dashboard files.
+   * Existing components may still use:
+   *
+   * isAdmin
+   * isFaculty
+   *
+   * Keep them working.
    */
-  const isAdmin = isPlatformAdmin || isSchoolAdmin;
-  const isFaculty = isTeacher;
+
+  const isAdmin =
+    isPlatformAdmin ||
+    isSchoolAdmin;
+
+  const isFaculty =
+    isTeacher;
+
+  /*
+   * =========================================================
+   * PROVIDER
+   * =========================================================
+   */
 
   return (
     <AuthContext.Provider
@@ -170,9 +354,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/*
+ * =========================================================
+ * useAuth HOOK
+ * =========================================================
+ */
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
-  const context = useContext(AuthContext);
+  const context =
+    useContext(AuthContext);
 
   if (!context) {
     throw new Error(
@@ -182,3 +373,4 @@ export function useAuth() {
 
   return context;
 }
+```
