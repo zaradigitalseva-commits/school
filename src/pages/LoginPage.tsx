@@ -119,7 +119,9 @@ export default function LoginPage() {
           </p>
 
           <div
-            className={`p-5 rounded-2xl mb-6 border ${roleBoxClass}`}
+            className={
+              'p-5 rounded-2xl mb-6 border ' + roleBoxClass
+            }
           >
             <div className="flex items-center justify-center gap-2 mb-2">
 
@@ -139,12 +141,12 @@ export default function LoginPage() {
                 <User className="w-6 h-6 text-gray-500" />
               )}
 
-              <span className={`font-bold ${roleTextClass}`}>
+              <span className={'font-bold ' + roleTextClass}>
                 {roleTitle}
               </span>
             </div>
 
-            <p className={`text-xs ${roleTextClass}`}>
+            <p className={'text-xs ' + roleTextClass}>
               {roleDescription}
             </p>
           </div>
@@ -394,3 +396,7 @@ export default function LoginPage() {
   );
 }
 ```
+
+इसे **पूरा replace करके GitHub में Commit** करें। फिर Vercel में नया deployment चलाएँ। इस version में `className={\`...`}` वाले तीनों हिस्से हटा दिए गए हैं, इसलिए पिछली template-literal parsing वाली समस्या नहीं आनी चाहिए।
+
+अगर Vercel अगली error दिखाता है, उसका पूरा log भेज दें।
