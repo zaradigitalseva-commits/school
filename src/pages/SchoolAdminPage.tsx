@@ -1,5 +1,6 @@
+```tsx
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchSchoolById,
   fetchMyMembership,
@@ -13,52 +14,117 @@ import type {
 } from '@/firebase/types';
 
 export default function SchoolAdminPage() {
-  const { schoolId } = useParams<{ schoolId: string }>();
   const navigate = useNavigate();
 
+  const [schoolId, setSchoolId] = useState<string | null>(null);
   const [school, setSchool] = useState<School | null>(null);
   const [memberships, setMemberships] = useState<SchoolMembership[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [activeSection, setActiveSection] = useState('dashboard');
 
   /*
-   * Current signed-in UID is read from Firebase Auth.
-   * We keep this import dynamic so the existing Firebase setup
-   * remains compatible.
+   * IMPORTANT:
+   * School Admin का schoolId URL से नहीं लिया जाएगा।
+   *
+   * Current logged-in user की ACTIVE membership से
+   * schoolId automatically मिलेगा।
    */
-  const loadSchool = async () => {
-    if (!schoolId) {
-      setError('School ID missing.');
-      setLoading(false);
-      return;
-    }
 
+  const loadSchool = async () => {
     try {
       setLoading(true);
       setError('');
 
-      const schoolData = await fetchSchoolById(schoolId);
+      // ------------------------------------------
+      // 1. Current logged-in School Admin की membership
+      // ------------------------------------------
+      const myMembership = await fetchMyMembership();
+
+      if (!myMembership) {
+        setError(
+          'Your school membership was not found. Please contact the platform administrator.'
+        );
+        return;
+      }
+
+      // ------------------------------------------
+      // 2. Security check
+      // ------------------------------------------
+      if (myMembership.role !== 'school_admin') {
+        setError(
+          'You do not have School Admin access.'
+        );
+        return;
+      }
+
+      if (myMembership.status !== 'ACTIVE') {
+        setError(
+          `Your School Admin access is ${myMembership.status}.`
+        );
+        return;
+      }
+
+      // ------------------------------------------
+      // 3. Get schoolId from membership
+      // ------------------------------------------
+      const currentSchoolId = myMembership.schoolId;
+
+      if (!currentSchoolId) {
+        setError(
+          'Your school is not assigned to this account.'
+        );
+        return;
+      }
+
+      setSchoolId(currentSchoolId);
+
+      // ------------------------------------------
+      // 4. Load ONLY this school
+      // ------------------------------------------
+      const schoolData =
+        await fetchSchoolById(currentSchoolId);
 
       if (!schoolData) {
-        setError('School not found.');
+        setError('Your school could not be found.');
+        return;
+      }
+
+      // ------------------------------------------
+      // 5. Verify ownership
+      // ------------------------------------------
+      if (
+        schoolData.id &&
+        schoolData.id !== currentSchoolId
+      ) {
+        setError(
+          'School verification failed.'
+        );
         return;
       }
 
       setSchool(schoolData);
 
+      // ------------------------------------------
+      // 6. Load memberships ONLY for this school
+      // ------------------------------------------
       const membershipData =
-        await fetchSchoolMemberships(schoolId);
+        await fetchSchoolMemberships(currentSchoolId);
 
       setMemberships(membershipData);
+
     } catch (err) {
-      console.error(err);
+      console.error(
+        'School Admin loading error:',
+        err
+      );
 
       setError(
         err instanceof Error
           ? err.message
-          : 'Unable to load school admin panel.'
+          : 'Unable to load School Admin Panel.'
       );
     } finally {
       setLoading(false);
@@ -67,7 +133,11 @@ export default function SchoolAdminPage() {
 
   useEffect(() => {
     loadSchool();
-  }, [schoolId]);
+  }, []);
+
+  // ------------------------------------------
+  // ACTIVE / PENDING STAFF
+  // ------------------------------------------
 
   const schoolAdmins = memberships.filter(
     (item) =>
@@ -93,6 +163,10 @@ export default function SchoolAdminPage() {
       item.status === 'PENDING'
   );
 
+  // ------------------------------------------
+  // ACTIVATE MEMBERSHIP
+  // ------------------------------------------
+
   const activateMembership = async (
     membership: SchoolMembership
   ) => {
@@ -105,6 +179,7 @@ export default function SchoolAdminPage() {
       );
 
       await loadSchool();
+
     } catch (err) {
       console.error(err);
 
@@ -116,11 +191,18 @@ export default function SchoolAdminPage() {
     }
   };
 
+  // ------------------------------------------
+  // REVOKE MEMBERSHIP
+  // ------------------------------------------
+
   const revokeMembership = async (
     membership: SchoolMembership
   ) => {
     const ok = window.confirm(
-      `Are you sure you want to revoke access for ${membership.uid}?`
+      `Are you sure you want to revoke access for ${
+        membership.invitedByEmail ||
+        membership.uid
+      }?`
     );
 
     if (!ok) return;
@@ -134,6 +216,7 @@ export default function SchoolAdminPage() {
       );
 
       await loadSchool();
+
     } catch (err) {
       console.error(err);
 
@@ -145,34 +228,73 @@ export default function SchoolAdminPage() {
     }
   };
 
+  // ------------------------------------------
+  // LOADING
+  // ------------------------------------------
+
   if (loading) {
     return (
       <div style={styles.fullPage}>
         <div style={styles.loadingCard}>
           <div style={styles.spinner}>⏳</div>
-          <h2>Loading School Admin Panel...</h2>
-          <p>Please wait.</p>
+
+          <h2>
+            Loading School Admin Panel...
+          </h2>
+
+          <p>
+            Finding your school...
+          </p>
         </div>
       </div>
     );
   }
 
-  if (error || !school) {
+  // ------------------------------------------
+  // ERROR
+  // ------------------------------------------
+
+  if (error || !school || !schoolId) {
     return (
       <div style={styles.fullPage}>
         <div style={styles.errorCard}>
-          <div style={styles.errorIcon}>⚠️</div>
 
-          <h2>Unable to open School Admin Panel</h2>
+          <div style={styles.errorIcon}>
+            ⚠️
+          </div>
 
-          <p>{error || 'School not found.'}</p>
+          <h2>
+            Unable to open School Admin Panel
+          </h2>
 
-          <button
-            style={styles.primaryButton}
-            onClick={() => navigate('/schools')}
+          <p>
+            {error || 'School not found.'}
+          </p>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              marginTop: 20,
+            }}
           >
-            ← Back to Schools
-          </button>
+            <button
+              style={styles.primaryButton}
+              onClick={() => loadSchool()}
+            >
+              🔄 Try Again
+            </button>
+
+            <button
+              style={styles.secondaryButton}
+              onClick={() => navigate('/')}
+            >
+              🏠 Home
+            </button>
+          </div>
+
         </div>
       </div>
     );
@@ -180,10 +302,15 @@ export default function SchoolAdminPage() {
 
   return (
     <div style={styles.page}>
-      {/* HEADER */}
+
+      {/* =========================================
+          HEADER
+      ========================================== */}
 
       <header style={styles.header}>
+
         <div style={styles.headerLeft}>
+
           <div style={styles.logoBox}>
             {school.logoUrl ? (
               <img
@@ -192,16 +319,20 @@ export default function SchoolAdminPage() {
                 style={styles.logo}
               />
             ) : (
-              <span style={styles.logoText}>🏫</span>
+              <span style={styles.logoText}>
+                🏫
+              </span>
             )}
           </div>
 
-          <div>
+          <div style={{ minWidth: 0 }}>
+
             <h1 style={styles.schoolTitle}>
               {school.name}
             </h1>
 
             <div style={styles.schoolMeta}>
+
               <span>
                 School Admin Panel
               </span>
@@ -209,8 +340,11 @@ export default function SchoolAdminPage() {
               <span style={styles.statusBadge}>
                 {school.status}
               </span>
+
             </div>
+
           </div>
+
         </div>
 
         <button
@@ -219,13 +353,18 @@ export default function SchoolAdminPage() {
         >
           🏠 Home
         </button>
+
       </header>
 
-      {/* MAIN LAYOUT */}
+      {/* =========================================
+          MAIN LAYOUT
+      ========================================== */}
 
       <div style={styles.layout}>
 
-        {/* SIDEBAR */}
+        {/* =======================================
+            SIDEBAR
+        ======================================== */}
 
         <aside style={styles.sidebar}>
 
@@ -413,9 +552,15 @@ export default function SchoolAdminPage() {
 
         </aside>
 
-        {/* CONTENT */}
+        {/* =======================================
+            CONTENT
+        ======================================== */}
 
         <main style={styles.content}>
+
+          {/* =====================================
+              DASHBOARD
+          ====================================== */}
 
           {activeSection === 'dashboard' && (
             <>
@@ -440,13 +585,17 @@ export default function SchoolAdminPage() {
                 <StatCard
                   icon="👨‍🏫"
                   title="Active Teachers"
-                  value={String(teachers.length)}
+                  value={String(
+                    teachers.length
+                  )}
                 />
 
                 <StatCard
                   icon="👨‍💼"
                   title="School Admins"
-                  value={String(schoolAdmins.length)}
+                  value={String(
+                    schoolAdmins.length
+                  )}
                 />
 
                 <StatCard
@@ -461,11 +610,19 @@ export default function SchoolAdminPage() {
               </div>
 
               <div style={styles.infoCard}>
-                <h3>🏫 School Information</h3>
+
+                <h3>
+                  🏫 School Information
+                </h3>
 
                 <InfoRow
                   label="School Name"
                   value={school.name}
+                />
+
+                <InfoRow
+                  label="School ID"
+                  value={schoolId}
                 />
 
                 <InfoRow
@@ -480,38 +637,59 @@ export default function SchoolAdminPage() {
 
                 <InfoRow
                   label="Address"
-                  value={school.address || 'Not added'}
+                  value={
+                    school.address ||
+                    'Not added'
+                  }
                 />
 
                 <InfoRow
                   label="Phone"
-                  value={school.phone || 'Not added'}
+                  value={
+                    school.phone ||
+                    'Not added'
+                  }
                 />
 
                 <InfoRow
                   label="Email"
-                  value={school.email || 'Not added'}
+                  value={
+                    school.email ||
+                    'Not added'
+                  }
                 />
 
               </div>
             </>
           )}
 
+          {/* =====================================
+              SCHOOL
+          ====================================== */}
+
           {activeSection === 'school' && (
             <SectionPlaceholder
               icon="🏫"
               title="School Information"
-              text="School profile editing will be connected to the multi-school Firestore content system in the next step."
+              text="School profile editing will be connected to the multi-school Firestore content system."
             />
           )}
+
+          {/* =====================================
+              CLASSES
+          ====================================== */}
 
           {activeSection === 'classes' && (
             <SectionPlaceholder
               icon="📚"
               title="Classes 1–12"
-              text="Classes 1–12 management module will be connected to the SchoolClass Firestore collection."
+              text="Classes 1–12 management will be connected to the SchoolClass Firestore collection."
             />
           )}
+
+          {/* =====================================
+              STUDENTS
+          ====================================== */}
 
           {activeSection === 'students' && (
             <SectionPlaceholder
@@ -520,6 +698,10 @@ export default function SchoolAdminPage() {
               text="Student management will be connected to the students collection."
             />
           )}
+
+          {/* =====================================
+              TEACHERS
+          ====================================== */}
 
           {activeSection === 'teachers' && (
             <>
@@ -533,6 +715,7 @@ export default function SchoolAdminPage() {
               </p>
 
               <div style={styles.infoCard}>
+
                 {teachers.length === 0 ? (
                   <EmptyState
                     text="No active teachers found."
@@ -543,6 +726,7 @@ export default function SchoolAdminPage() {
                       key={teacher.id}
                       style={styles.memberRow}
                     >
+
                       <div>
                         <strong>
                           {teacher.invitedByEmail ||
@@ -564,18 +748,23 @@ export default function SchoolAdminPage() {
                       <button
                         style={styles.dangerButton}
                         onClick={() =>
-                          revokeMembership(teacher)
+                          revokeMembership(
+                            teacher
+                          )
                         }
                       >
                         Revoke
                       </button>
+
                     </div>
                   ))
                 )}
+
               </div>
 
               {pendingTeachers.length > 0 && (
                 <div style={styles.infoCard}>
+
                   <h3>
                     ⏳ Pending Teacher Access
                   </h3>
@@ -586,19 +775,24 @@ export default function SchoolAdminPage() {
                         key={teacher.id}
                         style={styles.memberRow}
                       >
+
                         <div>
                           <strong>
                             {teacher.invitedByEmail ||
                               teacher.uid}
                           </strong>
 
-                          <div style={styles.smallText}>
+                          <div
+                            style={styles.smallText}
+                          >
                             Waiting for activation
                           </div>
                         </div>
 
                         <button
-                          style={styles.successButton}
+                          style={
+                            styles.successButton
+                          }
                           onClick={() =>
                             activateMembership(
                               teacher
@@ -607,13 +801,20 @@ export default function SchoolAdminPage() {
                         >
                           Activate
                         </button>
+
                       </div>
                     )
                   )}
+
                 </div>
               )}
+
             </>
           )}
+
+          {/* =====================================
+              HOMEWORK
+          ====================================== */}
 
           {activeSection === 'homework' && (
             <SectionPlaceholder
@@ -623,6 +824,10 @@ export default function SchoolAdminPage() {
             />
           )}
 
+          {/* =====================================
+              RESULTS
+          ====================================== */}
+
           {activeSection === 'results' && (
             <SectionPlaceholder
               icon="📊"
@@ -630,6 +835,10 @@ export default function SchoolAdminPage() {
               text="Student results, marksheets and examinations will be connected to the results system."
             />
           )}
+
+          {/* =====================================
+              ATTENDANCE
+          ====================================== */}
 
           {activeSection === 'attendance' && (
             <SectionPlaceholder
@@ -639,6 +848,10 @@ export default function SchoolAdminPage() {
             />
           )}
 
+          {/* =====================================
+              NOTICES
+          ====================================== */}
+
           {activeSection === 'notices' && (
             <SectionPlaceholder
               icon="📢"
@@ -646,6 +859,10 @@ export default function SchoolAdminPage() {
               text="School notices will be connected to the schoolContent/notice system."
             />
           )}
+
+          {/* =====================================
+              EVENTS
+          ====================================== */}
 
           {activeSection === 'events' && (
             <SectionPlaceholder
@@ -655,6 +872,10 @@ export default function SchoolAdminPage() {
             />
           )}
 
+          {/* =====================================
+              GALLERY
+          ====================================== */}
+
           {activeSection === 'gallery' && (
             <SectionPlaceholder
               icon="🖼️"
@@ -663,6 +884,10 @@ export default function SchoolAdminPage() {
             />
           )}
 
+          {/* =====================================
+              DOCUMENTS
+          ====================================== */}
+
           {activeSection === 'documents' && (
             <SectionPlaceholder
               icon="📄"
@@ -670,6 +895,10 @@ export default function SchoolAdminPage() {
               text="School documents will be connected to the documents collection."
             />
           )}
+
+          {/* =====================================
+              STAFF ACCESS
+          ====================================== */}
 
           {activeSection === 'members' && (
             <>
@@ -683,6 +912,7 @@ export default function SchoolAdminPage() {
               </p>
 
               <div style={styles.infoCard}>
+
                 <h3>
                   👨‍💼 School Administrators
                 </h3>
@@ -702,9 +932,11 @@ export default function SchoolAdminPage() {
                     />
                   ))
                 )}
+
               </div>
 
               <div style={styles.infoCard}>
+
                 <h3>
                   👨‍🏫 Active Teachers
                 </h3>
@@ -724,10 +956,12 @@ export default function SchoolAdminPage() {
                     />
                   ))
                 )}
+
               </div>
 
               {pendingAdmins.length > 0 && (
                 <div style={styles.infoCard}>
+
                   <h3>
                     ⏳ Pending Administrators
                   </h3>
@@ -738,6 +972,7 @@ export default function SchoolAdminPage() {
                         key={member.id}
                         style={styles.memberRow}
                       >
+
                         <div>
                           <strong>
                             {member.invitedByEmail ||
@@ -746,7 +981,9 @@ export default function SchoolAdminPage() {
                         </div>
 
                         <button
-                          style={styles.successButton}
+                          style={
+                            styles.successButton
+                          }
                           onClick={() =>
                             activateMembership(
                               member
@@ -755,13 +992,20 @@ export default function SchoolAdminPage() {
                         >
                           Activate
                         </button>
+
                       </div>
                     )
                   )}
+
                 </div>
               )}
+
             </>
           )}
+
+          {/* =====================================
+              SUBSCRIPTION
+          ====================================== */}
 
           {activeSection === 'subscription' && (
             <SectionPlaceholder
@@ -772,7 +1016,9 @@ export default function SchoolAdminPage() {
           )}
 
         </main>
+
       </div>
+
     </div>
   );
 }
@@ -793,11 +1039,13 @@ function StatCard({
 }) {
   return (
     <div style={styles.statCard}>
+
       <div style={styles.statIcon}>
         {icon}
       </div>
 
       <div>
+
         <div style={styles.statTitle}>
           {title}
         </div>
@@ -805,7 +1053,9 @@ function StatCard({
         <div style={styles.statValue}>
           {value}
         </div>
+
       </div>
+
     </div>
   );
 }
@@ -820,6 +1070,7 @@ function InfoRow({
 }) {
   return (
     <div style={styles.infoRow}>
+
       <span style={styles.infoLabel}>
         {label}
       </span>
@@ -827,6 +1078,7 @@ function InfoRow({
       <span style={styles.infoValue}>
         {value}
       </span>
+
     </div>
   );
 }
@@ -841,7 +1093,9 @@ function MemberRow({
 }) {
   return (
     <div style={styles.memberRow}>
+
       <div>
+
         <strong>
           {member.invitedByEmail ||
             member.uid}
@@ -859,6 +1113,7 @@ function MemberRow({
               : 'None'}
           </div>
         )}
+
       </div>
 
       <button
@@ -867,6 +1122,7 @@ function MemberRow({
       >
         Revoke
       </button>
+
     </div>
   );
 }
@@ -901,6 +1157,7 @@ function SectionPlaceholder({
       </h2>
 
       <div style={styles.placeholderCard}>
+
         <div style={styles.placeholderIcon}>
           {icon}
         </div>
@@ -912,6 +1169,7 @@ function SectionPlaceholder({
         <div style={styles.comingSoon}>
           Module Setup — Next Step
         </div>
+
       </div>
     </>
   );
@@ -922,7 +1180,11 @@ function SectionPlaceholder({
    STYLES
 ========================================================= */
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<
+  string,
+  React.CSSProperties
+> = {
+
   page: {
     minHeight: '100vh',
     background:
@@ -1019,6 +1281,9 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     fontSize: 22,
     lineHeight: 1.2,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
 
   schoolMeta: {
@@ -1028,6 +1293,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 5,
     fontSize: 12,
     opacity: 0.95,
+    flexWrap: 'wrap',
   },
 
   statusBadge: {
@@ -1048,11 +1314,25 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     boxShadow:
       '0 5px 0 rgba(0,0,0,0.2)',
+    flexShrink: 0,
+  },
+
+  secondaryButton: {
+    border: 'none',
+    borderRadius: 12,
+    padding: '12px 20px',
+    background: '#64748b',
+    color: '#fff',
+    fontWeight: 800,
+    cursor: 'pointer',
+    boxShadow:
+      '0 5px 0 #334155',
   },
 
   layout: {
     display: 'flex',
-    minHeight: 'calc(100vh - 83px)',
+    minHeight:
+      'calc(100vh - 83px)',
   },
 
   sidebar: {
@@ -1063,6 +1343,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 9,
     flexShrink: 0,
+    overflowY: 'auto',
   },
 
   menuButton: {
@@ -1170,6 +1451,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '13px 0',
     borderBottom:
       '1px solid #e5e7eb',
+    flexWrap: 'wrap',
   },
 
   infoLabel: {
@@ -1274,3 +1556,4 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
   },
 };
+```
