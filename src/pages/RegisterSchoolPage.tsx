@@ -1,126 +1,173 @@
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { registerSchool } from '@/firebase/firestore';
 
 export default function RegisterSchoolPage() {
   const navigate = useNavigate();
-  const { user, signInWithGoogle, signOut } = useAuth();
+  const { user } = useAuth();
 
-  const [name, setName] = useState('');
+  const [schoolName, setSchoolName] = useState('');
+  const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [tagline, setTagline] = useState('');
   const [description, setDescription] = useState('');
 
+  const [whatsappVerified, setWhatsappVerified] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // School name से automatic URL slug बनाना
-  const makeSlug = (value: string) => {
-    return value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '');
+  /*
+   * Indian mobile number:
+   * - Exactly 10 digits
+   * - First digit must be 6, 7, 8 or 9
+   */
+  const isValidIndianMobile = (value: string) => {
+    return /^[6-9][0-9]{9}$/.test(value);
   };
 
-  const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  /*
+   * Keep only numbers and maximum 10 digits.
+   */
+  const handleWhatsappChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value
+      .replace(/\D/g, '')
+      .slice(0, 10);
+
+    setWhatsappNumber(value);
+
+    // Number बदलने पर verification फिर से confirm करना होगा.
+    setWhatsappVerified(false);
+  };
+
+  const handlePhoneChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value
+      .replace(/\D/g, '')
+      .slice(0, 10);
+
+    setPhone(value);
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
     setError('');
+    setSuccess('');
 
-    // Google login जरूरी
     if (!user) {
-      setError('Please sign in with Google first.');
+      setError('कृपया पहले Google Login करें।');
       return;
     }
 
-    // Google email जरूरी है
-    const ownerEmail = user.email?.trim();
-
-    if (!ownerEmail) {
-      setError(
-        'Your Google account email could not be found. Please logout and login again with Google.'
-      );
-      return;
-    }
-
-    const cleanName = name.trim();
+    const cleanSchoolName = schoolName.trim();
+    const cleanAddress = address.trim();
     const cleanPhone = phone.trim();
-    const cleanSlug = makeSlug(cleanName);
+    const cleanWhatsappNumber = whatsappNumber.trim();
     const cleanTagline = tagline.trim();
     const cleanDescription = description.trim();
 
-    // School Name
-    if (!cleanName) {
-      setError('Please enter school name.');
+    if (!cleanSchoolName) {
+      setError('School Name डालना जरूरी है।');
       return;
     }
 
-    if (cleanName.length < 2) {
-      setError('School name must contain at least 2 characters.');
+    if (!cleanAddress) {
+      setError('School Address डालना जरूरी है।');
       return;
     }
 
-    // Mobile
-    if (!cleanPhone) {
-      setError('Please enter mobile number.');
+    /*
+     * WhatsApp number is mandatory.
+     */
+    if (!cleanWhatsappNumber) {
+      setError('WhatsApp Number डालना जरूरी है।');
       return;
     }
 
-    if (!/^[0-9+()\-\s]{10,18}$/.test(cleanPhone)) {
-      setError('Please enter a valid mobile number.');
-      return;
-    }
-
-    // Slug
-    if (!cleanSlug) {
+    /*
+     * Exact Indian 10-digit validation.
+     */
+    if (!isValidIndianMobile(cleanWhatsappNumber)) {
       setError(
-        'School name cannot create a valid school URL. Please use English letters or numbers.'
+        'सही 10 अंकों का WhatsApp Number डालें। नंबर 6, 7, 8 या 9 से शुरू होना चाहिए।'
+      );
+      return;
+    }
+
+    /*
+     * Optional phone number validation.
+     * If phone is entered, it must also be a valid Indian mobile number.
+     */
+    if (cleanPhone && !isValidIndianMobile(cleanPhone)) {
+      setError(
+        'Phone Number सही 10 अंकों का होना चाहिए और 6, 7, 8 या 9 से शुरू होना चाहिए।'
+      );
+      return;
+    }
+
+    /*
+     * Owner confirmation.
+     * This is FREE verification, not OTP verification.
+     */
+    if (!whatsappVerified) {
+      setError(
+        'कृपया पुष्टि करें कि दिया गया WhatsApp Number आपका सही और चालू नंबर है।'
       );
       return;
     }
 
     try {
       setLoading(true);
+
+      await registerSchool({
+        name: cleanSchoolName,
+        address: cleanAddress,
+
+        /*
+         * Phone is optional.
+         */
+        ...(cleanPhone ? { phone: cleanPhone } : {}),
+
+        tagline: cleanTagline,
+        description: cleanDescription,
+
+        /*
+         * IMPORTANT:
+         * Save the school's own WhatsApp number.
+         */
+        whatsappNumber: cleanWhatsappNumber,
+
+        /*
+         * ₹0 confirmation verification.
+         * This does NOT mean OTP verification.
+         */
+        whatsappVerified: true,
+      });
+
+      setSuccess(
+        'School Registration सफल हो गया। अब Payment/Approval प्रक्रिया पूरी करें।'
+      );
 
       /*
-       * IMPORTANT:
-       *
-       * ownerEmail registration form में नहीं है।
-       * Google account का email automatically लिया जा रहा है।
-       *
-       * registerSchool(
-       *   ownerUid,
-       *   registrationInput,
-       *   ownerEmail
-       * )
+       * थोड़ी देर बाद payment page पर भेजें.
        */
-
-      const school = await registerSchool(
-        user.uid,
-        {
-          name: cleanName,
-          slug: cleanSlug,
-          phone: cleanPhone,
-          tagline: cleanTagline,
-          description: cleanDescription,
-        },
-        ownerEmail
-      );
-
-      // Registration के बाद सीधे Payment/Recharge page
-      navigate(`/payment/recharge?schoolId=${school.id}`, {
-        replace: true,
-      });
+      setTimeout(() => {
+        navigate('/payment/recharge');
+      }, 1200);
     } catch (err) {
-      console.error('School registration failed:', err);
+      console.error('School registration error:', err);
 
       const message =
         err instanceof Error
           ? err.message
-          : 'School registration failed. Please try again.';
+          : 'School Registration में समस्या हुई। कृपया दोबारा कोशिश करें।';
 
       setError(message);
     } finally {
@@ -128,309 +175,281 @@ export default function RegisterSchoolPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setError('');
+  /*
+   * User has not logged in yet.
+   */
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-100 px-4">
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
+          <div className="mb-5 text-5xl">🏫</div>
 
-    try {
-      setLoading(true);
-
-      await signInWithGoogle();
-    } catch (err) {
-      console.error('Google sign-in failed:', err);
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Google sign-in failed. Please try again.';
-
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      setError('');
-      setLoading(true);
-
-      await signOut();
-
-      setName('');
-      setPhone('');
-      setTagline('');
-      setDescription('');
-    } catch (err) {
-      console.error('Logout failed:', err);
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Logout failed. Please try again.';
-
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
-      <div className="mx-auto max-w-2xl">
-
-        {/* Header */}
-        <div className="mb-6 text-center text-white">
-          <div className="mb-3 text-5xl">🏫</div>
-
-          <h1 className="text-3xl font-extrabold md:text-4xl">
+          <h1 className="text-2xl font-bold text-gray-800">
             Register Your School
           </h1>
 
-          <p className="mt-2 text-sm text-white/90 md:text-base">
-            Create your school website and management account
+          <p className="mt-3 text-gray-600">
+            School register करने के लिए पहले Google Login करें।
           </p>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="mt-6 w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 font-bold text-white shadow-[0_5px_0_#3730a3] transition hover:brightness-110 active:translate-y-1 active:shadow-[0_2px_0_#3730a3]"
+          >
+            🔐 Google Login
+          </button>
         </div>
+      </div>
+    );
+  }
 
-        {/* Main Card */}
-        <div className="rounded-3xl bg-white p-5 shadow-2xl md:p-8">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-100 px-4 py-8">
+      <div className="mx-auto w-full max-w-2xl">
+        <div className="overflow-hidden rounded-3xl bg-white shadow-2xl">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 px-6 py-8 text-center text-white">
+            <div className="text-5xl">🏫</div>
 
-          {/* =========================
-              NOT LOGGED IN
-          ========================== */}
-          {!user && (
-            <div className="rounded-2xl border-2 border-orange-200 bg-orange-50 p-6 text-center">
+            <h1 className="mt-3 text-3xl font-extrabold">
+              Register Your School
+            </h1>
 
-              <div className="text-5xl">🔐</div>
+            <p className="mt-2 text-sm text-white/90">
+              अपना School Website बनाने के लिए Registration करें
+            </p>
+          </div>
 
-              <h2 className="mt-3 text-2xl font-black text-orange-900">
-                Google Login Required
-              </h2>
-
-              <p className="mt-2 text-sm text-orange-700">
-                Please sign in with your Google account before registering
-                your school.
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-5 p-6 md:p-8"
+          >
+            {/* Logged in account */}
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                Google Account
               </p>
 
-              {error && (
-                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
-                  ❌ {error}
+              <p className="mt-1 break-all font-semibold text-gray-800">
+                {user.email || 'Google Account'}
+              </p>
+            </div>
+
+            {/* School Name */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-700">
+                School Name <span className="text-red-500">*</span>
+              </label>
+
+              <input
+                type="text"
+                value={schoolName}
+                onChange={(e) => setSchoolName(e.target.value)}
+                placeholder="उदाहरण: Zara Public School"
+                required
+                disabled={loading}
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-700">
+                School Address <span className="text-red-500">*</span>
+              </label>
+
+              <textarea
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="School का पूरा Address"
+                required
+                disabled={loading}
+                rows={3}
+                className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            {/* WhatsApp Number */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-700">
+                WhatsApp Number{' '}
+                <span className="text-red-500">*</span>
+              </label>
+
+              <div className="flex overflow-hidden rounded-xl border border-gray-300 focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-200">
+                <div className="flex items-center bg-gray-100 px-3 font-bold text-gray-700">
+                  +91
+                </div>
+
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  value={whatsappNumber}
+                  onChange={handleWhatsappChange}
+                  placeholder="10 digit mobile number"
+                  maxLength={10}
+                  required
+                  disabled={loading}
+                  className="min-w-0 flex-1 px-4 py-3 outline-none"
+                />
+              </div>
+
+              <p className="mt-2 text-xs text-gray-500">
+                केवल 10 अंक डालें। Number 6, 7, 8 या 9 से शुरू होना चाहिए।
+              </p>
+
+              {/* Live validation */}
+              {whatsappNumber.length > 0 && (
+                <div className="mt-2">
+                  {isValidIndianMobile(whatsappNumber) ? (
+                    <p className="font-semibold text-green-600">
+                      ✓ Number का format सही है
+                    </p>
+                  ) : (
+                    <p className="font-semibold text-red-500">
+                      ✗ सही 10 अंकों का mobile number डालें
+                    </p>
+                  )}
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={loading}
-                className="mt-5 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-4 font-extrabold text-white shadow-[0_6px_0_rgb(154,52,18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
-              >
-                {loading
-                  ? '⏳ Signing in...'
-                  : '🔐 Continue with Google'}
-              </button>
+              {/* Free verification confirmation */}
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4">
+                <input
+                  type="checkbox"
+                  checked={whatsappVerified}
+                  onChange={(e) =>
+                    setWhatsappVerified(e.target.checked)
+                  }
+                  disabled={
+                    loading || !isValidIndianMobile(whatsappNumber)
+                  }
+                  className="mt-1 h-5 w-5 accent-green-600"
+                />
 
-              <button
-                type="button"
-                onClick={() => navigate('/schools')}
-                disabled={loading}
-                className="mt-4 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 disabled:opacity-60 active:translate-y-1 active:shadow-none"
-              >
-                ← Back to Schools
-              </button>
+                <span className="text-sm text-gray-700">
+                  <span className="font-bold text-green-700">
+                    मैं पुष्टि करता/करती हूँ
+                  </span>{' '}
+                  कि ऊपर दिया गया WhatsApp Number मेरा सही और चालू
+                  नंबर है। इस नंबर पर school website से संबंधित
+                  recharge/reminder messages भेजे जा सकते हैं।
+                </span>
+              </label>
+
+              {whatsappVerified && (
+                <div className="mt-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-bold text-green-700">
+                  ✓ WhatsApp Number Confirmed
+                </div>
+              )}
             </div>
-          )}
 
-          {/* =========================
-              LOGGED IN
-          ========================== */}
-          {user && (
-            <>
-              {/* Google Account Status */}
-              <div className="mb-6 rounded-2xl border-2 border-green-200 bg-green-50 p-4">
+            {/* Optional Phone */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-700">
+                Phone Number{' '}
+                <span className="font-normal text-gray-400">
+                  (Optional)
+                </span>
+              </label>
 
-                <div className="font-bold text-green-800">
-                  ✅ Google Account Connected
+              <div className="flex overflow-hidden rounded-xl border border-gray-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200">
+                <div className="flex items-center bg-gray-100 px-3 font-bold text-gray-700">
+                  +91
                 </div>
 
-                <div className="mt-1 break-all text-sm text-green-700">
-                  {user.email || 'Google email not available'}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  placeholder="10 digit phone number"
+                  maxLength={10}
                   disabled={loading}
-                  className="mt-4 w-full rounded-xl bg-gradient-to-r from-gray-700 to-gray-900 px-5 py-3 font-extrabold text-white shadow-[0_5px_0_rgb(31,41,55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
-                >
-                  {loading ? '⏳ Logging out...' : '🔓 Logout'}
-                </button>
+                  className="min-w-0 flex-1 px-4 py-3 outline-none"
+                />
               </div>
+            </div>
 
-              {/* Registration Information */}
-              <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            {/* Tagline */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-700">
+                School Tagline{' '}
+                <span className="font-normal text-gray-400">
+                  (Optional)
+                </span>
+              </label>
 
-                <h2 className="font-bold text-blue-900">
-                  📌 Registration Information
-                </h2>
-
-                <ul className="mt-2 space-y-1 text-sm text-blue-800">
-                  <li>
-                    • No school recognition document is required.
-                  </li>
-
-                  <li>
-                    • No email field is required in the form.
-                  </li>
-
-                  <li>
-                    • Your Google account email is saved automatically.
-                  </li>
-
-                  <li>
-                    • School URL will be created automatically from the
-                    school name.
-                  </li>
-
-                  <li>
-                    • Registration first creates a pending school.
-                  </li>
-
-                  <li>
-                    • Payment/recharge comes after registration.
-                  </li>
-
-                  <li>
-                    • School becomes LIVE only after payment approval.
-                  </li>
-
-                  <li>
-                    • Management features unlock after approval.
-                  </li>
-                </ul>
-              </div>
-
-              {/* Registration Form */}
-              <form
-                onSubmit={handleRegister}
-                className="space-y-5"
-              >
-
-                {/* School Name */}
-                <div>
-                  <label className="mb-2 block font-bold text-gray-800">
-                    School Name *
-                  </label>
-
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Example: Sunrise Public School"
-                    disabled={loading}
-                    autoComplete="organization"
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                    required
-                  />
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    School URL automatically:
-                  </p>
-
-                  <p className="mt-1 break-all rounded-lg bg-gray-50 p-2 text-xs font-semibold text-blue-700">
-                    /school/{makeSlug(name) || 'your-school'}
-                  </p>
-                </div>
-
-                {/* Mobile Number */}
-                <div>
-                  <label className="mb-2 block font-bold text-gray-800">
-                    Mobile Number *
-                  </label>
-
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Example: 9876543210"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    maxLength={18}
-                    disabled={loading}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                    required
-                  />
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    School contact mobile number.
-                  </p>
-                </div>
-
-                {/* Tagline */}
-                <div>
-                  <label className="mb-2 block font-bold text-gray-800">
-                    School Tagline
-                  </label>
-
-                  <input
-                    type="text"
-                    value={tagline}
-                    onChange={(e) => setTagline(e.target.value)}
-                    placeholder="Education • Discipline • Excellence"
-                    disabled={loading}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="mb-2 block font-bold text-gray-800">
-                    School Description
-                  </label>
-
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Enter a short description about your school..."
-                    rows={5}
-                    disabled={loading}
-                    className="w-full resize-none rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Error */}
-                {error && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                    ❌ {error}
-                  </div>
-                )}
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 px-5 py-4 text-lg font-extrabold text-white shadow-[0_6px_0_rgb(67,56,202)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
-                >
-                  {loading
-                    ? '⏳ Creating School...'
-                    : '🏫 Register School & Continue to Payment'}
-                </button>
-              </form>
-
-              {/* Back */}
-              <button
-                type="button"
-                onClick={() => navigate('/schools')}
+              <input
+                type="text"
+                value={tagline}
+                onChange={(e) => setTagline(e.target.value)}
+                placeholder="उदाहरण: ज्ञान, अनुशासन और संस्कार"
                 disabled={loading}
-                className="mt-5 w-full rounded-xl bg-gray-100 px-5 py-3 font-bold text-gray-700 shadow-[0_4px_0_rgb(156,163,175)] transition hover:bg-gray-200 disabled:opacity-60 active:translate-y-1 active:shadow-none"
-              >
-                ← Back to Schools
-              </button>
-            </>
-          )}
-        </div>
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
 
-        <p className="mt-6 text-center text-xs text-white/80">
-          School registration • Google Login • Secure Firebase Database
-        </p>
+            {/* Description */}
+            <div>
+              <label className="mb-2 block font-bold text-gray-700">
+                School Description{' '}
+                <span className="font-normal text-gray-400">
+                  (Optional)
+                </span>
+              </label>
+
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="School के बारे में थोड़ी जानकारी"
+                rows={4}
+                disabled={loading}
+                className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                ❌ {error}
+              </div>
+            )}
+
+            {/* Success */}
+            {success && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-700">
+                ✅ {success}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={
+                loading ||
+                !isValidIndianMobile(whatsappNumber) ||
+                !whatsappVerified
+              }
+              className="w-full rounded-xl bg-gradient-to-r from-green-500 via-emerald-600 to-teal-600 px-6 py-4 text-lg font-extrabold text-white shadow-[0_6px_0_#047857] transition hover:brightness-110 active:translate-y-1 active:shadow-[0_2px_0_#047857] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+            >
+              {loading
+                ? '⏳ Registration हो रहा है...'
+                : '🏫 Register School'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              disabled={loading}
+              className="w-full rounded-xl bg-gray-100 px-6 py-3 font-bold text-gray-700 shadow-[0_4px_0_#9ca3af] transition hover:bg-gray-200 active:translate-y-1 active:shadow-[0_1px_0_#9ca3af]"
+            >
+              ← Back to Home
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
