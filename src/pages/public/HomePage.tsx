@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+
 import {
   GraduationCap,
   Search,
@@ -24,6 +25,8 @@ import type { School } from '@/firebase/types';
 import { useAuth } from '@/context/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
+const PLATFORM_ADMIN_EMAIL = 'ngogrant454@gmail.com';
+
 export default function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -33,12 +36,17 @@ export default function HomePage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
+  /* =========================================================
+     LOAD LIVE SCHOOLS
+  ========================================================= */
+
   const loadSchools = async () => {
     try {
       setLoading(true);
       setError('');
 
       const data = await fetchPublicSchools();
+
       setSchools(data);
     } catch (err) {
       console.error('Failed to load schools:', err);
@@ -52,6 +60,10 @@ export default function HomePage() {
     loadSchools();
   }, []);
 
+  /* =========================================================
+     SEARCH
+  ========================================================= */
+
   const filteredSchools = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -60,14 +72,49 @@ export default function HomePage() {
     }
 
     return schools.filter((school) => {
+      const name = school.name?.toLowerCase() || '';
+      const slug = school.slug?.toLowerCase() || '';
+      const tagline = school.tagline?.toLowerCase() || '';
+      const address = school.address?.toLowerCase() || '';
+      const description = school.description?.toLowerCase() || '';
+      const phone = school.phone?.toLowerCase() || '';
+      const email = school.email?.toLowerCase() || '';
+
       return (
-        school.name?.toLowerCase().includes(query) ||
-        school.tagline?.toLowerCase().includes(query) ||
-        school.address?.toLowerCase().includes(query) ||
-        school.description?.toLowerCase().includes(query)
+        name.includes(query) ||
+        slug.includes(query) ||
+        tagline.includes(query) ||
+        address.includes(query) ||
+        description.includes(query) ||
+        phone.includes(query) ||
+        email.includes(query)
       );
     });
   }, [schools, search]);
+
+  /* =========================================================
+     DASHBOARD ROUTE
+  ========================================================= */
+
+  const openDashboard = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const email = user.email?.trim().toLowerCase();
+
+    if (email === PLATFORM_ADMIN_EMAIL.toLowerCase()) {
+      navigate('/admin');
+      return;
+    }
+
+    navigate('/school-admin');
+  };
+
+  /* =========================================================
+     LOADING
+  ========================================================= */
 
   if (loading) {
     return (
@@ -84,32 +131,44 @@ export default function HomePage() {
       {/* =====================================================
           HEADER
       ====================================================== */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="min-h-[72px] flex items-center justify-between gap-4">
 
-            {/* Logo */}
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-md">
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+
+          <div className="flex min-h-[72px] items-center justify-between gap-4">
+
+            {/* LOGO */}
+
             <Link
               to="/"
-              className="flex items-center gap-3 min-w-0"
+              className="flex min-w-0 items-center gap-3"
             >
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shrink-0">
-                <GraduationCap className="w-6 h-6 text-white" />
+
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+
+                <GraduationCap className="h-6 w-6 text-white" />
+
               </div>
 
               <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 truncate">
+
+                <h1 className="truncate text-lg font-extrabold text-gray-900 sm:text-xl">
                   SchoolConnect
                 </h1>
 
-                <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+                <p className="truncate text-[10px] text-gray-500 sm:text-xs">
                   Multi-School Platform
                 </p>
+
               </div>
+
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center gap-5">
+            {/* DESKTOP NAVIGATION */}
+
+            <nav className="hidden items-center gap-5 lg:flex">
+
               <Link
                 to="/"
                 className="text-sm font-bold text-blue-600"
@@ -119,216 +178,272 @@ export default function HomePage() {
 
               <Link
                 to="/about"
-                className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
+                className="text-sm font-semibold text-gray-600 transition-colors hover:text-blue-600"
               >
                 About
               </Link>
 
               <Link
                 to="/schools"
-                className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
+                className="text-sm font-semibold text-gray-600 transition-colors hover:text-blue-600"
               >
                 Schools
               </Link>
 
               <Link
                 to="/notices"
-                className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
+                className="text-sm font-semibold text-gray-600 transition-colors hover:text-blue-600"
               >
                 Notices
               </Link>
 
               <Link
                 to="/contact"
-                className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors"
+                className="text-sm font-semibold text-gray-600 transition-colors hover:text-blue-600"
               >
                 Contact
               </Link>
+
             </nav>
 
-            {/* Desktop Buttons */}
-            <div className="hidden md:flex items-center gap-2">
+            {/* DESKTOP BUTTONS */}
+
+            <div className="hidden items-center gap-2 md:flex">
 
               <Link
                 to="/register-school"
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white font-bold text-sm btn-3d inline-flex items-center gap-2"
+                className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 px-4 py-2.5 text-sm font-bold text-white"
               >
-                <UserPlus className="w-4 h-4" />
+                <UserPlus className="h-4 w-4" />
                 Register School
               </Link>
 
               {user ? (
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard')}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold text-sm btn-3d inline-flex items-center gap-2"
+                  onClick={openDashboard}
+                  className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="h-4 w-4" />
                   Dashboard
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white font-bold text-sm btn-3d inline-flex items-center gap-2"
+                  className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 px-4 py-2.5 text-sm font-bold text-white"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="h-4 w-4" />
                   Google Login
                 </button>
               )}
+
             </div>
 
-            {/* Mobile Buttons */}
-            <div className="flex md:hidden items-center gap-2">
+            {/* MOBILE BUTTONS */}
+
+            <div className="flex items-center gap-2 md:hidden">
 
               <Link
                 to="/register-school"
-                className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white btn-3d flex items-center justify-center"
                 title="Register School"
+                className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white"
               >
-                <UserPlus className="w-5 h-5" />
+                <UserPlus className="h-5 w-5" />
               </Link>
 
               {user ? (
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard')}
-                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white btn-3d flex items-center justify-center"
+                  onClick={openDashboard}
                   title="Dashboard"
+                  className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
                 >
-                  <LogIn className="w-5 h-5" />
+                  <LogIn className="h-5 w-5" />
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white btn-3d flex items-center justify-center"
                   title="Google Login"
+                  className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white"
                 >
-                  <LogIn className="w-5 h-5" />
+                  <LogIn className="h-5 w-5" />
                 </button>
               )}
 
             </div>
+
           </div>
+
         </div>
+
       </header>
 
       {/* =====================================================
           MOBILE NAVIGATION
       ====================================================== */}
-      <div className="lg:hidden bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-3 py-2 overflow-x-auto">
-          <div className="flex items-center justify-center gap-2 min-w-max">
+
+      <div className="border-b border-gray-100 bg-white lg:hidden">
+
+        <div className="mx-auto max-w-7xl overflow-x-auto px-3 py-2">
+
+          <div className="flex min-w-max items-center justify-center gap-2">
 
             <Link
               to="/"
-              className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold"
+              className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
             >
               Home
             </Link>
 
             <Link
               to="/about"
-              className="px-3 py-2 rounded-lg text-gray-600 text-xs font-semibold"
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600"
             >
               About
             </Link>
 
             <Link
               to="/schools"
-              className="px-3 py-2 rounded-lg text-gray-600 text-xs font-semibold"
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600"
             >
               Schools
             </Link>
 
             <Link
               to="/notices"
-              className="px-3 py-2 rounded-lg text-gray-600 text-xs font-semibold"
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600"
             >
               Notices
             </Link>
 
             <Link
               to="/contact"
-              className="px-3 py-2 rounded-lg text-gray-600 text-xs font-semibold"
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600"
             >
               Contact
             </Link>
 
           </div>
+
         </div>
+
       </div>
 
       {/* =====================================================
           HERO
       ====================================================== */}
+
       <section className="relative overflow-hidden">
+
         <div className="absolute inset-0 bg-gradient-to-br from-blue-700 via-indigo-700 to-purple-800" />
 
-        <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
 
-        <div className="absolute -bottom-32 -right-20 w-96 h-96 rounded-full bg-purple-400/20 blur-3xl" />
+        <div className="absolute -bottom-32 -right-20 h-96 w-96 rounded-full bg-purple-400/20 blur-3xl" />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20 lg:py-24">
+        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
 
-          <div className="max-w-4xl mx-auto text-center">
+          <div className="mx-auto max-w-4xl text-center">
 
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-white mb-6">
-              <GraduationCap className="w-4 h-4" />
+            {/* BADGE */}
+
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-white backdrop-blur-md">
+
+              <GraduationCap className="h-4 w-4" />
 
               <span className="text-sm font-semibold">
                 One Platform • Many Schools
               </span>
+
             </div>
 
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight">
+            {/* TITLE */}
+
+            <h2 className="text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
+
               Find Your
+
               <span className="block text-yellow-300">
                 School
               </span>
+
             </h2>
 
-            <p className="mt-5 text-base sm:text-lg text-blue-100 max-w-2xl mx-auto leading-relaxed">
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-blue-100 sm:text-lg">
               Discover schools, visit their official pages,
               and access school information from one simple platform.
             </p>
 
-            {/* Search */}
-            <div className="max-w-2xl mx-auto mt-8">
+            {/* =================================================
+                SEARCH BOX
+            ================================================== */}
+
+            <div className="mx-auto mt-8 max-w-2xl">
+
               <div className="relative">
 
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
 
                 {search && (
                   <button
                     type="button"
                     onClick={() => setSearch('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200"
+                    title="Clear Search"
+                    className="absolute right-4 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="h-4 w-4" />
                   </button>
                 )}
 
                 <input
-                  type="text"
+                  type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search school name, city, address..."
-                  className="w-full h-14 sm:h-16 pl-14 pr-14 rounded-2xl bg-white text-gray-900 placeholder:text-gray-400 shadow-2xl outline-none focus:ring-4 focus:ring-white/30 text-sm sm:text-base"
+                  placeholder="School name search karein..."
+                  autoComplete="off"
+                  className="h-14 w-full rounded-2xl bg-white pl-14 pr-14 text-sm font-semibold text-gray-900 shadow-2xl outline-none placeholder:text-gray-400 focus:ring-4 focus:ring-white/30 sm:h-16 sm:text-base"
                 />
 
               </div>
+
+              {/* SEARCH RESULT COUNT */}
+
+              <div className="mt-3 text-sm font-semibold text-white/90">
+
+                {search.trim() ? (
+                  <>
+                    <span className="text-yellow-300">
+                      {filteredSchools.length}
+                    </span>{' '}
+                    school found for{' '}
+                    <span className="font-black text-white">
+                      "{search}"
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-yellow-300">
+                      {schools.length}
+                    </span>{' '}
+                    LIVE school available
+                  </>
+                )}
+
+              </div>
+
             </div>
 
-            {/* Hero Buttons */}
-            <div className="flex flex-col sm:flex-row justify-center gap-3 mt-6">
+            {/* HERO BUTTONS */}
+
+            <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
 
               <Link
                 to="/register-school"
-                className="px-6 py-3.5 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 text-gray-900 font-extrabold btn-3d inline-flex items-center justify-center gap-2"
+                className="btn-3d inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 px-6 py-3.5 font-extrabold text-gray-900"
               >
-                <Building2 className="w-5 h-5" />
+                <Building2 className="h-5 w-5" />
                 Register Your School
               </Link>
 
@@ -336,9 +451,9 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="px-6 py-3.5 rounded-xl bg-white text-blue-700 font-extrabold btn-3d inline-flex items-center justify-center gap-2"
+                  className="btn-3d inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 font-extrabold text-blue-700"
                 >
-                  <LogIn className="w-5 h-5" />
+                  <LogIn className="h-5 w-5" />
                   Login with Google
                 </button>
               )}
@@ -346,10 +461,10 @@ export default function HomePage() {
               {user && (
                 <button
                   type="button"
-                  onClick={() => navigate('/dashboard')}
-                  className="px-6 py-3.5 rounded-xl bg-white text-blue-700 font-extrabold btn-3d inline-flex items-center justify-center gap-2"
+                  onClick={openDashboard}
+                  className="btn-3d inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 font-extrabold text-blue-700"
                 >
-                  <LogIn className="w-5 h-5" />
+                  <LogIn className="h-5 w-5" />
                   Open Dashboard
                 </button>
               )}
@@ -357,45 +472,70 @@ export default function HomePage() {
             </div>
 
           </div>
+
         </div>
+
       </section>
 
       {/* =====================================================
           LIVE SCHOOL LIST
       ====================================================== */}
-      <section className="py-14 sm:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+      <section className="py-14 sm:py-16">
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-              <div className="inline-flex items-center gap-2 text-blue-600 font-bold text-sm">
-                <SchoolIcon className="w-4 h-4" />
+
+              <div className="inline-flex items-center gap-2 text-sm font-bold text-blue-600">
+
+                <SchoolIcon className="h-4 w-4" />
+
                 LIVE SCHOOLS
+
               </div>
 
-              <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mt-2">
+              <h2 className="mt-2 text-3xl font-black text-gray-900 sm:text-4xl">
                 Schools on Our Platform
               </h2>
 
-              <p className="text-gray-500 mt-2">
-                {filteredSchools.length} school
-                {filteredSchools.length !== 1 ? 's' : ''} available
+              <p className="mt-2 text-gray-500">
+
+                {search.trim() ? (
+                  <>
+                    Showing{' '}
+                    <strong className="text-blue-600">
+                      {filteredSchools.length}
+                    </strong>{' '}
+                    result
+                    {filteredSchools.length !== 1 ? 's' : ''}
+                  </>
+                ) : (
+                  <>
+                    {schools.length} school
+                    {schools.length !== 1 ? 's' : ''} available
+                  </>
+                )}
+
               </p>
+
             </div>
 
             <button
               type="button"
               onClick={loadSchools}
-              className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-bold btn-3d inline-flex items-center gap-2"
+              className="btn-3d inline-flex self-start items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 font-bold text-gray-700 sm:self-auto"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="h-4 w-4" />
               Refresh
             </button>
 
           </div>
 
-          {/* Error */}
+          {/* ERROR */}
+
           {error && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
 
@@ -406,7 +546,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={loadSchools}
-                className="mt-3 px-4 py-2 rounded-lg bg-red-600 text-white font-semibold btn-3d"
+                className="btn-3d mt-3 rounded-lg bg-red-600 px-4 py-2 font-semibold text-white"
               >
                 Try Again
               </button>
@@ -414,51 +554,55 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* No Schools */}
-          {!error && filteredSchools.length === 0 && (
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-10 sm:p-16 text-center">
+          {/* NO RESULT */}
 
-              <div className="w-20 h-20 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center">
-                {search ? (
-                  <Search className="w-10 h-10 text-blue-600" />
+          {!error && filteredSchools.length === 0 && (
+
+            <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center shadow-sm sm:p-16">
+
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50">
+
+                {search.trim() ? (
+                  <Search className="h-10 w-10 text-blue-600" />
                 ) : (
-                  <SchoolIcon className="w-10 h-10 text-blue-600" />
+                  <SchoolIcon className="h-10 w-10 text-blue-600" />
                 )}
+
               </div>
 
               {schools.length === 0 ? (
                 <>
-                  <h3 className="text-2xl font-bold text-gray-900 mt-6">
+                  <h3 className="mt-6 text-2xl font-bold text-gray-900">
                     Abhi koi LIVE school nahi hai
                   </h3>
 
-                  <p className="text-gray-500 max-w-lg mx-auto mt-3">
+                  <p className="mx-auto mt-3 max-w-lg text-gray-500">
                     Sabse pehle apna school register karein.
                     Payment approval ke baad school yahan LIVE dikhega.
                   </p>
 
                   <Link
                     to="/register-school"
-                    className="mt-6 px-6 py-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold btn-3d inline-flex items-center gap-2"
+                    className="btn-3d mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-3 font-bold text-white"
                   >
-                    <UserPlus className="w-5 h-5" />
+                    <UserPlus className="h-5 w-5" />
                     Register Your School
                   </Link>
                 </>
               ) : (
                 <>
-                  <h3 className="text-2xl font-bold text-gray-900 mt-6">
+                  <h3 className="mt-6 text-2xl font-bold text-gray-900">
                     School nahi mila
                   </h3>
 
-                  <p className="text-gray-500 mt-3">
-                    Search ka naam ya address check karke dobara try karein.
+                  <p className="mt-3 text-gray-500">
+                    "{search}" naam se koi LIVE school nahi mila.
                   </p>
 
                   <button
                     type="button"
                     onClick={() => setSearch('')}
-                    className="mt-6 px-6 py-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold btn-3d"
+                    className="btn-3d mt-6 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-3 font-bold text-white"
                   >
                     Clear Search
                   </button>
@@ -466,11 +610,14 @@ export default function HomePage() {
               )}
 
             </div>
+
           )}
 
-          {/* School Cards */}
+          {/* SCHOOL CARDS */}
+
           {filteredSchools.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 
               {filteredSchools.map((school) => (
                 <SchoolCard
@@ -480,59 +627,68 @@ export default function HomePage() {
               ))}
 
             </div>
+
           )}
 
         </div>
+
       </section>
 
       {/* =====================================================
           ABOUT PLATFORM
       ====================================================== */}
-      <section className="py-16 bg-white border-y border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
-          <div className="grid lg:grid-cols-2 gap-10 items-center">
+      <section className="border-y border-gray-100 bg-white py-16">
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+
+          <div className="grid items-center gap-10 lg:grid-cols-2">
 
             <div>
-              <span className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 uppercase tracking-wider">
-                <Info className="w-4 h-4" />
+
+              <span className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-blue-600">
+
+                <Info className="h-4 w-4" />
+
                 About Platform
+
               </span>
 
-              <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mt-3">
+              <h2 className="mt-3 text-3xl font-black text-gray-900 sm:text-4xl">
                 One Platform for Multiple Schools
               </h2>
 
-              <p className="text-gray-600 leading-relaxed mt-5">
+              <p className="mt-5 leading-relaxed text-gray-600">
                 SchoolConnect ek multi-school platform hai jahan
                 alag-alag schools apni online website aur school
                 information manage kar sakte hain.
               </p>
 
-              <p className="text-gray-600 leading-relaxed mt-4">
+              <p className="mt-4 leading-relaxed text-gray-600">
                 Visitors school search karke uska official public
                 page dekh sakte hain.
               </p>
 
-              <div className="flex flex-wrap gap-3 mt-7">
+              <div className="mt-7 flex flex-wrap gap-3">
 
                 <Link
                   to="/about"
-                  className="px-5 py-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold btn-3d inline-flex items-center gap-2"
+                  className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-5 py-3 font-bold text-white"
                 >
                   About Us
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
 
                 <Link
                   to="/schools"
-                  className="px-5 py-3 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white font-bold btn-3d inline-flex items-center gap-2"
+                  className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 px-5 py-3 font-bold text-white"
                 >
-                  <SchoolIcon className="w-4 h-4" />
+                  <SchoolIcon className="h-4 w-4" />
                   Browse Schools
                 </Link>
 
               </div>
+
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -566,31 +722,34 @@ export default function HomePage() {
           </div>
 
         </div>
+
       </section>
 
       {/* =====================================================
           HOW IT WORKS
       ====================================================== */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
-          <div className="text-center max-w-2xl mx-auto mb-10">
+      <section className="bg-gray-50 py-16">
 
-            <span className="text-sm font-bold text-blue-600 uppercase tracking-wider">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+
+          <div className="mx-auto mb-10 max-w-2xl text-center">
+
+            <span className="text-sm font-bold uppercase tracking-wider text-blue-600">
               Simple Process
             </span>
 
-            <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mt-2">
+            <h2 className="mt-2 text-3xl font-black text-gray-900 sm:text-4xl">
               How It Works
             </h2>
 
-            <p className="text-gray-500 mt-3">
+            <p className="mt-3 text-gray-500">
               School owners aur visitors dono ke liye simple system.
             </p>
 
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid gap-6 md:grid-cols-3">
 
             <ProcessCard
               number="01"
@@ -616,23 +775,28 @@ export default function HomePage() {
           </div>
 
         </div>
+
       </section>
 
       {/* =====================================================
           REGISTER CTA
       ====================================================== */}
-      <section className="py-16 sm:py-20 bg-gradient-to-br from-indigo-700 via-blue-700 to-cyan-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
 
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center">
-            <GraduationCap className="w-8 h-8 text-white" />
+      <section className="bg-gradient-to-br from-indigo-700 via-blue-700 to-cyan-700 py-16 sm:py-20">
+
+        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
+
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
+
+            <GraduationCap className="h-8 w-8 text-white" />
+
           </div>
 
-          <h2 className="text-3xl sm:text-4xl font-black text-white mt-6">
+          <h2 className="mt-6 text-3xl font-black text-white sm:text-4xl">
             Apna School Is Platform Par Add Karein
           </h2>
 
-          <p className="text-blue-100 mt-4 max-w-2xl mx-auto">
+          <p className="mx-auto mt-4 max-w-2xl text-blue-100">
             School register karein, payment complete karein aur
             approval ke baad apne school ka dedicated online page
             manage karein.
@@ -640,35 +804,41 @@ export default function HomePage() {
 
           <Link
             to="/register-school"
-            className="mt-8 px-7 py-3.5 rounded-xl bg-white text-blue-700 font-extrabold btn-3d inline-flex items-center gap-2"
+            className="btn-3d mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 font-extrabold text-blue-700"
           >
-            <UserPlus className="w-5 h-5" />
+            <UserPlus className="h-5 w-5" />
             Register Your School
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="h-5 w-5" />
           </Link>
 
         </div>
+
       </section>
 
       {/* =====================================================
           FOOTER
       ====================================================== */}
+
       <footer className="bg-gray-950 text-gray-400">
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
 
-            {/* Brand */}
+            {/* BRAND */}
+
             <div>
 
               <div className="flex items-center gap-3">
 
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-white" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600">
+
+                  <GraduationCap className="h-5 w-5 text-white" />
+
                 </div>
 
                 <div>
+
                   <p className="font-bold text-white">
                     SchoolConnect
                   </p>
@@ -676,20 +846,22 @@ export default function HomePage() {
                   <p className="text-xs">
                     Multi-School Platform
                   </p>
+
                 </div>
 
               </div>
 
-              <p className="text-sm leading-relaxed mt-4">
+              <p className="mt-4 text-sm leading-relaxed">
                 A simple platform to discover and manage school websites.
               </p>
 
             </div>
 
-            {/* Quick Links */}
+            {/* QUICK LINKS */}
+
             <div>
 
-              <h3 className="text-white font-bold mb-4">
+              <h3 className="mb-4 font-bold text-white">
                 Quick Links
               </h3>
 
@@ -697,28 +869,28 @@ export default function HomePage() {
 
                 <Link
                   to="/"
-                  className="hover:text-white transition-colors"
+                  className="transition-colors hover:text-white"
                 >
                   Home
                 </Link>
 
                 <Link
                   to="/about"
-                  className="hover:text-white transition-colors"
+                  className="transition-colors hover:text-white"
                 >
                   About
                 </Link>
 
                 <Link
                   to="/schools"
-                  className="hover:text-white transition-colors"
+                  className="transition-colors hover:text-white"
                 >
                   Schools
                 </Link>
 
                 <Link
                   to="/notices"
-                  className="hover:text-white transition-colors"
+                  className="transition-colors hover:text-white"
                 >
                   Notices
                 </Link>
@@ -727,10 +899,11 @@ export default function HomePage() {
 
             </div>
 
-            {/* Support */}
+            {/* SUPPORT */}
+
             <div>
 
-              <h3 className="text-white font-bold mb-4">
+              <h3 className="mb-4 font-bold text-white">
                 Support
               </h3>
 
@@ -738,49 +911,58 @@ export default function HomePage() {
 
                 <Link
                   to="/contact"
-                  className="hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="inline-flex items-center gap-2 transition-colors hover:text-white"
                 >
-                  <Phone className="w-4 h-4" />
+                  <Phone className="h-4 w-4" />
                   Contact
                 </Link>
 
                 <Link
                   to="/privacy-policy"
-                  className="hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="inline-flex items-center gap-2 transition-colors hover:text-white"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="h-4 w-4" />
                   Privacy Policy
                 </Link>
 
                 <Link
                   to="/terms-conditions"
-                  className="hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="inline-flex items-center gap-2 transition-colors hover:text-white"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="h-4 w-4" />
                   Terms & Conditions
+                </Link>
+
+                <Link
+                  to="/refund-cancellation"
+                  className="inline-flex items-center gap-2 transition-colors hover:text-white"
+                >
+                  <FileText className="h-4 w-4" />
+                  Refund & Cancellation
                 </Link>
 
               </div>
 
             </div>
 
-            {/* Registration */}
+            {/* FOR SCHOOLS */}
+
             <div>
 
-              <h3 className="text-white font-bold mb-4">
+              <h3 className="mb-4 font-bold text-white">
                 For Schools
               </h3>
 
-              <p className="text-sm leading-relaxed mb-4">
+              <p className="mb-4 text-sm leading-relaxed">
                 Apne school ko platform par register karke
                 dedicated school website manage karein.
               </p>
 
               <Link
                 to="/register-school"
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white font-bold text-sm btn-3d inline-flex items-center gap-2"
+                className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 px-4 py-2.5 text-sm font-bold text-white"
               >
-                <UserPlus className="w-4 h-4" />
+                <UserPlus className="h-4 w-4" />
                 Register School
               </Link>
 
@@ -788,7 +970,9 @@ export default function HomePage() {
 
           </div>
 
-          <div className="border-t border-gray-800 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          {/* COPYRIGHT */}
+
+          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-gray-800 pt-6 text-xs sm:flex-row">
 
             <p>
               © {new Date().getFullYear()} SchoolConnect. All rights reserved.
@@ -838,31 +1022,40 @@ function SchoolCard({
 }: {
   school: School;
 }) {
+  /*
+   * Hero image ko priority di gayi hai.
+   * Agar hero image nahi hai to logo use hoga.
+   * Dono nahi hain to fallback image.
+   */
+
   const image =
-    school.logoUrl ||
     school.heroImageUrl ||
+    school.logoUrl ||
     'https://images.pexels.com/photos/207692/pexels-photo-207692.jpeg?auto=compress&cs=tinysrgb&w=1200';
 
   return (
-    <div className="group bg-white rounded-3xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+    <article className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
 
-      {/* Image */}
+      {/* IMAGE */}
+
       <div className="relative h-52 overflow-hidden bg-gray-100">
 
         <img
           src={image}
           alt={school.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
         {/* LIVE */}
-        <div className="absolute top-4 left-4">
 
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 text-white text-xs font-extrabold shadow-lg">
+        <div className="absolute left-4 top-4">
 
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-white shadow-lg">
+
+            <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
 
             LIVE
 
@@ -870,14 +1063,15 @@ function SchoolCard({
 
         </div>
 
-        {/* Logo */}
+        {/* LOGO */}
+
         {school.logoUrl && (
-          <div className="absolute bottom-4 left-4 w-16 h-16 rounded-2xl bg-white p-1.5 shadow-xl">
+          <div className="absolute bottom-4 left-4 h-16 w-16 rounded-2xl bg-white p-1.5 shadow-xl">
 
             <img
               src={school.logoUrl}
               alt={`${school.name} logo`}
-              className="w-full h-full rounded-xl object-cover"
+              className="h-full w-full rounded-xl object-cover"
             />
 
           </div>
@@ -885,23 +1079,24 @@ function SchoolCard({
 
       </div>
 
-      {/* Content */}
+      {/* CONTENT */}
+
       <div className="p-5">
 
-        <h3 className="text-xl font-extrabold text-gray-900 line-clamp-2">
+        <h3 className="line-clamp-2 text-xl font-extrabold text-gray-900">
           {school.name}
         </h3>
 
         {school.tagline && (
-          <p className="text-sm text-blue-600 font-semibold mt-1 line-clamp-2">
+          <p className="mt-1 line-clamp-2 text-sm font-semibold text-blue-600">
             {school.tagline}
           </p>
         )}
 
         {school.address && (
-          <div className="flex items-start gap-2 mt-4 text-sm text-gray-500">
+          <div className="mt-4 flex items-start gap-2 text-sm text-gray-500">
 
-            <MapPin className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
 
             <span className="line-clamp-2">
               {school.address}
@@ -911,23 +1106,24 @@ function SchoolCard({
         )}
 
         {school.description && (
-          <p className="text-sm text-gray-500 leading-relaxed mt-3 line-clamp-2">
+          <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-gray-500">
             {school.description}
           </p>
         )}
 
-        {/* Visit School */}
+        {/* VISIT SCHOOL */}
+
         <Link
           to={`/school/${school.slug}`}
-          className="mt-5 w-full px-5 py-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-extrabold btn-3d inline-flex items-center justify-center gap-2"
+          className="btn-3d mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-5 py-3 font-extrabold text-white"
         >
           Visit School
-          <ArrowRight className="w-5 h-5" />
+          <ArrowRight className="h-5 w-5" />
         </Link>
 
       </div>
 
-    </div>
+    </article>
   );
 }
 
@@ -947,13 +1143,13 @@ function ProcessCard({
   description: string;
 }) {
   return (
-    <div className="relative bg-white rounded-3xl border border-gray-200 p-7 shadow-sm hover:shadow-xl transition-shadow">
+    <div className="relative rounded-3xl border border-gray-200 bg-white p-7 shadow-sm transition-shadow hover:shadow-xl">
 
       <div className="flex items-center justify-between">
 
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
 
-          <Icon className="w-7 h-7 text-white" />
+          <Icon className="h-7 w-7 text-white" />
 
         </div>
 
@@ -963,11 +1159,11 @@ function ProcessCard({
 
       </div>
 
-      <h3 className="text-xl font-extrabold text-gray-900 mt-6">
+      <h3 className="mt-6 text-xl font-extrabold text-gray-900">
         {title}
       </h3>
 
-      <p className="text-gray-500 mt-2 leading-relaxed">
+      <p className="mt-2 leading-relaxed text-gray-500">
         {description}
       </p>
 
@@ -989,17 +1185,19 @@ function FeatureBox({
   text: string;
 }) {
   return (
-    <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-shadow">
+    <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5 shadow-sm transition-shadow hover:shadow-lg">
 
-      <div className="w-11 h-11 rounded-xl bg-blue-100 flex items-center justify-center">
-        <Icon className="w-5 h-5 text-blue-600" />
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100">
+
+        <Icon className="h-5 w-5 text-blue-600" />
+
       </div>
 
-      <h3 className="font-bold text-gray-900 mt-4">
+      <h3 className="mt-4 font-bold text-gray-900">
         {title}
       </h3>
 
-      <p className="text-sm text-gray-500 mt-1">
+      <p className="mt-1 text-sm text-gray-500">
         {text}
       </p>
 
