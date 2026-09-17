@@ -29,6 +29,12 @@ import type {
 } from '@/firebase/types';
 
 /* =========================================================
+   CONSTANTS
+========================================================= */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/* =========================================================
    PLATFORM ADMIN
 ========================================================= */
 
@@ -51,6 +57,108 @@ export function isPlatformAdminEmail(
 }
 
 /* =========================================================
+   SUBSCRIPTION HELPERS
+========================================================= */
+
+/**
+ * Checks whether a school is currently publicly active.
+ *
+ * A school must:
+ * 1. Have status LIVE
+ * 2. Have a valid subscription expiry date
+ * 3. Expiry date must be in the future
+ *
+ * This is used for the public school directory and
+ * individual school website.
+ */
+export function isSchoolSubscriptionActive(
+  school: School
+): boolean {
+  if (school.status !== 'LIVE') {
+    return false;
+  }
+
+  if (!school.subscriptionExpiryDate) {
+    return false;
+  }
+
+  const expiryTime = new Date(
+    school.subscriptionExpiryDate
+  ).getTime();
+
+  if (!Number.isFinite(expiryTime)) {
+    return false;
+  }
+
+  return expiryTime > Date.now();
+}
+
+/**
+ * Returns remaining subscription days.
+ *
+ * Returns 0 when expired or invalid.
+ */
+export function getSchoolRemainingDays(
+  school: School
+): number {
+  if (!school.subscriptionExpiryDate) {
+    return 0;
+  }
+
+  const expiryTime = new Date(
+    school.subscriptionExpiryDate
+  ).getTime();
+
+  if (!Number.isFinite(expiryTime)) {
+    return 0;
+  }
+
+  const remaining =
+    expiryTime - Date.now();
+
+  if (remaining <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(
+    remaining / DAY_MS
+  );
+}
+
+/**
+ * Creates subscription dates.
+ */
+function createSubscriptionDates(
+  days: number,
+  startTime: number = Date.now()
+): {
+  startDate: Date;
+  expiryDate: Date;
+} {
+  if (
+    !Number.isFinite(days) ||
+    days <= 0
+  ) {
+    throw new Error(
+      'Subscription days must be greater than 0.'
+    );
+  }
+
+  const startDate =
+    new Date(startTime);
+
+  const expiryDate =
+    new Date(
+      startTime + days * DAY_MS
+    );
+
+  return {
+    startDate,
+    expiryDate,
+  };
+}
+
+/* =========================================================
    USER RECORD
 ========================================================= */
 
@@ -61,7 +169,9 @@ export async function ensureUserRecord(
   photoURL?: string | null
 ): Promise<AppUser> {
   if (!uid) {
-    throw new Error('User UID is required.');
+    throw new Error(
+      'User UID is required.'
+    );
   }
 
   const cleanEmail =
@@ -222,6 +332,11 @@ export async function fetchUserRole(
 
     /*
      * Check active school membership.
+     *
+     * We intentionally do not block the role merely
+     * because subscription expired. This allows the
+     * school admin to still enter the dashboard and
+     * recharge page to renew the school.
      */
     const membershipsRef =
       collection(
@@ -912,6 +1027,10 @@ export async function fetchPublicSchools():
         'schools'
       );
 
+    /*
+     * Firestore only fetches LIVE schools.
+     * Expiry is then checked on the client.
+     */
     const schoolsQuery =
       query(
         schoolsRef,
@@ -928,12 +1047,19 @@ export async function fetchPublicSchools():
       );
 
     const schools =
-      snapshot.docs.map(
-        (item) => ({
-          id: item.id,
-          ...item.data(),
-        } as School)
-      );
+      snapshot.docs
+        .map(
+          (item) => ({
+            id: item.id,
+            ...item.data(),
+          } as School)
+        )
+        .filter(
+          (school) =>
+            isSchoolSubscriptionActive(
+              school
+            )
+        );
 
     schools.sort(
       (a, b) =>
@@ -983,6 +1109,15 @@ export async function fetchAllSchools():
         schoolsQuery
       );
 
+    /*
+     * IMPORTANT:
+     * Admin gets ALL schools including:
+     * PENDING_PAYMENT
+     * LIVE
+     * EXPIRED LIVE
+     * SUSPENDED
+     * ARCHIVED
+     */
     return snapshot.docs.map(
       (item) => ({
         id: item.id,
@@ -1003,11 +1138,28 @@ export async function fetchAllSchools():
    UPDATE SCHOOL STATUS
 ========================================================= */
 
+/**
+ * Update school status.
+ *
+ * Parameters:
+ *
+ * schoolId
+ * status
+ * approvedByUid
+ * suspensionReason
+ * approvalType: PAID | WAIVED
+ * subscriptionDays: optional number of days
+ *
+ * Existing calls with only the first 4 parameters
+ * will continue to work.
+ */
 export async function updateSchoolStatus(
   schoolId: string,
   status: School['status'],
   approvedByUid?: string,
-  suspensionReason?: string
+  suspensionReason?: string,
+  approvalType?: 'PAID' | 'WAIVED',
+  subscriptionDays?: number
 ): Promise<void> {
   if (!schoolId) {
     throw new Error(
@@ -1045,17 +1197,142 @@ export async function updateSchoolStatus(
     updatedAt: now,
   };
 
-  /*
-   * When school becomes LIVE,
-   * payment and subscription become active.
-   */
+  /* =======================================================
+     MAKE SCHOOL LIVE
+  ======================================================= */
+
   if (status === 'LIVE') {
-    schoolUpdates.paymentStatus =
+    /*
+     * If approvalType is not explicitly supplied,
+     * preserve existing approval type.
+     *
+     * This prevents an already WAIVED school from
+     * accidentally becoming PAID.
+     */
+    const effectiveApprovalType =
+      approvalType ??
+      school.paymentApprovalType ??
       'PAID';
 
-    schoolUpdates.subscriptionStatus =
-      'ACTIVE';
+    /*
+     * -------------------------------------------------------
+     * WAIVED / FREE APPROVAL
+     * -------------------------------------------------------
+     */
+    if (
+      effectiveApprovalType ===
+      'WAIVED'
+    ) {
+      const days =
+        subscriptionDays ??
+        school.subscriptionDays ??
+        30;
 
+      const {
+        startDate,
+        expiryDate,
+      } =
+        createSubscriptionDates(
+          days
+        );
+
+      schoolUpdates.status =
+        'LIVE';
+
+      schoolUpdates.paymentStatus =
+        'WAIVED';
+
+      schoolUpdates.subscriptionStatus =
+        'ACTIVE';
+
+      schoolUpdates.paymentApprovalType =
+        'WAIVED';
+
+      schoolUpdates.paymentAmount =
+        0;
+
+      schoolUpdates.subscriptionStartDate =
+        startDate.toISOString();
+
+      schoolUpdates.subscriptionExpiryDate =
+        expiryDate.toISOString();
+
+      schoolUpdates.subscriptionDays =
+        days;
+
+      schoolUpdates.paymentDate =
+        now;
+    }
+
+    /*
+     * -------------------------------------------------------
+     * PAID APPROVAL
+     * -------------------------------------------------------
+     */
+    else {
+      /*
+       * If a new number of days is supplied,
+       * create a new subscription period.
+       */
+      if (
+        subscriptionDays !==
+          undefined
+      ) {
+        const {
+          startDate,
+          expiryDate,
+        } =
+          createSubscriptionDates(
+            subscriptionDays
+          );
+
+        schoolUpdates.subscriptionStartDate =
+          startDate.toISOString();
+
+        schoolUpdates.subscriptionExpiryDate =
+          expiryDate.toISOString();
+
+        schoolUpdates.subscriptionDays =
+          subscriptionDays;
+      }
+
+      /*
+       * A paid school must have an expiry date.
+       *
+       * Normally payment.ts/approveRecharge()
+       * has already created it.
+       */
+      const existingExpiry =
+        school.subscriptionExpiryDate;
+
+      const newExpiry =
+        schoolUpdates.subscriptionExpiryDate;
+
+      if (
+        !existingExpiry &&
+        !newExpiry
+      ) {
+        throw new Error(
+          'Subscription expiry date is missing. Please approve a payment/recharge or provide subscription days before making the school LIVE.'
+        );
+      }
+
+      schoolUpdates.status =
+        'LIVE';
+
+      schoolUpdates.paymentStatus =
+        'PAID';
+
+      schoolUpdates.subscriptionStatus =
+        'ACTIVE';
+
+      schoolUpdates.paymentApprovalType =
+        'PAID';
+    }
+
+    /*
+     * Approval information.
+     */
     if (approvedByUid) {
       schoolUpdates.approvedByUid =
         approvedByUid;
@@ -1065,10 +1342,13 @@ export async function updateSchoolStatus(
     }
   }
 
-  /*
-   * When school is suspended.
-   */
-  if (status === 'SUSPENDED') {
+  /* =======================================================
+     SUSPEND SCHOOL
+  ======================================================= */
+
+  if (
+    status === 'SUSPENDED'
+  ) {
     schoolUpdates.suspendedAt =
       now;
 
@@ -1076,15 +1356,72 @@ export async function updateSchoolStatus(
       schoolUpdates.suspensionReason =
         suspensionReason;
     }
+
+    /*
+     * If subscription has actually expired,
+     * mark subscriptionStatus as EXPIRED.
+     *
+     * Otherwise it is simply SUSPENDED.
+     */
+    if (
+      school.subscriptionExpiryDate
+    ) {
+      const expiryTime =
+        new Date(
+          school.subscriptionExpiryDate
+        ).getTime();
+
+      if (
+        Number.isFinite(
+          expiryTime
+        ) &&
+        expiryTime <=
+          Date.now()
+      ) {
+        schoolUpdates.subscriptionStatus =
+          'EXPIRED';
+      } else {
+        schoolUpdates.subscriptionStatus =
+          'SUSPENDED';
+      }
+    } else {
+      schoolUpdates.subscriptionStatus =
+        'SUSPENDED';
+    }
   }
 
-  /*
-   * When school is archived.
-   */
-  if (status === 'ARCHIVED') {
+  /* =======================================================
+     ARCHIVE SCHOOL
+  ======================================================= */
+
+  if (
+    status === 'ARCHIVED'
+  ) {
     schoolUpdates.archivedAt =
       now;
+
+    schoolUpdates.subscriptionStatus =
+      'ARCHIVED';
   }
+
+  /* =======================================================
+     PENDING PAYMENT
+  ======================================================= */
+
+  if (
+    status ===
+    'PENDING_PAYMENT'
+  ) {
+    schoolUpdates.subscriptionStatus =
+      'PENDING';
+
+    schoolUpdates.paymentStatus =
+      'PENDING';
+  }
+
+  /* =======================================================
+     FIRESTORE BATCH
+  ======================================================= */
 
   const batch =
     writeBatch(db);
@@ -1097,11 +1434,13 @@ export async function updateSchoolStatus(
     }
   );
 
-  /*
-   * When a school becomes LIVE,
-   * activate its school_admin membership(s).
-   */
-  if (status === 'LIVE') {
+  /* =======================================================
+     ACTIVATE SCHOOL ADMIN MEMBERSHIP
+  ======================================================= */
+
+  if (
+    status === 'LIVE'
+  ) {
     const membershipsRef =
       collection(
         db,
@@ -1138,7 +1477,8 @@ export async function updateSchoolStatus(
           status: 'ACTIVE',
           updatedAt: now,
           approvedByUid:
-            approvedByUid || null,
+            approvedByUid ||
+            null,
           approvedAt: now,
         },
         {
@@ -1148,9 +1488,58 @@ export async function updateSchoolStatus(
     }
   }
 
-  await batch.commit();
+  /* =======================================================
+     REVOKE MEMBERSHIP WHEN ARCHIVED
+  ======================================================= */
 
-  void school;
+  if (
+    status === 'ARCHIVED'
+  ) {
+    const membershipsRef =
+      collection(
+        db,
+        'schoolMemberships'
+      );
+
+    const membershipQuery =
+      query(
+        membershipsRef,
+        where(
+          'schoolId',
+          '==',
+          schoolId
+        ),
+        where(
+          'role',
+          '==',
+          'school_admin'
+        )
+      );
+
+    const membershipSnapshot =
+      await getDocs(
+        membershipQuery
+      );
+
+    for (
+      const membershipDoc
+      of membershipSnapshot.docs
+    ) {
+      batch.set(
+        membershipDoc.ref,
+        {
+          status: 'REVOKED',
+          updatedAt: now,
+          revokedAt: now,
+        },
+        {
+          merge: true,
+        }
+      );
+    }
+  }
+
+  await batch.commit();
 }
 
 /* =========================================================
@@ -1224,6 +1613,9 @@ export async function archiveSchoolRegistration(
       suspensionReason:
         reason?.trim() ||
         'School registration rejected by Platform Admin.',
+
+      subscriptionStatus:
+        'ARCHIVED',
     },
     {
       merge: true,
@@ -1328,10 +1720,27 @@ export async function fetchSchoolBySlug(
     const item =
       snapshot.docs[0];
 
-    return {
-      id: item.id,
-      ...item.data(),
-    } as School;
+    const school =
+      {
+        id: item.id,
+        ...item.data(),
+      } as School;
+
+    /*
+     * IMPORTANT:
+     * Even if Firestore status is still LIVE,
+     * an expired subscription must NOT be publicly
+     * accessible.
+     */
+    if (
+      !isSchoolSubscriptionActive(
+        school
+      )
+    ) {
+      return null;
+    }
+
+    return school;
   } catch (error) {
     console.error(
       'Failed to fetch school by slug:',
