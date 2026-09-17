@@ -103,7 +103,6 @@ export default function PaymentRechargePage() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [sending, setSending] = useState(false);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -647,43 +646,6 @@ Please verify the payment and approve/reject it from the Admin Panel.
 
           </div>
 
-          {/* WhatsApp */}
-          <div className="bg-white rounded-3xl shadow-xl p-5">
-
-            <h2 className="text-xl font-black text-gray-800 mb-3">
-              📲 UPI की जानकारी चाहिए?
-            </h2>
-
-            <p className="text-gray-600 mb-4">
-              अगर आपको UPI ID या QR Code की जानकारी चाहिए तो
-              WhatsApp पर message भेजें।
-            </p>
-
-            <button
-              onClick={handleWhatsAppPayment}
-              disabled={sending}
-              className="
-                w-full
-                py-4
-                rounded-2xl
-                bg-gradient-to-r
-                from-green-500
-                to-green-700
-                text-white
-                font-black
-                text-lg
-                shadow-[0_6px_0_#166534]
-                active:shadow-[0_2px_0_#166534]
-                active:translate-y-[4px]
-                disabled:opacity-60
-              "
-            >
-              {sending
-                ? 'Opening WhatsApp...'
-                : '💬 WhatsApp पर UPI पूछें'}
-            </button>
-
-          </div>
 
         </div>
 
