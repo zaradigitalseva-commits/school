@@ -1,4 +1,4 @@
-```tsx
+
 import {
   createContext,
   useContext,
@@ -373,4 +373,4 @@ export function useAuth() {
 
   return context;
 }
-```
+
