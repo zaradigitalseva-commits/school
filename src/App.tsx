@@ -23,15 +23,15 @@ import PaymentRechargePage from '@/pages/PaymentRechargePage';
 import PlatformAdminPage from '@/pages/PlatformAdminPage';
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
 
-export default function App() {
+function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
 
-          {/* ================================
+          {/* =========================================
               PUBLIC WEBSITE
-          ================================= */}
+          ========================================= */}
 
           <Route element={<PublicLayout />}>
 
@@ -92,9 +92,9 @@ export default function App() {
 
           </Route>
 
-          {/* ================================
-              PAYMENT
-          ================================= */}
+          {/* =========================================
+              PAYMENT / RECHARGE
+          ========================================= */}
 
           <Route
             path="/payment/recharge"
@@ -110,9 +110,9 @@ export default function App() {
             }
           />
 
-          {/* ================================
+          {/* =========================================
               PLATFORM ADMIN
-          ================================= */}
+          ========================================= */}
 
           <Route
             path="/admin"
@@ -127,9 +127,9 @@ export default function App() {
             }
           />
 
-          {/* ================================
+          {/* =========================================
               SCHOOL ADMIN
-          ================================= */}
+          ========================================= */}
 
           <Route
             path="/school-admin"
@@ -144,9 +144,9 @@ export default function App() {
             }
           />
 
-          {/* ================================
+          {/* =========================================
               FALLBACK
-          ================================= */}
+          ========================================= */}
 
           <Route
             path="*"
@@ -163,4 +163,14 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
+/*
+ * IMPORTANT:
+ * main.tsx में:
+ *
+ * import App from './App.tsx';
+ *
+ * इसलिए App का DEFAULT EXPORT जरूरी है।
+ */
+export default App;
 ```
