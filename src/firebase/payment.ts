@@ -7,9 +7,13 @@ import {
   runTransaction,
   serverTimestamp,
   where,
-  type DocumentData,
 } from 'firebase/firestore';
+
 import { db } from './config';
+
+/* =========================================================
+   BILLING PACKAGES
+========================================================= */
 
 export const BILLING_PACKAGES = [
   { amount: 300, days: 28 },
@@ -19,7 +23,12 @@ export const BILLING_PACKAGES = [
   { amount: 3000, days: 280 },
 ] as const;
 
-export type BillingPackage = (typeof BILLING_PACKAGES)[number];
+export type BillingPackage =
+  (typeof BILLING_PACKAGES)[number];
+
+/* =========================================================
+   PAYMENT SETTINGS
+========================================================= */
 
 export interface PaymentSettings {
   upiId: string;
@@ -28,48 +37,93 @@ export interface PaymentSettings {
   instructions: string;
 }
 
+/* =========================================================
+   RECHARGE REQUEST
+========================================================= */
+
 export interface RechargeRequest {
   id: string;
+
   schoolId: string;
+  schoolName?: string;
+
   uid: string;
+
   amount: number;
   days: number;
+
   utr: string;
   utrNormalized: string;
+
   proofImageUrl?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  status:
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED';
+
   createdAt?: unknown;
   approvedAt?: unknown;
   rejectedAt?: unknown;
+
   rejectionReason?: string;
 }
 
-function normalizeUTR(utr: string): string {
-  return utr.trim().toUpperCase().replace(/\s+/g, '');
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function normalizeUTR(
+  utr: string
+): string {
+  return utr
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '');
 }
 
-function getPackage(amount: number, days: number): BillingPackage {
-  const found = BILLING_PACKAGES.find(
-    (item) => item.amount === amount && item.days === days
-  );
+function getPackage(
+  amount: number,
+  days: number
+): BillingPackage {
+  const found =
+    BILLING_PACKAGES.find(
+      (item) =>
+        item.amount === amount &&
+        item.days === days
+    );
 
   if (!found) {
-    throw new Error('Invalid recharge package.');
+    throw new Error(
+      'Invalid recharge package.'
+    );
   }
 
   return found;
 }
 
-function timestampToMillis(value: unknown): number {
-  if (!value) return 0;
+function timestampToMillis(
+  value: unknown
+): number {
+  if (!value) {
+    return 0;
+  }
 
   if (
     typeof value === 'object' &&
     value !== null &&
     'toMillis' in value &&
-    typeof (value as { toMillis?: unknown }).toMillis === 'function'
+    typeof (
+      value as {
+        toMillis?: unknown;
+      }
+    ).toMillis === 'function'
   ) {
-    return (value as { toMillis: () => number }).toMillis();
+    return (
+      value as {
+        toMillis: () => number;
+      }
+    ).toMillis();
   }
 
   if (value instanceof Date) {
@@ -80,15 +134,34 @@ function timestampToMillis(value: unknown): number {
     return value;
   }
 
+  if (
+    typeof value === 'string'
+  ) {
+    const time =
+      new Date(value).getTime();
+
+    return Number.isNaN(time)
+      ? 0
+      : time;
+  }
+
   return 0;
 }
 
-/* ---------------- PAYMENT SETTINGS ---------------- */
+/* =========================================================
+   PAYMENT SETTINGS
+========================================================= */
 
-export async function fetchPaymentSettings(): Promise<PaymentSettings> {
-  const ref = doc(db, 'platformSettings', 'payment');
+export async function fetchPaymentSettings():
+  Promise<PaymentSettings> {
+  const ref = doc(
+    db,
+    'platformSettings',
+    'payment'
+  );
 
-  const snapshot = await getDoc(ref);
+  const snapshot =
+    await getDoc(ref);
 
   if (!snapshot.exists()) {
     return {
@@ -100,331 +173,816 @@ export async function fetchPaymentSettings(): Promise<PaymentSettings> {
     };
   }
 
-  const data = snapshot.data();
+  const data =
+    snapshot.data();
 
   return {
-    upiId: String(data.upiId || ''),
-    qrImageUrl: String(data.qrImageUrl || ''),
-    supportPhone: String(data.supportPhone || ''),
-    instructions: String(data.instructions || ''),
+    upiId: String(
+      data.upiId || ''
+    ),
+
+    qrImageUrl: String(
+      data.qrImageUrl || ''
+    ),
+
+    supportPhone: String(
+      data.supportPhone || ''
+    ),
+
+    instructions: String(
+      data.instructions || ''
+    ),
   };
 }
+
+/* =========================================================
+   SAVE PAYMENT SETTINGS
+========================================================= */
 
 export async function savePaymentSettings(
   settings: PaymentSettings
 ): Promise<void> {
-  const ref = doc(db, 'platformSettings', 'payment');
+  const ref = doc(
+    db,
+    'platformSettings',
+    'payment'
+  );
 
-  await runTransaction(db, async (transaction) => {
-    transaction.set(
-      ref,
-      {
-        upiId: settings.upiId.trim(),
-        qrImageUrl: settings.qrImageUrl.trim(),
-        supportPhone: settings.supportPhone.trim(),
-        instructions: settings.instructions.trim(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-  });
+  await runTransaction(
+    db,
+    async (transaction) => {
+      transaction.set(
+        ref,
+        {
+          upiId:
+            settings.upiId?.trim() || '',
+
+          qrImageUrl:
+            settings.qrImageUrl?.trim() || '',
+
+          supportPhone:
+            settings.supportPhone?.trim() || '',
+
+          instructions:
+            settings.instructions?.trim() || '',
+
+          updatedAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+    }
+  );
 }
 
-/* ---------------- RECHARGE REQUESTS ---------------- */
+/* =========================================================
+   CREATE RECHARGE REQUEST
+========================================================= */
 
-export async function createRechargeRequest(params: {
-  schoolId: string;
-  uid: string;
-  amount: number;
-  days: number;
-  utr: string;
-  proofImageUrl?: string;
-}): Promise<string> {
-  const selectedPackage = getPackage(params.amount, params.days);
+export async function createRechargeRequest(
+  params: {
+    schoolId: string;
+    uid: string;
+    amount: number;
+    days: number;
+    utr: string;
+    proofImageUrl?: string;
+  }
+): Promise<string> {
+  if (!params.schoolId) {
+    throw new Error(
+      'School information missing.'
+    );
+  }
 
-  const utrNormalized = normalizeUTR(params.utr);
+  if (!params.uid) {
+    throw new Error(
+      'User information missing.'
+    );
+  }
+
+  const selectedPackage =
+    getPackage(
+      params.amount,
+      params.days
+    );
+
+  const utrNormalized =
+    normalizeUTR(params.utr);
 
   if (!utrNormalized) {
-    throw new Error('UTR Number required.');
+    throw new Error(
+      'UTR Number required.'
+    );
   }
 
-  if (!params.schoolId || !params.uid) {
-    throw new Error('School and user information missing.');
+  /*
+   * Verify school exists.
+   */
+  const schoolRef = doc(
+    db,
+    'schools',
+    params.schoolId
+  );
+
+  const schoolSnapshot =
+    await getDoc(schoolRef);
+
+  if (!schoolSnapshot.exists()) {
+    throw new Error(
+      'School not found.'
+    );
   }
 
-  const rechargeRef = doc(collection(db, 'rechargeRequests'));
-  const utrRef = doc(db, 'utrReservations', utrNormalized);
+  const schoolData =
+    schoolSnapshot.data();
 
-  await runTransaction(db, async (transaction) => {
-    const existingUTR = await transaction.get(utrRef);
+  /*
+   * IMPORTANT:
+   * Only the owner of the school can
+   * create its recharge request.
+   */
+  if (
+    String(schoolData.ownerUid || '') !==
+    params.uid
+  ) {
+    throw new Error(
+      'You are not authorized to make payment for this school.'
+    );
+  }
 
-    if (existingUTR.exists()) {
-      throw new Error('This UTR Number has already been submitted.');
+  const schoolName =
+    String(
+      schoolData.name ||
+        schoolData.schoolName ||
+        ''
+    ).trim();
+
+  if (!schoolName) {
+    throw new Error(
+      'School name not found.'
+    );
+  }
+
+  const rechargeRef = doc(
+    collection(
+      db,
+      'rechargeRequests'
+    )
+  );
+
+  const utrRef = doc(
+    db,
+    'utrReservations',
+    utrNormalized
+  );
+
+  await runTransaction(
+    db,
+    async (transaction) => {
+      /*
+       * Check UTR duplication.
+       */
+      const existingUTR =
+        await transaction.get(
+          utrRef
+        );
+
+      if (existingUTR.exists()) {
+        throw new Error(
+          'This UTR Number has already been submitted.'
+        );
+      }
+
+      /*
+       * Reserve UTR.
+       */
+      transaction.set(
+        utrRef,
+        {
+          utrNormalized,
+          rechargeRequestId:
+            rechargeRef.id,
+
+          schoolId:
+            params.schoolId,
+
+          schoolName,
+
+          uid: params.uid,
+
+          createdAt:
+            serverTimestamp(),
+        }
+      );
+
+      /*
+       * Create recharge request.
+       */
+      transaction.set(
+        rechargeRef,
+        {
+          schoolId:
+            params.schoolId,
+
+          schoolName,
+
+          uid: params.uid,
+
+          amount:
+            selectedPackage.amount,
+
+          days:
+            selectedPackage.days,
+
+          utr:
+            params.utr.trim(),
+
+          utrNormalized,
+
+          proofImageUrl:
+            params.proofImageUrl?.trim() || '',
+
+          status: 'PENDING',
+
+          createdAt:
+            serverTimestamp(),
+        }
+      );
     }
-
-    transaction.set(utrRef, {
-      utrNormalized,
-      rechargeRequestId: rechargeRef.id,
-      schoolId: params.schoolId,
-      uid: params.uid,
-      createdAt: serverTimestamp(),
-    });
-
-    transaction.set(rechargeRef, {
-      schoolId: params.schoolId,
-      uid: params.uid,
-      amount: selectedPackage.amount,
-      days: selectedPackage.days,
-      utr: params.utr.trim(),
-      utrNormalized,
-      proofImageUrl: params.proofImageUrl?.trim() || '',
-      status: 'PENDING',
-      createdAt: serverTimestamp(),
-    });
-  });
+  );
 
   return rechargeRef.id;
 }
 
+/* =========================================================
+   MY RECHARGE REQUESTS
+========================================================= */
+
 export async function fetchMyRechargeRequests(
   uid: string
 ): Promise<RechargeRequest[]> {
+  if (!uid) {
+    return [];
+  }
+
   const q = query(
-    collection(db, 'rechargeRequests'),
-    where('uid', '==', uid)
+    collection(
+      db,
+      'rechargeRequests'
+    ),
+    where(
+      'uid',
+      '==',
+      uid
+    )
   );
 
-  const snapshot = await getDocs(q);
+  const snapshot =
+    await getDocs(q);
 
   return snapshot.docs
-    .map((item) => ({
-      id: item.id,
-      ...(item.data() as Omit<RechargeRequest, 'id'>),
-    }))
+    .map(
+      (item) =>
+        ({
+          id: item.id,
+          ...item.data(),
+        } as RechargeRequest)
+    )
     .sort(
       (a, b) =>
-        timestampToMillis(b.createdAt) -
-        timestampToMillis(a.createdAt)
+        timestampToMillis(
+          b.createdAt
+        ) -
+        timestampToMillis(
+          a.createdAt
+        )
     );
 }
 
-export async function fetchPendingRecharges(): Promise<
-  RechargeRequest[]
-> {
+/* =========================================================
+   PENDING RECHARGES
+========================================================= */
+
+export async function fetchPendingRecharges():
+  Promise<RechargeRequest[]> {
   const q = query(
-    collection(db, 'rechargeRequests'),
-    where('status', '==', 'PENDING')
+    collection(
+      db,
+      'rechargeRequests'
+    ),
+    where(
+      'status',
+      '==',
+      'PENDING'
+    )
   );
 
-  const snapshot = await getDocs(q);
+  const snapshot =
+    await getDocs(q);
 
   return snapshot.docs
-    .map((item) => ({
-      id: item.id,
-      ...(item.data() as Omit<RechargeRequest, 'id'>),
-    }))
+    .map(
+      (item) =>
+        ({
+          id: item.id,
+          ...item.data(),
+        } as RechargeRequest)
+    )
     .sort(
       (a, b) =>
-        timestampToMillis(a.createdAt) -
-        timestampToMillis(b.createdAt)
+        timestampToMillis(
+          a.createdAt
+        ) -
+        timestampToMillis(
+          b.createdAt
+        )
     );
 }
 
-/* ---------------- APPROVE RECHARGE ---------------- */
+/* =========================================================
+   APPROVE RECHARGE
+========================================================= */
 
 export async function approveRecharge(
   rechargeId: string
 ): Promise<void> {
-  const rechargeRef = doc(db, 'rechargeRequests', rechargeId);
+  if (!rechargeId) {
+    throw new Error(
+      'Recharge ID is required.'
+    );
+  }
 
-  await runTransaction(db, async (transaction) => {
-    const rechargeSnap = await transaction.get(rechargeRef);
+  const rechargeRef = doc(
+    db,
+    'rechargeRequests',
+    rechargeId
+  );
 
-    if (!rechargeSnap.exists()) {
-      throw new Error('Recharge request not found.');
+  await runTransaction(
+    db,
+    async (transaction) => {
+      /*
+       * Get recharge request.
+       */
+      const rechargeSnap =
+        await transaction.get(
+          rechargeRef
+        );
+
+      if (!rechargeSnap.exists()) {
+        throw new Error(
+          'Recharge request not found.'
+        );
+      }
+
+      const recharge =
+        rechargeSnap.data();
+
+      /*
+       * Already approved.
+       */
+      if (
+        recharge.status ===
+        'APPROVED'
+      ) {
+        return;
+      }
+
+      /*
+       * Only PENDING can be approved.
+       */
+      if (
+        recharge.status !==
+        'PENDING'
+      ) {
+        throw new Error(
+          'This recharge is no longer pending.'
+        );
+      }
+
+      const schoolId =
+        String(
+          recharge.schoolId || ''
+        );
+
+      const uid =
+        String(
+          recharge.uid || ''
+        );
+
+      const amount =
+        Number(
+          recharge.amount
+        );
+
+      const days =
+        Number(
+          recharge.days
+        );
+
+      if (!schoolId) {
+        throw new Error(
+          'School ID missing in recharge request.'
+        );
+      }
+
+      if (!uid) {
+        throw new Error(
+          'User ID missing in recharge request.'
+        );
+      }
+
+      /*
+       * Verify package.
+       */
+      getPackage(
+        amount,
+        days
+      );
+
+      /* -----------------------------------------
+         FIRESTORE REFERENCES
+      ----------------------------------------- */
+
+      const schoolRef = doc(
+        db,
+        'schools',
+        schoolId
+      );
+
+      const walletRef = doc(
+        db,
+        'wallets',
+        schoolId
+      );
+
+      const subscriptionRef =
+        doc(
+          db,
+          'subscriptions',
+          schoolId
+        );
+
+      const membershipRef =
+        doc(
+          db,
+          'schoolMemberships',
+          `${uid}_${schoolId}`
+        );
+
+      const walletTransactionRef =
+        doc(
+          collection(
+            db,
+            'walletTransactions'
+          )
+        );
+
+      /*
+       * ALL READS BEFORE WRITES.
+       */
+      const schoolSnap =
+        await transaction.get(
+          schoolRef
+        );
+
+      const walletSnap =
+        await transaction.get(
+          walletRef
+        );
+
+      const subscriptionSnap =
+        await transaction.get(
+          subscriptionRef
+        );
+
+      const membershipSnap =
+        await transaction.get(
+          membershipRef
+        );
+
+      if (!schoolSnap.exists()) {
+        throw new Error(
+          'School not found.'
+        );
+      }
+
+      const school =
+        schoolSnap.data();
+
+      /*
+       * Security check:
+       * recharge UID must be school owner.
+       */
+      if (
+        String(
+          school.ownerUid || ''
+        ) !== uid
+      ) {
+        throw new Error(
+          'Recharge owner does not match school owner.'
+        );
+      }
+
+      /* -----------------------------------------
+         WALLET
+      ----------------------------------------- */
+
+      const oldWalletBalance =
+        walletSnap.exists()
+          ? Number(
+              walletSnap.data()
+                .balance || 0
+            )
+          : 0;
+
+      const newWalletBalance =
+        oldWalletBalance +
+        amount;
+
+      transaction.set(
+        walletRef,
+        {
+          schoolId,
+
+          balance:
+            newWalletBalance,
+
+          updatedAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+
+      /* -----------------------------------------
+         IMMUTABLE WALLET TRANSACTION
+      ----------------------------------------- */
+
+      transaction.set(
+        walletTransactionRef,
+        {
+          schoolId,
+
+          type: 'CREDIT',
+
+          amount,
+
+          balanceAfter:
+            newWalletBalance,
+
+          source: 'RECHARGE',
+
+          rechargeRequestId:
+            rechargeId,
+
+          utr:
+            String(
+              recharge.utr || ''
+            ),
+
+          createdAt:
+            serverTimestamp(),
+        }
+      );
+
+      /* -----------------------------------------
+         SUBSCRIPTION
+      ----------------------------------------- */
+
+      const existingSubscription =
+        subscriptionSnap.exists()
+          ? subscriptionSnap.data()
+          : {};
+
+      const oldExpiry =
+        timestampToMillis(
+          existingSubscription.expiresAt
+        );
+
+      /*
+       * If old subscription is still active,
+       * extend from old expiry.
+       *
+       * Otherwise start from now.
+       */
+      const baseTime =
+        Math.max(
+          Date.now(),
+          oldExpiry
+        );
+
+      const newExpiry =
+        new Date(
+          baseTime +
+            days *
+              24 *
+              60 *
+              60 *
+              1000
+        );
+
+      transaction.set(
+        subscriptionRef,
+        {
+          schoolId,
+
+          status: 'ACTIVE',
+
+          planAmount:
+            amount,
+
+          planDays:
+            days,
+
+          startedAt:
+            existingSubscription.startedAt ||
+            serverTimestamp(),
+
+          expiresAt:
+            newExpiry,
+
+          lastRechargeId:
+            rechargeId,
+
+          updatedAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+
+      /* -----------------------------------------
+         SCHOOL LIVE
+      ----------------------------------------- */
+
+      transaction.update(
+        schoolRef,
+        {
+          status: 'LIVE',
+
+          paymentStatus:
+            'PAID',
+
+          subscriptionStatus:
+            'ACTIVE',
+
+          updatedAt:
+            serverTimestamp(),
+        }
+      );
+
+      /* -----------------------------------------
+         SCHOOL ADMIN MEMBERSHIP
+      ----------------------------------------- */
+
+      if (
+        !membershipSnap.exists()
+      ) {
+        transaction.set(
+          membershipRef,
+          {
+            uid,
+
+            schoolId,
+
+            email:
+              String(
+                school.ownerEmail ||
+                  ''
+              ),
+
+            role:
+              'school_admin',
+
+            status:
+              'ACTIVE',
+
+            assignments: [],
+
+            approvedAt:
+              serverTimestamp(),
+
+            createdAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          }
+        );
+      } else {
+        transaction.update(
+          membershipRef,
+          {
+            role:
+              'school_admin',
+
+            status:
+              'ACTIVE',
+
+            approvedAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          }
+        );
+      }
+
+      /* -----------------------------------------
+         RECHARGE APPROVED
+      ----------------------------------------- */
+
+      transaction.update(
+        rechargeRef,
+        {
+          status:
+            'APPROVED',
+
+          approvedAt:
+            serverTimestamp(),
+        }
+      );
     }
-
-    const recharge = rechargeSnap.data();
-
-    if (recharge.status === 'APPROVED') {
-      return;
-    }
-
-    if (recharge.status !== 'PENDING') {
-      throw new Error('This recharge is no longer pending.');
-    }
-
-    const schoolId = String(recharge.schoolId);
-    const uid = String(recharge.uid);
-    const amount = Number(recharge.amount);
-    const days = Number(recharge.days);
-
-    getPackage(amount, days);
-
-    const schoolRef = doc(db, 'schools', schoolId);
-    const walletRef = doc(db, 'wallets', schoolId);
-    const subscriptionRef = doc(
-      db,
-      'subscriptions',
-      schoolId
-    );
-
-    const membershipRef = doc(
-      db,
-      'schoolMemberships',
-      `${uid}_${schoolId}`
-    );
-
-    const walletTransactionRef = doc(
-      collection(db, 'walletTransactions')
-    );
-
-    const [
-      schoolSnap,
-      walletSnap,
-      subscriptionSnap,
-      membershipSnap,
-    ] = await Promise.all([
-      transaction.get(schoolRef),
-      transaction.get(walletRef),
-      transaction.get(subscriptionRef),
-      transaction.get(membershipRef),
-    ]);
-
-    if (!schoolSnap.exists()) {
-      throw new Error('School not found.');
-    }
-
-    /* Wallet */
-
-    const oldWalletBalance = walletSnap.exists()
-      ? Number(walletSnap.data().balance || 0)
-      : 0;
-
-    const newWalletBalance = oldWalletBalance + amount;
-
-    transaction.set(
-      walletRef,
-      {
-        schoolId,
-        balance: newWalletBalance,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    /* Immutable wallet transaction */
-
-    transaction.set(walletTransactionRef, {
-      schoolId,
-      type: 'CREDIT',
-      amount,
-      balanceAfter: newWalletBalance,
-      source: 'RECHARGE',
-      rechargeRequestId: rechargeId,
-      utr: recharge.utr || '',
-      createdAt: serverTimestamp(),
-    });
-
-    /* Subscription */
-
-    const existingSubscription = subscriptionSnap.exists()
-      ? subscriptionSnap.data()
-      : {};
-
-    const oldExpiry = timestampToMillis(
-      existingSubscription.expiresAt
-    );
-
-    const baseTime = Math.max(Date.now(), oldExpiry);
-
-    const newExpiry = new Date(
-      baseTime + days * 24 * 60 * 60 * 1000
-    );
-
-    transaction.set(
-      subscriptionRef,
-      {
-        schoolId,
-        status: 'ACTIVE',
-        planAmount: amount,
-        planDays: days,
-        startedAt:
-          existingSubscription.startedAt ||
-          serverTimestamp(),
-        expiresAt: newExpiry,
-        lastRechargeId: rechargeId,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    /* School LIVE */
-
-    transaction.update(schoolRef, {
-      status: 'LIVE',
-      updatedAt: serverTimestamp(),
-    });
-
-    /* School Admin membership */
-
-    if (!membershipSnap.exists()) {
-      transaction.set(membershipRef, {
-        uid,
-        schoolId,
-        role: 'school_admin',
-        status: 'ACTIVE',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } else {
-      transaction.update(membershipRef, {
-        role: 'school_admin',
-        status: 'ACTIVE',
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    /* Recharge approved */
-
-    transaction.update(rechargeRef, {
-      status: 'APPROVED',
-      approvedAt: serverTimestamp(),
-    });
-  });
+  );
 }
 
-/* ---------------- REJECT RECHARGE ---------------- */
+/* =========================================================
+   REJECT RECHARGE
+========================================================= */
 
 export async function rejectRecharge(
   rechargeId: string,
-  reason = 'Payment rejected by Platform Admin.'
+  reason =
+    'Payment rejected by Platform Admin.'
 ): Promise<void> {
-  const rechargeRef = doc(db, 'rechargeRequests', rechargeId);
+  if (!rechargeId) {
+    throw new Error(
+      'Recharge ID is required.'
+    );
+  }
 
-  await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(rechargeRef);
+  const rechargeRef = doc(
+    db,
+    'rechargeRequests',
+    rechargeId
+  );
 
-    if (!snapshot.exists()) {
-      throw new Error('Recharge request not found.');
-    }
+  await runTransaction(
+    db,
+    async (transaction) => {
+      const snapshot =
+        await transaction.get(
+          rechargeRef
+        );
 
-    const data = snapshot.data();
+      if (!snapshot.exists()) {
+        throw new Error(
+          'Recharge request not found.'
+        );
+      }
 
-    if (data.status === 'APPROVED') {
-      throw new Error(
-        'Approved recharge cannot be rejected.'
+      const data =
+        snapshot.data();
+
+      if (
+        data.status ===
+        'APPROVED'
+      ) {
+        throw new Error(
+          'Approved recharge cannot be rejected.'
+        );
+      }
+
+      if (
+        data.status ===
+        'REJECTED'
+      ) {
+        return;
+      }
+
+      const cleanReason =
+        reason?.trim() ||
+        'Payment rejected by Platform Admin.';
+
+      transaction.update(
+        rechargeRef,
+        {
+          status:
+            'REJECTED',
+
+          rejectionReason:
+            cleanReason,
+
+          rejectedAt:
+            serverTimestamp(),
+        }
       );
     }
-
-    if (data.status === 'REJECTED') {
-      return;
-    }
-
-    transaction.update(rechargeRef, {
-      status: 'REJECTED',
-      rejectionReason: reason.trim(),
-      rejectedAt: serverTimestamp(),
-    });
-  });
+  );
 }
