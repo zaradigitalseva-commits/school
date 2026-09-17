@@ -8,10 +8,7 @@ import PublicLayout from '@/components/layout/PublicLayout';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
-// =========================================================
-// PUBLIC PAGES
-// =========================================================
-
+// Public pages
 import HomePage from '@/pages/public/HomePage';
 import AboutPage from '@/pages/public/AboutPage';
 import AcademicsPage from '@/pages/public/AcademicsPage';
@@ -20,42 +17,24 @@ import NoticesPage from '@/pages/public/NoticesPage';
 import EventsPage from '@/pages/public/EventsPage';
 import ContactPage from '@/pages/public/ContactPage';
 
-// =========================================================
-// AUTH
-// =========================================================
-
+// Authentication
 import LoginPage from '@/pages/LoginPage';
 
-// =========================================================
-// MULTI-SCHOOL
-// =========================================================
-
+// Multi-school
 import RegisterSchoolPage from '@/pages/RegisterSchoolPage';
 import SchoolsPage from '@/pages/SchoolsPage';
 import SchoolPublicPage from '@/pages/SchoolPublicPage';
 
-// =========================================================
-// PAYMENT
-// =========================================================
-
+// Payment
 import PaymentRechargePage from '@/pages/PaymentRechargePage';
 
-// =========================================================
-// PLATFORM ADMIN
-// =========================================================
-
+// Platform Admin
 import PlatformAdminPage from '@/pages/PlatformAdminPage';
 
-// =========================================================
-// SCHOOL ADMIN
-// =========================================================
-
+// School Admin
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
 
-// =========================================================
-// OLD / EXISTING DASHBOARD PAGES
-// =========================================================
-
+// Existing dashboard pages
 import OverviewPage from '@/pages/dashboard/OverviewPage';
 import SchoolInfoPage from '@/pages/dashboard/SchoolInfoPage';
 import AnnouncementsPage from '@/pages/dashboard/AnnouncementsPage';
@@ -64,21 +43,6 @@ import TeachersPageDash from '@/pages/dashboard/TeachersPage';
 import UsersPage from '@/pages/dashboard/UsersPage';
 import FacultyAccessPage from '@/pages/dashboard/FacultyAccessPage';
 import AdminAccessPage from '@/pages/dashboard/AdminAccessPage';
-
-// =========================================================
-// TEACHER DASHBOARD
-// =========================================================
-//
-// IMPORTANT:
-// Create this file:
-// src/pages/TeacherDashboardPage.tsx
-//
-// Teacher will be restricted to role === "teacher".
-// Tenant/class restrictions should be handled inside that page
-// using the teacher's ACTIVE schoolMembership assignments.
-//
-
-import TeacherDashboardPage from '@/pages/TeacherDashboardPage';
 
 export default function App() {
   return (
@@ -158,10 +122,7 @@ export default function App() {
             />
 
             {/* =================================================
-                INDIVIDUAL SCHOOL PUBLIC WEBSITE
-
-                Example:
-                /school/abc-public-school
+                INDIVIDUAL SCHOOL PUBLIC PAGE
             ================================================= */}
 
             <Route
@@ -179,11 +140,10 @@ export default function App() {
             />
 
             {/* =================================================
-                SUPER ADMIN / PLATFORM ADMIN
-                ONLY:
-                ngogrant454@gmail.com
+                SUPER ADMIN
+                ONLY platform_admin
 
-                AuthContext must resolve this account as:
+                ngogrant454@gmail.com must resolve to:
                 platform_admin
             ================================================= */}
 
@@ -200,11 +160,7 @@ export default function App() {
 
             {/* =================================================
                 SCHOOL ADMIN
-
-                Only ACTIVE school_admin accounts.
-
-                SchoolAdminPage itself determines the logged-in
-                user's schoolMembership and loads only that school.
+                ONLY school_admin
             ================================================= */}
 
             <Route
@@ -219,34 +175,10 @@ export default function App() {
             />
 
             {/* =================================================
-                TEACHER DASHBOARD
-
-                Teacher is NOT allowed into the Super Admin
-                dashboard.
-
-                Only:
-                role === "teacher"
-            ================================================= */}
-
-            <Route
-              path="/teacher"
-              element={
-                <ProtectedRoute
-                  allowedRoles={['teacher']}
-                >
-                  <TeacherDashboardPage />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* =================================================
-                EXISTING PLATFORM DASHBOARD
+                PLATFORM DASHBOARD
                 PLATFORM ADMIN ONLY
 
-                These old dashboard pages are kept so existing
-                project code does not break.
-
-                They are NOT used by School Admin or Teacher.
+                These are existing dashboard pages.
             ================================================= */}
 
             <Route
@@ -263,7 +195,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM SCHOOL INFO
+                SCHOOL INFO
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
@@ -280,7 +213,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM ANNOUNCEMENTS
+                ANNOUNCEMENTS
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
@@ -297,7 +231,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM EVENTS
+                EVENTS
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
@@ -314,7 +249,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM TEACHERS
+                TEACHERS
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
@@ -331,7 +267,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM REGISTERED USERS
+                REGISTERED USERS
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
@@ -348,7 +285,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM FACULTY ACCESS
+                FACULTY ACCESS
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
@@ -365,7 +303,8 @@ export default function App() {
             />
 
             {/* =================================================
-                PLATFORM ADMIN ACCESS
+                ADMIN ACCESS
+                PLATFORM ADMIN ONLY
             ================================================= */}
 
             <Route
