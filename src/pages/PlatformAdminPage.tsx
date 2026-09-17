@@ -6,13 +6,17 @@ import {
   rejectRecharge,
   savePaymentSettings,
 } from '@/firebase/payment';
-import { fetchAllSchools, updateSchoolStatus } from '@/firebase/firestore';
+import {
+  fetchAllSchools,
+  updateSchoolStatus,
+} from '@/firebase/firestore';
 import type { RechargeRequest, PaymentSettings } from '@/firebase/payment';
 import type { School } from '@/firebase/types';
 
 export default function PlatformAdminPage() {
   const [schools, setSchools] = useState<School[]>([]);
   const [requests, setRequests] = useState<RechargeRequest[]>([]);
+
   const [settings, setSettings] = useState<PaymentSettings>({
     upiId: '',
     qrImageUrl: '',
@@ -20,8 +24,15 @@ export default function PlatformAdminPage() {
     instructions: '',
   });
 
+  // Free approval days for each school
+  const [freeDays, setFreeDays] = useState<Record<string, string>>({});
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [processingSchool, setProcessingSchool] = useState<string | null>(
+    null
+  );
+
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -48,6 +59,7 @@ export default function PlatformAdminPage() {
       });
     } catch (err) {
       console.error(err);
+
       setError(
         err instanceof Error
           ? err.message
@@ -88,10 +100,13 @@ export default function PlatformAdminPage() {
     }
   }
 
+  // ---------------------------------------------------------
+  // PAID RECHARGE APPROVAL
+  // ---------------------------------------------------------
   async function handleApprove(requestId: string) {
     if (
       !window.confirm(
-        'Approve this payment? This will activate the school subscription.'
+        'Approve this payment? The exact recharge amount and days will be activated for the school.'
       )
     ) {
       return;
@@ -100,11 +115,12 @@ export default function PlatformAdminPage() {
     try {
       setError('');
       setMessage('');
+      setProcessingSchool(requestId);
 
       await approveRecharge(requestId);
 
       setMessage(
-        'Payment approved. School subscription has been activated.'
+        '✅ Payment approved. The exact recharge has been activated for the school.'
       );
 
       await loadData();
@@ -116,9 +132,14 @@ export default function PlatformAdminPage() {
           ? err.message
           : 'Unable to approve payment.'
       );
+    } finally {
+      setProcessingSchool(null);
     }
   }
 
+  // ---------------------------------------------------------
+  // REJECT PAYMENT
+  // ---------------------------------------------------------
   async function handleReject(requestId: string) {
     const reason =
       window.prompt(
@@ -129,6 +150,7 @@ export default function PlatformAdminPage() {
     try {
       setError('');
       setMessage('');
+      setProcessingSchool(requestId);
 
       await rejectRecharge(requestId, reason);
 
@@ -143,9 +165,107 @@ export default function PlatformAdminPage() {
           ? err.message
           : 'Unable to reject payment.'
       );
+    } finally {
+      setProcessingSchool(null);
     }
   }
 
+  // ---------------------------------------------------------
+  // FREE / WAIVED APPROVAL
+  // ---------------------------------------------------------
+  async function handleFreeApproval(school: School) {
+    const rawDays = freeDays[school.id]?.trim() || '';
+
+    // Only positive whole numbers
+    if (!/^[1-9]\d*$/.test(rawDays)) {
+      setError(
+        `Please enter a valid number of days for ${school.name}. Minimum is 1 day.`
+      );
+      setMessage('');
+      return;
+    }
+
+    const days = Number(rawDays);
+
+    if (!Number.isSafeInteger(days) || days < 1) {
+      setError(
+        `Invalid subscription days for ${school.name}.`
+      );
+      setMessage('');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Free approval for "${school.name}"?\n\n` +
+      `Days: ${days}\n` +
+      `Amount: ₹0\n\n` +
+      `The subscription will activate from the approval date/time.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError('');
+      setMessage('');
+      setProcessingSchool(school.id);
+
+      /*
+       * WAIVED / FREE approval.
+       *
+       * updateSchoolStatus handles:
+       * - LIVE status
+       * - ACTIVE subscription
+       * - paymentApprovalType = WAIVED
+       * - paymentAmount = 0
+       * - subscriptionDays = days
+       * - start date/time
+       * - expiry date/time
+       *
+       * If an old subscription is still active, the new period
+       * is added after the existing expiry.
+       *
+       * If it has expired, the new period starts immediately
+       * from the current approval time.
+       */
+      await updateSchoolStatus(
+        school.id,
+        'LIVE',
+        undefined,
+        undefined,
+        'WAIVED',
+        days
+      );
+
+      setMessage(
+        `🆓 ${school.name} has been activated free for ${days} days.`
+      );
+
+      // Clear input after successful approval
+      setFreeDays((current) => {
+        const next = { ...current };
+        delete next[school.id];
+        return next;
+      });
+
+      await loadData();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to approve school for free.'
+      );
+    } finally {
+      setProcessingSchool(null);
+    }
+  }
+
+  // ---------------------------------------------------------
+  // SUSPEND / RESTORE
+  // ---------------------------------------------------------
   async function handleSchoolStatus(
     schoolId: string,
     status: 'LIVE' | 'SUSPENDED'
@@ -164,8 +284,12 @@ export default function PlatformAdminPage() {
     try {
       setError('');
       setMessage('');
+      setProcessingSchool(schoolId);
 
-      await updateSchoolStatus(schoolId, status);
+      await updateSchoolStatus(
+        schoolId,
+        status
+      );
 
       setMessage(
         status === 'LIVE'
@@ -182,7 +306,55 @@ export default function PlatformAdminPage() {
           ? err.message
           : 'Unable to update school status.'
       );
+    } finally {
+      setProcessingSchool(null);
     }
+  }
+
+  // ---------------------------------------------------------
+  // HELPERS
+  // ---------------------------------------------------------
+  function getSchoolById(schoolId: string) {
+    return schools.find(
+      (school) => school.id === schoolId
+    );
+  }
+
+  function formatDate(value?: string) {
+    if (!value) return '—';
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+
+    return date.toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  }
+
+  function getSubscriptionLabel(school: School) {
+    if (
+      school.status === 'LIVE' &&
+      school.subscriptionExpiryDate
+    ) {
+      const expiry = new Date(
+        school.subscriptionExpiryDate
+      ).getTime();
+
+      if (
+        Number.isFinite(expiry) &&
+        expiry > Date.now()
+      ) {
+        return 'ACTIVE';
+      }
+
+      return 'EXPIRED';
+    }
+
+    return school.subscriptionStatus || 'PENDING';
   }
 
   if (loading) {
@@ -215,7 +387,9 @@ export default function PlatformAdminPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-7xl">
 
-        {/* Header */}
+        {/* =====================================================
+            HEADER
+        ====================================================== */}
         <div className="mb-8 text-center text-white">
           <div className="text-6xl">👨‍💼</div>
 
@@ -228,7 +402,9 @@ export default function PlatformAdminPage() {
           </p>
         </div>
 
-        {/* Messages */}
+        {/* =====================================================
+            MESSAGES
+        ====================================================== */}
         {error && (
           <div className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-700 shadow-lg">
             ❌ {error}
@@ -241,14 +417,18 @@ export default function PlatformAdminPage() {
           </div>
         )}
 
-        {/* Statistics */}
+        {/* =====================================================
+            STATISTICS
+        ====================================================== */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
             <div className="text-4xl">🏫</div>
+
             <p className="mt-3 text-sm font-bold text-gray-500">
               Total Schools
             </p>
+
             <p className="text-3xl font-black text-gray-900">
               {schools.length}
             </p>
@@ -256,9 +436,11 @@ export default function PlatformAdminPage() {
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
             <div className="text-4xl">🟢</div>
+
             <p className="mt-3 text-sm font-bold text-gray-500">
               Live Schools
             </p>
+
             <p className="text-3xl font-black text-green-600">
               {liveSchools.length}
             </p>
@@ -266,9 +448,11 @@ export default function PlatformAdminPage() {
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
             <div className="text-4xl">⏳</div>
+
             <p className="mt-3 text-sm font-bold text-gray-500">
               Pending Payment
             </p>
+
             <p className="text-3xl font-black text-yellow-600">
               {pendingSchools.length}
             </p>
@@ -276,9 +460,11 @@ export default function PlatformAdminPage() {
 
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
             <div className="text-4xl">💳</div>
+
             <p className="mt-3 text-sm font-bold text-gray-500">
               Pending Requests
             </p>
+
             <p className="text-3xl font-black text-blue-600">
               {requests.length}
             </p>
@@ -286,7 +472,9 @@ export default function PlatformAdminPage() {
 
         </div>
 
-        {/* Payment Settings */}
+        {/* =====================================================
+            PAYMENT SETTINGS
+        ====================================================== */}
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <h2 className="text-2xl font-black text-gray-900">
@@ -390,12 +578,33 @@ export default function PlatformAdminPage() {
           </form>
         </section>
 
-        {/* Pending Recharge Requests */}
+        {/* =====================================================
+            PENDING PAYMENT REQUESTS
+        ====================================================== */}
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
-          <h2 className="text-2xl font-black text-gray-900">
-            💰 Pending Payment Requests
-          </h2>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">
+                💰 Pending Payment Requests
+              </h2>
+
+              <p className="mt-1 text-gray-600">
+                Approve करने पर request में दिए गए exact amount और days
+                activate होंगे।
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-blue-50 px-5 py-3 text-center">
+              <p className="text-xs font-bold text-blue-600">
+                PENDING
+              </p>
+
+              <p className="text-2xl font-black text-blue-700">
+                {requests.length}
+              </p>
+            </div>
+          </div>
 
           {requests.length === 0 ? (
             <div className="mt-5 rounded-2xl bg-gray-50 p-6 text-center text-gray-600">
@@ -404,180 +613,429 @@ export default function PlatformAdminPage() {
           ) : (
             <div className="mt-5 space-y-4">
 
-              {requests.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-3xl border-2 border-gray-100 p-5"
-                >
+              {requests.map((request) => {
+                const school = getSchoolById(
+                  request.schoolId
+                );
 
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                const busy =
+                  processingSchool === request.id;
 
-                    <div>
-                      <p className="text-sm font-bold text-gray-500">
-                        Amount
+                return (
+                  <div
+                    key={request.id}
+                    className="rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-lg"
+                  >
+
+                    {/* SCHOOL INFORMATION */}
+                    <div className="mb-5 rounded-2xl bg-white p-4 shadow">
+
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                        School
                       </p>
 
-                      <p className="text-2xl font-black text-green-600">
-                        ₹{request.amount}
+                      <p className="mt-1 text-xl font-black text-gray-900">
+                        {school?.name || 'School not found'}
                       </p>
+
+                      {school && (
+                        <p className="mt-1 break-all text-sm text-gray-500">
+                          /school/{school.slug}
+                        </p>
+                      )}
+
                     </div>
 
-                    <div>
-                      <p className="text-sm font-bold text-gray-500">
-                        Subscription
-                      </p>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-                      <p className="font-black text-gray-900">
-                        {request.days} days
-                      </p>
+                      {/* AMOUNT */}
+                      <div className="rounded-2xl bg-green-50 p-4">
+                        <p className="text-sm font-bold text-gray-500">
+                          Recharge Amount
+                        </p>
+
+                        <p className="mt-1 text-2xl font-black text-green-600">
+                          ₹{request.amount}
+                        </p>
+                      </div>
+
+                      {/* DAYS */}
+                      <div className="rounded-2xl bg-purple-50 p-4">
+                        <p className="text-sm font-bold text-gray-500">
+                          Subscription
+                        </p>
+
+                        <p className="mt-1 text-2xl font-black text-purple-700">
+                          {request.days} days
+                        </p>
+                      </div>
+
+                      {/* UTR */}
+                      <div className="rounded-2xl bg-blue-50 p-4">
+                        <p className="text-sm font-bold text-gray-500">
+                          UTR
+                        </p>
+
+                        <p className="mt-1 break-all font-black text-blue-700">
+                          {request.utr || '—'}
+                        </p>
+                      </div>
+
+                      {/* DATE */}
+                      <div className="rounded-2xl bg-yellow-50 p-4">
+                        <p className="text-sm font-bold text-gray-500">
+                          Request Date
+                        </p>
+
+                        <p className="mt-1 text-sm font-black text-gray-800">
+                          {formatDate(
+                            request.createdAt
+                          )}
+                        </p>
+                      </div>
+
                     </div>
 
-                    <div>
-                      <p className="text-sm font-bold text-gray-500">
-                        UTR
-                      </p>
+                    {/* NOTE */}
+                    {request.note && (
+                      <div className="mt-4 rounded-2xl bg-gray-50 p-4">
+                        <p className="text-sm font-bold text-gray-500">
+                          Note
+                        </p>
 
-                      <p className="break-all font-black text-blue-700">
-                        {request.utr}
-                      </p>
-                    </div>
+                        <p className="mt-1 text-gray-700">
+                          {request.note}
+                        </p>
+                      </div>
+                    )}
 
-                  </div>
+                    {/* PAYMENT PROOF */}
+                    {request.proofUrl && (
+                      <div className="mt-4">
+                        <a
+                          href={request.proofUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded-xl bg-blue-100 px-4 py-3 font-black text-blue-700 hover:bg-blue-200"
+                        >
+                          🔗 Open Payment Proof
+                        </a>
+                      </div>
+                    )}
 
-                  {request.note && (
-                    <div className="mt-4 rounded-2xl bg-gray-50 p-4">
-                      <p className="text-sm font-bold text-gray-500">
-                        Note
-                      </p>
+                    {/* ACTION BUTTONS */}
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row">
 
-                      <p className="mt-1 text-gray-700">
-                        {request.note}
-                      </p>
-                    </div>
-                  )}
-
-                  {request.proofUrl && (
-                    <div className="mt-4">
-                      <a
-                        href={request.proofUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-blue-600 underline"
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          handleApprove(request.id)
+                        }
+                        className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(4,120,87)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
                       >
-                        🔗 Open Payment Proof
-                      </a>
+                        {busy
+                          ? '⏳ Processing...'
+                          : `✅ Approve ₹${request.amount} / ${request.days} Days`}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          handleReject(request.id)
+                        }
+                        className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(159,18,57)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                      >
+                        ❌ Reject Payment
+                      </button>
+
                     </div>
-                  )}
-
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleApprove(request.id)
-                      }
-                      className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(4,120,87)] active:translate-y-1 active:shadow-none"
-                    >
-                      ✅ Approve Payment
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleReject(request.id)
-                      }
-                      className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(159,18,57)] active:translate-y-1 active:shadow-none"
-                    >
-                      ❌ Reject Payment
-                    </button>
 
                   </div>
-
-                </div>
-              ))}
+                );
+              })}
 
             </div>
           )}
 
         </section>
 
-        {/* Schools */}
+        {/* =====================================================
+            ALL SCHOOLS
+        ====================================================== */}
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
-          <h2 className="text-2xl font-black text-gray-900">
-            🏫 All Schools
-          </h2>
+          <div>
+            <h2 className="text-2xl font-black text-gray-900">
+              🏫 All Schools
+            </h2>
 
-          <div className="mt-5 space-y-4">
+            <p className="mt-1 text-gray-600">
+              यहाँ से Admin paid या free दोनों तरीके से school activate
+              कर सकता है।
+            </p>
+          </div>
 
-            {schools.map((school) => (
-              <div
-                key={school.id}
-                className="rounded-3xl border-2 border-gray-100 p-5"
-              >
+          <div className="mt-5 space-y-5">
 
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            {schools.map((school) => {
+              const busy =
+                processingSchool === school.id;
 
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900">
-                      {school.name}
-                    </h3>
+              const currentFreeDays =
+                freeDays[school.id] || '';
 
-                    <p className="mt-1 text-sm text-gray-500">
-                      /school/{school.slug}
-                    </p>
+              const subscriptionLabel =
+                getSubscriptionLabel(school);
 
-                    <p className="mt-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-black ${
-                          school.status === 'LIVE'
-                            ? 'bg-green-100 text-green-700'
-                            : school.status === 'SUSPENDED'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-yellow-100 text-yellow-700'
-                        }`}
-                      >
-                        {school.status}
-                      </span>
-                    </p>
-                  </div>
+              return (
+                <div
+                  key={school.id}
+                  className="rounded-3xl border-2 border-gray-100 bg-gradient-to-br from-white to-gray-50 p-5 shadow-lg"
+                >
 
-                  <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="flex flex-col gap-5">
 
-                    {school.status === 'SUSPENDED' ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleSchoolStatus(
-                            school.id,
-                            'LIVE'
-                          )
-                        }
-                        className="rounded-xl bg-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] active:translate-y-1 active:shadow-none"
-                      >
-                        🟢 Restore
-                      </button>
-                    ) : school.status === 'LIVE' ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleSchoolStatus(
-                            school.id,
-                            'SUSPENDED'
-                          )
-                        }
-                        className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(185,28,28)] active:translate-y-1 active:shadow-none"
-                      >
-                        ⛔ Suspend
-                      </button>
-                    ) : null}
+                    {/* SCHOOL DETAILS */}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-3">
+
+                        <h3 className="text-xl font-black text-gray-900">
+                          {school.name}
+                        </h3>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black ${
+                            school.status === 'LIVE'
+                              ? 'bg-green-100 text-green-700'
+                              : school.status === 'SUSPENDED'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                          }`}
+                        >
+                          {school.status}
+                        </span>
+
+                      </div>
+
+                      <p className="mt-1 break-all text-sm text-gray-500">
+                        /school/{school.slug}
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+                        <div className="rounded-2xl bg-white p-3 shadow-sm">
+                          <p className="text-xs font-bold text-gray-500">
+                            Subscription
+                          </p>
+
+                          <p
+                            className={`mt-1 font-black ${
+                              subscriptionLabel === 'ACTIVE'
+                                ? 'text-green-600'
+                                : subscriptionLabel === 'EXPIRED'
+                                  ? 'text-red-600'
+                                  : 'text-yellow-600'
+                            }`}
+                          >
+                            {subscriptionLabel}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-white p-3 shadow-sm">
+                          <p className="text-xs font-bold text-gray-500">
+                            Approval Type
+                          </p>
+
+                          <p className="mt-1 font-black text-gray-800">
+                            {school.paymentApprovalType ||
+                              '—'}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-white p-3 shadow-sm">
+                          <p className="text-xs font-bold text-gray-500">
+                            Days
+                          </p>
+
+                          <p className="mt-1 font-black text-gray-800">
+                            {school.subscriptionDays
+                              ? `${school.subscriptionDays} days`
+                              : '—'}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-white p-3 shadow-sm">
+                          <p className="text-xs font-bold text-gray-500">
+                            Amount
+                          </p>
+
+                          <p className="mt-1 font-black text-gray-800">
+                            {school.paymentAmount !==
+                            undefined
+                              ? `₹${school.paymentAmount}`
+                              : '—'}
+                          </p>
+                        </div>
+
+                      </div>
+
+                      {/* DATES */}
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+
+                        <div className="rounded-2xl bg-blue-50 p-3">
+                          <p className="text-xs font-bold text-blue-600">
+                            Subscription Start
+                          </p>
+
+                          <p className="mt-1 text-sm font-black text-blue-900">
+                            {formatDate(
+                              school.subscriptionStartDate
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-orange-50 p-3">
+                          <p className="text-xs font-bold text-orange-600">
+                            Subscription Expiry
+                          </p>
+
+                          <p className="mt-1 text-sm font-black text-orange-900">
+                            {formatDate(
+                              school.subscriptionExpiryDate
+                            )}
+                          </p>
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* ACTION AREA */}
+                    <div className="border-t-2 border-gray-100 pt-5">
+
+                      {/* FREE APPROVAL */}
+                      {school.status !== 'LIVE' && (
+                        <div className="rounded-3xl border-2 border-emerald-100 bg-emerald-50 p-4">
+
+                          <div className="mb-3">
+                            <h4 className="text-lg font-black text-emerald-800">
+                              🆓 Free / Waived Approval
+                            </h4>
+
+                            <p className="mt-1 text-sm text-emerald-700">
+                              बिना recharge के school को activate करें।
+                              Approval के समय से subscription शुरू होगा।
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-3 sm:flex-row">
+
+                            <div className="flex-1">
+                              <label className="mb-2 block text-sm font-black text-gray-700">
+                                Days
+                              </label>
+
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                inputMode="numeric"
+                                value={currentFreeDays}
+                                onChange={(event) => {
+                                  const value =
+                                    event.target.value;
+
+                                  // Only digits or empty while typing
+                                  if (
+                                    value === '' ||
+                                    /^\d+$/.test(value)
+                                  ) {
+                                    setFreeDays(
+                                      (current) => ({
+                                        ...current,
+                                        [school.id]: value,
+                                      })
+                                    );
+                                  }
+                                }}
+                                placeholder="जैसे 30, 60, 365"
+                                className="w-full rounded-2xl border-2 border-emerald-200 bg-white px-4 py-3 font-black outline-none focus:border-emerald-500"
+                              />
+                            </div>
+
+                            <div className="flex items-end sm:w-64">
+                              <button
+                                type="button"
+                                disabled={
+                                  busy ||
+                                  !currentFreeDays
+                                }
+                                onClick={() =>
+                                  handleFreeApproval(
+                                    school
+                                  )
+                                }
+                                className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                              >
+                                {busy
+                                  ? '⏳ Processing...'
+                                  : '🆓 Free Approve'}
+                              </button>
+                            </div>
+
+                          </div>
+
+                          <p className="mt-3 text-xs font-bold text-emerald-700">
+                            Minimum 1 day • कोई fixed maximum नहीं •
+                            Amount ₹0
+                          </p>
+
+                        </div>
+                      )}
+
+                      {/* SUSPEND / RESTORE */}
+                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+
+                        {school.status === 'SUSPENDED' ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() =>
+                              handleSchoolStatus(
+                                school.id,
+                                'LIVE'
+                              )
+                            }
+                            className="rounded-xl bg-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                          >
+                            🟢 Restore
+                          </button>
+                        ) : school.status === 'LIVE' ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() =>
+                              handleSchoolStatus(
+                                school.id,
+                                'SUSPENDED'
+                              )
+                            }
+                            className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(185,28,28)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                          >
+                            ⛔ Suspend
+                          </button>
+                        ) : null}
+
+                      </div>
+
+                    </div>
 
                   </div>
 
                 </div>
-
-              </div>
-            ))}
+              );
+            })}
 
             {schools.length === 0 && (
               <div className="rounded-2xl bg-gray-50 p-6 text-center text-gray-600">
@@ -587,6 +1045,21 @@ export default function PlatformAdminPage() {
 
           </div>
         </section>
+
+        {/* =====================================================
+            SUSPENDED SUMMARY
+        ====================================================== */}
+        {suspendedSchools.length > 0 && (
+          <div className="mt-6 rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <p className="text-sm font-bold text-gray-500">
+              Suspended Schools
+            </p>
+
+            <p className="mt-1 text-3xl font-black text-red-600">
+              {suspendedSchools.length}
+            </p>
+          </div>
+        )}
 
       </div>
     </div>
