@@ -62,7 +62,9 @@ export default function SchoolAdminPage() {
 
       if (myMembership.status !== 'ACTIVE') {
         setError(
-          `Your School Admin access is ${myMembership.status}.`
+          'Your School Admin access is ' +
+            myMembership.status +
+            '.'
         );
         return;
       }
@@ -199,10 +201,10 @@ export default function SchoolAdminPage() {
     membership: SchoolMembership
   ) => {
     const ok = window.confirm(
-      `Are you sure you want to revoke access for ${
-        membership.invitedByEmail ||
-        membership.uid
-      }?`
+      'Are you sure you want to revoke access for ' +
+        (membership.invitedByEmail ||
+          membership.uid) +
+        '?'
     );
 
     if (!ok) return;
