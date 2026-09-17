@@ -24,63 +24,69 @@ import PlatformAdminPage from '@/pages/PlatformAdminPage';
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
 
 export default function App() {
-return ( <BrowserRouter> <AuthProvider> <ToastProvider> <Routes>
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
+          <Routes>
 
-        
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<PlatformHomePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/academics" element={<AcademicsPage />} />
-          <Route path="/teachers" element={<TeachersPage />} />
-          <Route path="/notices" element={<NoticesPage />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route path="/contact" element={<ContactPage />} />
+            {/* Public Pages */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<PlatformHomePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/academics" element={<AcademicsPage />} />
+              <Route path="/teachers" element={<TeachersPage />} />
+              <Route path="/notices" element={<NoticesPage />} />
+              <Route path="/events" element={<EventsPage />} />
+              <Route path="/contact" element={<ContactPage />} />
 
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register-school" element={<RegisterSchoolPage />} />
-          <Route path="/schools" element={<SchoolsPage />} />
-          <Route path="/school/:slug" element={<SchoolPublicPage />} />
-        </Route>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register-school" element={<RegisterSchoolPage />} />
+              <Route path="/schools" element={<SchoolsPage />} />
+              <Route path="/school/:slug" element={<SchoolPublicPage />} />
+            </Route>
 
-        <Route
-          path="/payment/recharge"
-          element={
-            <ProtectedRoute
-              allowedRoles={['school_admin', 'platform_admin']}
-            >
-              <PaymentRechargePage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Payment / Recharge */}
+            <Route
+              path="/payment/recharge"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['school_admin', 'platform_admin']}
+                >
+                  <PaymentRechargePage />
+                </ProtectedRoute>
+              }
+            />
 
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={['platform_admin']}>
-              <PlatformAdminPage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Platform Admin */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={['platform_admin']}>
+                  <PlatformAdminPage />
+                </ProtectedRoute>
+              }
+            />
 
-        <Route
-          path="/school-admin"
-          element={
-            <ProtectedRoute allowedRoles={['school_admin']}>
-              <SchoolAdminPage />
-            </ProtectedRoute>
-          }
-        />
+            {/* School Admin */}
+            <Route
+              path="/school-admin"
+              element={
+                <ProtectedRoute allowedRoles={['school_admin']}>
+                  <SchoolAdminPage />
+                </ProtectedRoute>
+              }
+            />
 
-        <Route
-          path="*"
-          element={<Navigate to="/" replace />}
-        />
+            {/* Unknown Route */}
+            <Route
+              path="*"
+              element={<Navigate to="/" replace />}
+            />
 
-      </Routes>
-    </ToastProvider>
-  </AuthProvider>
-</BrowserRouter>
-
-
-);
+          </Routes>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
 }
