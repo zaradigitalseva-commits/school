@@ -1,4 +1,4 @@
-```tsx
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -1558,4 +1558,4 @@ const styles: Record<
     fontWeight: 800,
   },
 };
-```
+
