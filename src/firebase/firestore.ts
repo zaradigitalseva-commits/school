@@ -1,7 +1,9 @@
+```ts
 import {
   collection,
   doc,
   getDoc,
+  setDoc,
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
@@ -9,7 +11,7 @@ import {
 import { db } from './config';
 
 /* =========================================================
-   PLATFORM ADMIN
+   PLATFORM ADMIN EMAIL
 ========================================================= */
 
 export function isPlatformAdminEmail(
@@ -21,12 +23,101 @@ export function isPlatformAdminEmail(
     'zaradigitalseva@gmail.com',
   ];
 
-  const normalizedEmail = email
-    .trim()
-    .toLowerCase();
+  const normalizedEmail =
+    email.trim().toLowerCase();
 
   return platformAdminEmails.includes(
     normalizedEmail
+  );
+}
+
+/* =========================================================
+   ENSURE USER RECORD
+========================================================= */
+
+export async function ensureUserRecord(
+  uid: string,
+  email: string
+): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'User UID is required.'
+    );
+  }
+
+  const cleanEmail =
+    email?.trim().toLowerCase() || '';
+
+  if (!cleanEmail) {
+    throw new Error(
+      'User email is required.'
+    );
+  }
+
+  const userRef = doc(
+    db,
+    'users',
+    uid
+  );
+
+  const userSnapshot =
+    await getDoc(userRef);
+
+  if (!userSnapshot.exists()) {
+    await setDoc(
+      userRef,
+      {
+        uid,
+        email: cleanEmail,
+
+        role:
+          isPlatformAdminEmail(
+            cleanEmail
+          )
+            ? 'platform_admin'
+            : 'user',
+
+        createdAt:
+          serverTimestamp(),
+
+        updatedAt:
+          serverTimestamp(),
+      }
+    );
+  }
+}
+
+/* =========================================================
+   FETCH USER ROLE
+========================================================= */
+
+export async function fetchUserRole(
+  uid: string
+): Promise<string | null> {
+  if (!uid) {
+    return null;
+  }
+
+  const userRef = doc(
+    db,
+    'users',
+    uid
+  );
+
+  const userSnapshot =
+    await getDoc(userRef);
+
+  if (!userSnapshot.exists()) {
+    return null;
+  }
+
+  const data =
+    userSnapshot.data();
+
+  return (
+    typeof data.role === 'string'
+      ? data.role
+      : null
   );
 }
 
@@ -141,9 +232,9 @@ export async function registerSchool(
 
   /* =======================================================
      WHATSAPP CONFIRMATION
-     
+
      IMPORTANT:
-     This is only owner confirmation.
+     This is owner confirmation only.
      It is NOT OTP verification.
   ======================================================= */
 
@@ -238,7 +329,9 @@ export async function registerSchool(
 
     ownerEmail: cleanEmail,
 
-    /* New school starts pending payment */
+    /*
+     * New school starts as pending payment.
+     */
     status:
       'PENDING_PAYMENT',
 
@@ -246,28 +339,41 @@ export async function registerSchool(
 
     updatedAt: now,
 
-    /* Optional phone */
+    /*
+     * Optional phone.
+     */
     phone: cleanPhone,
 
-    /* School's own WhatsApp number */
+    /*
+     * School's own WhatsApp number.
+     */
     whatsappNumber:
       cleanWhatsappNumber,
 
-    /* Owner confirmed number */
+    /*
+     * Owner confirmed the number.
+     * This is NOT OTP verification.
+     */
     whatsappVerified: true,
 
-    /* School address */
+    /*
+     * School address.
+     */
     address:
       input.address?.trim() || '',
 
-    /* Optional school information */
+    /*
+     * Optional school information.
+     */
     tagline:
       input.tagline?.trim() || '',
 
     description:
       input.description?.trim() || '',
 
-    /* Initial payment state */
+    /*
+     * Initial payment state.
+     */
     paymentStatus:
       'PENDING',
 
@@ -354,3 +460,4 @@ export async function registerSchool(
 
   return school;
 }
+```
