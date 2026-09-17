@@ -149,11 +149,28 @@ function timestampToMillis(
 }
 
 /* =========================================================
+   DEFAULT QR
+========================================================= */
+
+/*
+ * यह आपकी website के public folder में रहेगा:
+ *
+ * public/payment-qr.jpeg
+ *
+ * Firebase में QR URL खाली होने पर
+ * यही QR automatically इस्तेमाल होगा।
+ */
+
+const DEFAULT_QR_IMAGE =
+  '/payment-qr.jpeg';
+
+/* =========================================================
    PAYMENT SETTINGS
 ========================================================= */
 
 export async function fetchPaymentSettings():
   Promise<PaymentSettings> {
+
   const ref = doc(
     db,
     'platformSettings',
@@ -163,13 +180,22 @@ export async function fetchPaymentSettings():
   const snapshot =
     await getDoc(ref);
 
+  /*
+   * Payment settings document मौजूद नहीं है
+   */
   if (!snapshot.exists()) {
     return {
       upiId: '',
-      qrImageUrl: '',
+
+      qrImageUrl:
+        DEFAULT_QR_IMAGE,
+
       supportPhone: '',
+
       instructions:
-        'Payment करने के बाद UTR Number जरूर दर्ज करें।',
+        '1. QR Code scan करके payment करें.\n' +
+        '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
+        '3. Submit Payment दबाएँ.',
     };
   }
 
@@ -179,19 +205,32 @@ export async function fetchPaymentSettings():
   return {
     upiId: String(
       data.upiId || ''
-    ),
+    ).trim(),
 
-    qrImageUrl: String(
-      data.qrImageUrl || ''
-    ),
+    /*
+     * Firebase में QR URL है तो वही।
+     *
+     * नहीं है तो:
+     * /payment-qr.jpeg
+     */
+    qrImageUrl:
+      String(
+        data.qrImageUrl || ''
+      ).trim() ||
+      DEFAULT_QR_IMAGE,
 
-    supportPhone: String(
-      data.supportPhone || ''
-    ),
+    supportPhone:
+      String(
+        data.supportPhone || ''
+      ).trim(),
 
-    instructions: String(
-      data.instructions || ''
-    ),
+    instructions:
+      String(
+        data.instructions || ''
+      ).trim() ||
+      '1. QR Code scan करके payment करें.\n' +
+      '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
+      '3. Submit Payment दबाएँ.',
   };
 }
 
@@ -202,6 +241,7 @@ export async function fetchPaymentSettings():
 export async function savePaymentSettings(
   settings: PaymentSettings
 ): Promise<void> {
+
   const ref = doc(
     db,
     'platformSettings',
@@ -211,20 +251,31 @@ export async function savePaymentSettings(
   await runTransaction(
     db,
     async (transaction) => {
+
       transaction.set(
         ref,
         {
           upiId:
-            settings.upiId?.trim() || '',
+            settings.upiId?.trim() ||
+            '',
 
+          /*
+           * Admin QR URL नहीं डाले तो
+           * local QR automatically रहेगा।
+           */
           qrImageUrl:
-            settings.qrImageUrl?.trim() || '',
+            settings.qrImageUrl?.trim() ||
+            DEFAULT_QR_IMAGE,
 
           supportPhone:
-            settings.supportPhone?.trim() || '',
+            settings.supportPhone?.trim() ||
+            '',
 
           instructions:
-            settings.instructions?.trim() || '',
+            settings.instructions?.trim() ||
+            '1. QR Code scan करके payment करें.\n' +
+            '2. Payment के बाद UTR Number जरूर दर्ज करें.\n' +
+            '3. Submit Payment दबाएँ.',
 
           updatedAt:
             serverTimestamp(),
@@ -251,6 +302,7 @@ export async function createRechargeRequest(
     proofImageUrl?: string;
   }
 ): Promise<string> {
+
   if (!params.schoolId) {
     throw new Error(
       'School information missing.'
@@ -278,9 +330,10 @@ export async function createRechargeRequest(
     );
   }
 
-  /*
-   * Verify school exists.
-   */
+  /* =====================================================
+     VERIFY SCHOOL
+  ===================================================== */
+
   const schoolRef = doc(
     db,
     'schools',
@@ -300,13 +353,12 @@ export async function createRechargeRequest(
     schoolSnapshot.data();
 
   /*
-   * IMPORTANT:
-   * Only the owner of the school can
-   * create its recharge request.
+   * केवल school owner payment request बना सकता है।
    */
   if (
-    String(schoolData.ownerUid || '') !==
-    params.uid
+    String(
+      schoolData.ownerUid || ''
+    ) !== params.uid
   ) {
     throw new Error(
       'You are not authorized to make payment for this school.'
@@ -326,24 +378,35 @@ export async function createRechargeRequest(
     );
   }
 
-  const rechargeRef = doc(
-    collection(
-      db,
-      'rechargeRequests'
-    )
-  );
+  /* =====================================================
+     REFERENCES
+  ===================================================== */
 
-  const utrRef = doc(
-    db,
-    'utrReservations',
-    utrNormalized
-  );
+  const rechargeRef =
+    doc(
+      collection(
+        db,
+        'rechargeRequests'
+      )
+    );
+
+  const utrRef =
+    doc(
+      db,
+      'utrReservations',
+      utrNormalized
+    );
+
+  /* =====================================================
+     TRANSACTION
+  ===================================================== */
 
   await runTransaction(
     db,
     async (transaction) => {
+
       /*
-       * Check UTR duplication.
+       * Duplicate UTR check
        */
       const existingUTR =
         await transaction.get(
@@ -357,12 +420,13 @@ export async function createRechargeRequest(
       }
 
       /*
-       * Reserve UTR.
+       * Reserve UTR
        */
       transaction.set(
         utrRef,
         {
           utrNormalized,
+
           rechargeRequestId:
             rechargeRef.id,
 
@@ -371,7 +435,8 @@ export async function createRechargeRequest(
 
           schoolName,
 
-          uid: params.uid,
+          uid:
+            params.uid,
 
           createdAt:
             serverTimestamp(),
@@ -379,7 +444,7 @@ export async function createRechargeRequest(
       );
 
       /*
-       * Create recharge request.
+       * Create payment request
        */
       transaction.set(
         rechargeRef,
@@ -389,7 +454,8 @@ export async function createRechargeRequest(
 
           schoolName,
 
-          uid: params.uid,
+          uid:
+            params.uid,
 
           amount:
             selectedPackage.amount,
@@ -403,9 +469,11 @@ export async function createRechargeRequest(
           utrNormalized,
 
           proofImageUrl:
-            params.proofImageUrl?.trim() || '',
+            params.proofImageUrl?.trim() ||
+            '',
 
-          status: 'PENDING',
+          status:
+            'PENDING',
 
           createdAt:
             serverTimestamp(),
@@ -424,21 +492,23 @@ export async function createRechargeRequest(
 export async function fetchMyRechargeRequests(
   uid: string
 ): Promise<RechargeRequest[]> {
+
   if (!uid) {
     return [];
   }
 
-  const q = query(
-    collection(
-      db,
-      'rechargeRequests'
-    ),
-    where(
-      'uid',
-      '==',
-      uid
-    )
-  );
+  const q =
+    query(
+      collection(
+        db,
+        'rechargeRequests'
+      ),
+      where(
+        'uid',
+        '==',
+        uid
+      )
+    );
 
   const snapshot =
     await getDocs(q);
@@ -468,17 +538,19 @@ export async function fetchMyRechargeRequests(
 
 export async function fetchPendingRecharges():
   Promise<RechargeRequest[]> {
-  const q = query(
-    collection(
-      db,
-      'rechargeRequests'
-    ),
-    where(
-      'status',
-      '==',
-      'PENDING'
-    )
-  );
+
+  const q =
+    query(
+      collection(
+        db,
+        'rechargeRequests'
+      ),
+      where(
+        'status',
+        '==',
+        'PENDING'
+      )
+    );
 
   const snapshot =
     await getDocs(q);
@@ -509,24 +581,24 @@ export async function fetchPendingRecharges():
 export async function approveRecharge(
   rechargeId: string
 ): Promise<void> {
+
   if (!rechargeId) {
     throw new Error(
       'Recharge ID is required.'
     );
   }
 
-  const rechargeRef = doc(
-    db,
-    'rechargeRequests',
-    rechargeId
-  );
+  const rechargeRef =
+    doc(
+      db,
+      'rechargeRequests',
+      rechargeId
+    );
 
   await runTransaction(
     db,
     async (transaction) => {
-      /*
-       * Get recharge request.
-       */
+
       const rechargeSnap =
         await transaction.get(
           rechargeRef
@@ -542,7 +614,7 @@ export async function approveRecharge(
         rechargeSnap.data();
 
       /*
-       * Already approved.
+       * Already approved
        */
       if (
         recharge.status ===
@@ -552,7 +624,7 @@ export async function approveRecharge(
       }
 
       /*
-       * Only PENDING can be approved.
+       * Only PENDING
        */
       if (
         recharge.status !==
@@ -596,28 +668,30 @@ export async function approveRecharge(
       }
 
       /*
-       * Verify package.
+       * Verify package
        */
       getPackage(
         amount,
         days
       );
 
-      /* -----------------------------------------
-         FIRESTORE REFERENCES
-      ----------------------------------------- */
+      /* ===================================================
+         REFERENCES
+      =================================================== */
 
-      const schoolRef = doc(
-        db,
-        'schools',
-        schoolId
-      );
+      const schoolRef =
+        doc(
+          db,
+          'schools',
+          schoolId
+        );
 
-      const walletRef = doc(
-        db,
-        'wallets',
-        schoolId
-      );
+      const walletRef =
+        doc(
+          db,
+          'wallets',
+          schoolId
+        );
 
       const subscriptionRef =
         doc(
@@ -641,9 +715,10 @@ export async function approveRecharge(
           )
         );
 
-      /*
-       * ALL READS BEFORE WRITES.
-       */
+      /* ===================================================
+         ALL READS FIRST
+      =================================================== */
+
       const schoolSnap =
         await transaction.get(
           schoolRef
@@ -674,8 +749,7 @@ export async function approveRecharge(
         schoolSnap.data();
 
       /*
-       * Security check:
-       * recharge UID must be school owner.
+       * Security check
        */
       if (
         String(
@@ -687,9 +761,9 @@ export async function approveRecharge(
         );
       }
 
-      /* -----------------------------------------
+      /* ===================================================
          WALLET
-      ----------------------------------------- */
+      =================================================== */
 
       const oldWalletBalance =
         walletSnap.exists()
@@ -719,23 +793,25 @@ export async function approveRecharge(
         }
       );
 
-      /* -----------------------------------------
-         IMMUTABLE WALLET TRANSACTION
-      ----------------------------------------- */
+      /* ===================================================
+         WALLET TRANSACTION
+      =================================================== */
 
       transaction.set(
         walletTransactionRef,
         {
           schoolId,
 
-          type: 'CREDIT',
+          type:
+            'CREDIT',
 
           amount,
 
           balanceAfter:
             newWalletBalance,
 
-          source: 'RECHARGE',
+          source:
+            'RECHARGE',
 
           rechargeRequestId:
             rechargeId,
@@ -750,9 +826,9 @@ export async function approveRecharge(
         }
       );
 
-      /* -----------------------------------------
+      /* ===================================================
          SUBSCRIPTION
-      ----------------------------------------- */
+      =================================================== */
 
       const existingSubscription =
         subscriptionSnap.exists()
@@ -764,12 +840,6 @@ export async function approveRecharge(
           existingSubscription.expiresAt
         );
 
-      /*
-       * If old subscription is still active,
-       * extend from old expiry.
-       *
-       * Otherwise start from now.
-       */
       const baseTime =
         Math.max(
           Date.now(),
@@ -791,7 +861,8 @@ export async function approveRecharge(
         {
           schoolId,
 
-          status: 'ACTIVE',
+          status:
+            'ACTIVE',
 
           planAmount:
             amount,
@@ -817,14 +888,15 @@ export async function approveRecharge(
         }
       );
 
-      /* -----------------------------------------
+      /* ===================================================
          SCHOOL LIVE
-      ----------------------------------------- */
+      =================================================== */
 
       transaction.update(
         schoolRef,
         {
-          status: 'LIVE',
+          status:
+            'LIVE',
 
           paymentStatus:
             'PAID',
@@ -837,9 +909,9 @@ export async function approveRecharge(
         }
       );
 
-      /* -----------------------------------------
-         SCHOOL ADMIN MEMBERSHIP
-      ----------------------------------------- */
+      /* ===================================================
+         SCHOOL ADMIN
+      =================================================== */
 
       if (
         !membershipSnap.exists()
@@ -894,9 +966,9 @@ export async function approveRecharge(
         );
       }
 
-      /* -----------------------------------------
-         RECHARGE APPROVED
-      ----------------------------------------- */
+      /* ===================================================
+         APPROVED
+      =================================================== */
 
       transaction.update(
         rechargeRef,
@@ -921,21 +993,24 @@ export async function rejectRecharge(
   reason =
     'Payment rejected by Platform Admin.'
 ): Promise<void> {
+
   if (!rechargeId) {
     throw new Error(
       'Recharge ID is required.'
     );
   }
 
-  const rechargeRef = doc(
-    db,
-    'rechargeRequests',
-    rechargeId
-  );
+  const rechargeRef =
+    doc(
+      db,
+      'rechargeRequests',
+      rechargeId
+    );
 
   await runTransaction(
     db,
     async (transaction) => {
+
       const snapshot =
         await transaction.get(
           rechargeRef
