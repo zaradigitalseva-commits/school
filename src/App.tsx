@@ -1,7 +1,7 @@
+```tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 import { AuthProvider } from '@/context/AuthContext';
-import { ToastProvider } from '@/components/ui/use-toast';
 
 import PublicLayout from '@/components/layout/PublicLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -27,66 +27,140 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <Routes>
+        <Routes>
 
-            {/* Public Pages */}
-            <Route element={<PublicLayout />}>
-              <Route path="/" element={<PlatformHomePage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/academics" element={<AcademicsPage />} />
-              <Route path="/teachers" element={<TeachersPage />} />
-              <Route path="/notices" element={<NoticesPage />} />
-              <Route path="/events" element={<EventsPage />} />
-              <Route path="/contact" element={<ContactPage />} />
+          {/* ================================
+              PUBLIC WEBSITE
+          ================================= */}
 
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register-school" element={<RegisterSchoolPage />} />
-              <Route path="/schools" element={<SchoolsPage />} />
-              <Route path="/school/:slug" element={<SchoolPublicPage />} />
-            </Route>
+          <Route element={<PublicLayout />}>
 
-            {/* Payment / Recharge */}
             <Route
-              path="/payment/recharge"
-              element={
-                <ProtectedRoute
-                  allowedRoles={['school_admin', 'platform_admin']}
-                >
-                  <PaymentRechargePage />
-                </ProtectedRoute>
-              }
+              path="/"
+              element={<PlatformHomePage />}
             />
 
-            {/* Platform Admin */}
             <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={['platform_admin']}>
-                  <PlatformAdminPage />
-                </ProtectedRoute>
-              }
+              path="/about"
+              element={<AboutPage />}
             />
 
-            {/* School Admin */}
             <Route
-              path="/school-admin"
-              element={
-                <ProtectedRoute allowedRoles={['school_admin']}>
-                  <SchoolAdminPage />
-                </ProtectedRoute>
-              }
+              path="/academics"
+              element={<AcademicsPage />}
             />
 
-            {/* Unknown Route */}
             <Route
-              path="*"
-              element={<Navigate to="/" replace />}
+              path="/teachers"
+              element={<TeachersPage />}
             />
 
-          </Routes>
-        </ToastProvider>
+            <Route
+              path="/notices"
+              element={<NoticesPage />}
+            />
+
+            <Route
+              path="/events"
+              element={<EventsPage />}
+            />
+
+            <Route
+              path="/contact"
+              element={<ContactPage />}
+            />
+
+            <Route
+              path="/login"
+              element={<LoginPage />}
+            />
+
+            <Route
+              path="/register-school"
+              element={<RegisterSchoolPage />}
+            />
+
+            <Route
+              path="/schools"
+              element={<SchoolsPage />}
+            />
+
+            <Route
+              path="/school/:slug"
+              element={<SchoolPublicPage />}
+            />
+
+          </Route>
+
+          {/* ================================
+              PAYMENT
+          ================================= */}
+
+          <Route
+            path="/payment/recharge"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  'school_admin',
+                  'platform_admin',
+                ]}
+              >
+                <PaymentRechargePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ================================
+              PLATFORM ADMIN
+          ================================= */}
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  'platform_admin',
+                ]}
+              >
+                <PlatformAdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ================================
+              SCHOOL ADMIN
+          ================================= */}
+
+          <Route
+            path="/school-admin"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  'school_admin',
+                ]}
+              >
+                <SchoolAdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ================================
+              FALLBACK
+          ================================= */}
+
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to="/"
+                replace
+              />
+            }
+          />
+
+        </Routes>
       </AuthProvider>
     </BrowserRouter>
   );
 }
+```
