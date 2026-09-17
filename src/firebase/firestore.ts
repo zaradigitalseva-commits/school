@@ -67,10 +67,17 @@ export async function ensureUserRecord(
   const cleanEmail =
     email?.trim().toLowerCase() || '';
 
-  const userRef = doc(db, 'users', uid);
-  const snapshot = await getDoc(userRef);
+  const userRef = doc(
+    db,
+    'users',
+    uid
+  );
 
-  const now = new Date().toISOString();
+  const snapshot =
+    await getDoc(userRef);
+
+  const now =
+    new Date().toISOString();
 
   if (!snapshot.exists()) {
     const role: UserRole =
@@ -92,7 +99,10 @@ export async function ensureUserRecord(
       active: true,
     };
 
-    await setDoc(userRef, newUser);
+    await setDoc(
+      userRef,
+      newUser
+    );
 
     return newUser;
   }
@@ -100,8 +110,11 @@ export async function ensureUserRecord(
   const existingUser =
     snapshot.data() as AppUser;
 
-  const updateData: Partial<AppUser> = {
-    email: cleanEmail || existingUser.email,
+  const updateData:
+    Partial<AppUser> = {
+    email:
+      cleanEmail ||
+      existingUser.email,
     updatedAt: now,
     lastLoginAt: now,
     active: true,
@@ -109,26 +122,35 @@ export async function ensureUserRecord(
 
   if (displayName !== undefined) {
     updateData.displayName =
-      displayName?.trim() || undefined;
+      displayName?.trim() ||
+      undefined;
   }
 
   if (photoURL !== undefined) {
     updateData.photoURL =
-      photoURL?.trim() || undefined;
+      photoURL?.trim() ||
+      undefined;
   }
 
   /*
-   * Platform admin role is controlled by the
-   * configured platform admin email.
+   * Platform admin role is controlled by
+   * the configured platform admin email.
    */
-  if (isPlatformAdminEmail(cleanEmail)) {
-    updateData.role = 'platform_admin';
+  if (
+    isPlatformAdminEmail(
+      cleanEmail
+    )
+  ) {
+    updateData.role =
+      'platform_admin';
   }
 
   await setDoc(
     userRef,
     updateData,
-    { merge: true }
+    {
+      merge: true,
+    }
   );
 
   return {
@@ -356,7 +378,12 @@ export async function registerSchool(
    * Generate IDs.
    */
   const schoolRef =
-    doc(collection(db, 'schools'));
+    doc(
+      collection(
+        db,
+        'schools'
+      )
+    );
 
   const schoolId =
     schoolRef.id;
@@ -381,6 +408,10 @@ export async function registerSchool(
     ownerUid,
     ownerEmail: cleanEmail,
 
+    /*
+     * New school first goes to
+     * pending payment.
+     */
     status: 'PENDING_PAYMENT',
 
     createdAt: now,
@@ -388,11 +419,11 @@ export async function registerSchool(
 
     phone: cleanPhone,
 
-   tagline:
-  input.tagline?.trim() || '',
+    tagline:
+      input.tagline?.trim() || '',
 
-description:
-  input.description?.trim() || '',
+    description:
+      input.description?.trim() || '',
 
     paymentStatus: 'PENDING',
     subscriptionStatus: 'PENDING',
@@ -482,7 +513,6 @@ export async function fetchSchoolInfo():
   }
 }
 
-
 /*
  * Save school information.
  */
@@ -556,7 +586,6 @@ export async function fetchAnnouncements():
   }
 }
 
-
 /*
  * Add announcement.
  */
@@ -584,7 +613,6 @@ export async function addAnnouncement(
   );
 }
 
-
 /*
  * Update announcement.
  */
@@ -611,7 +639,6 @@ export async function updateAnnouncement(
     }
   );
 }
-
 
 /*
  * Delete announcement.
@@ -678,7 +705,6 @@ export async function fetchEvents():
   }
 }
 
-
 /*
  * Add event.
  */
@@ -706,7 +732,6 @@ export async function addEvent(
   );
 }
 
-
 /*
  * Update event.
  */
@@ -733,7 +758,6 @@ export async function updateEvent(
     }
   );
 }
-
 
 /*
  * Delete event.
@@ -800,7 +824,6 @@ export async function fetchTeachers():
   }
 }
 
-
 /*
  * Add teacher.
  */
@@ -828,7 +851,6 @@ export async function addTeacher(
   );
 }
 
-
 /*
  * Update teacher.
  */
@@ -855,7 +877,6 @@ export async function updateTeacher(
     }
   );
 }
-
 
 /*
  * Delete teacher.
@@ -1024,6 +1045,10 @@ export async function updateSchoolStatus(
     updatedAt: now,
   };
 
+  /*
+   * When school becomes LIVE,
+   * payment and subscription become active.
+   */
   if (status === 'LIVE') {
     schoolUpdates.paymentStatus =
       'PAID';
@@ -1040,6 +1065,9 @@ export async function updateSchoolStatus(
     }
   }
 
+  /*
+   * When school is suspended.
+   */
   if (status === 'SUSPENDED') {
     schoolUpdates.suspendedAt =
       now;
@@ -1050,6 +1078,9 @@ export async function updateSchoolStatus(
     }
   }
 
+  /*
+   * When school is archived.
+   */
   if (status === 'ARCHIVED') {
     schoolUpdates.archivedAt =
       now;
@@ -1120,6 +1151,132 @@ export async function updateSchoolStatus(
   await batch.commit();
 
   void school;
+}
+
+/* =========================================================
+   REJECT / ARCHIVE SCHOOL REGISTRATION
+========================================================= */
+
+export async function archiveSchoolRegistration(
+  schoolId: string,
+  reason?: string
+): Promise<void> {
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  const schoolSnapshot =
+    await getDoc(
+      schoolRef
+    );
+
+  if (!schoolSnapshot.exists()) {
+    throw new Error(
+      'School not found.'
+    );
+  }
+
+  const school =
+    schoolSnapshot.data() as School;
+
+  /*
+   * Only pending school registrations
+   * can be rejected.
+   */
+  if (
+    school.status !==
+    'PENDING_PAYMENT'
+  ) {
+    throw new Error(
+      'Only pending school registrations can be rejected.'
+    );
+  }
+
+  const now =
+    new Date().toISOString();
+
+  const batch =
+    writeBatch(db);
+
+  /*
+   * Archive the school registration.
+   */
+  batch.set(
+    schoolRef,
+    {
+      status: 'ARCHIVED',
+      updatedAt: now,
+      archivedAt: now,
+
+      /*
+       * School type currently does not have
+       * a separate rejectionReason field.
+       */
+      suspensionReason:
+        reason?.trim() ||
+        'School registration rejected by Platform Admin.',
+    },
+    {
+      merge: true,
+    }
+  );
+
+  /*
+   * Revoke school admin membership.
+   */
+  const membershipsRef =
+    collection(
+      db,
+      'schoolMemberships'
+    );
+
+  const membershipQuery =
+    query(
+      membershipsRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      ),
+      where(
+        'role',
+        '==',
+        'school_admin'
+      )
+    );
+
+  const membershipSnapshot =
+    await getDocs(
+      membershipQuery
+    );
+
+  for (
+    const membershipDoc
+    of membershipSnapshot.docs
+  ) {
+    batch.set(
+      membershipDoc.ref,
+      {
+        status: 'REVOKED',
+        updatedAt: now,
+        revokedAt: now,
+      },
+      {
+        merge: true,
+      }
+    );
+  }
+
+  await batch.commit();
 }
 
 /* =========================================================
@@ -1485,7 +1642,6 @@ export async function fetchAuthorizedAdmins():
   }
 }
 
-
 export async function addAuthorizedAdmin(
   uid: string,
   email: string
@@ -1518,7 +1674,6 @@ export async function addAuthorizedAdmin(
     }
   );
 }
-
 
 export async function removeAuthorizedAdmin(
   uid: string
@@ -1570,7 +1725,6 @@ export async function fetchAuthorizedFaculty():
   }
 }
 
-
 export async function addAuthorizedFaculty(
   uid: string,
   email: string
@@ -1603,7 +1757,6 @@ export async function addAuthorizedFaculty(
     }
   );
 }
-
 
 export async function removeAuthorizedFaculty(
   uid: string
