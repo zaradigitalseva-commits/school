@@ -208,6 +208,28 @@ export default function PaymentRechargePage() {
   };
 
   /*
+   * Open the user's installed UPI app.
+   * The receiver UPI ID is kept out of the visible UI.
+   */
+  const handleUPIPayment = () => {
+    if (!schoolId) {
+      setError('School information नहीं मिली।');
+      return;
+    }
+
+    const upiId = '8806940156@okbizaxis';
+
+    const params = new URLSearchParams({
+      pa: upiId,
+      pn: schoolName || 'School Website',
+      am: String(selectedPackage.amount),
+      cu: 'INR',
+    });
+
+    window.location.href = `upi://pay?${params.toString()}`;
+  };
+
+  /*
    * Submit UPI payment request
    */
   const handleSubmitPayment = async () => {
@@ -269,6 +291,40 @@ export default function PaymentRechargePage() {
       setSuccess(
         '✅ Payment Request सफलतापूर्वक Submit हो गई है। Admin Payment verify करने के बाद Subscription Activate करेगा।'
       );
+
+      /*
+       * Open WhatsApp only AFTER the payment request has been
+       * successfully saved. The message contains the complete
+       * payment/request details.
+       */
+      const whatsappMessage = `
+💳 SCHOOL WEBSITE PAYMENT REQUEST
+
+👤 Name: ${user?.displayName || 'Not available'}
+📧 Email: ${user?.email || 'Not available'}
+
+🏫 School Name: ${schoolName || 'Not available'}
+
+📦 Package: ₹${selectedPackage.amount}
+📅 Validity: ${selectedPackage.days} Days
+💰 Amount: ₹${selectedPackage.amount}
+
+🔢 UTR Number: ${cleanUTR}
+
+🖼️ Screenshot:
+${proofImageUrl.trim() || 'Not provided'}
+
+🕐 Submitted: ${new Date().toLocaleString('en-IN')}
+
+✅ Payment request successfully submitted.
+Please verify the payment and approve/reject it from the Admin Panel.
+      `.trim();
+
+      const whatsappUrl =
+        `https://wa.me/${WHATSAPP_NUMBER}` +
+        `?text=${encodeURIComponent(whatsappMessage)}`;
+
+      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       const message = String(err?.message || '');
 
@@ -278,7 +334,8 @@ export default function PaymentRechargePage() {
       if (
         message.includes('already been submitted') ||
         message.includes('UTR Number has already') ||
-        message.toLowerCase().includes('utr')
+        message.toLowerCase().includes('duplicate utr') ||
+        message.toLowerCase().includes('utr already')
       ) {
         /*
          * Old UTR clear कर दें ताकि user
@@ -302,60 +359,7 @@ export default function PaymentRechargePage() {
     }
   };
 
-  /*
-   * WhatsApp payment help
-   */
-  const handleWhatsAppPayment = () => {
-    if (sending) return;
 
-    setSending(true);
-
-    const message = `
-🏫 SCHOOL WEBSITE PAYMENT REQUEST
-
-School Name: ${schoolName || 'Not available'}
-Admin Email: ${user?.email || 'Not available'}
-
-Selected Package: ₹${selectedPackage.amount}
-Subscription: ${selectedPackage.days} Days
-
-I want to make the payment for my school website.
-Please send me the UPI ID / UPI QR code for payment.
-
-Thank you.
-`.trim();
-
-    const url =
-      `https://wa.me/${WHATSAPP_NUMBER}` +
-      `?text=${encodeURIComponent(message)}`;
-
-    window.open(url, '_blank', 'noopener,noreferrer');
-
-    setTimeout(() => {
-      setSending(false);
-    }, 1000);
-  };
-
-  /*
-   * Copy UPI ID
-   */
-  const handleCopyUPI = async () => {
-    if (!paymentSettings?.upiId) {
-      setError('UPI ID उपलब्ध नहीं है।');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(
-        paymentSettings.upiId
-      );
-
-      setSuccess('✅ UPI ID Copy हो गई है।');
-      setError('');
-    } catch {
-      setError('UPI ID Copy नहीं हो सकी।');
-    }
-  };
 
   if (loading) {
     return (
@@ -490,49 +494,37 @@ Thank you.
 
             </div>
 
-            {/* UPI ID */}
-            <div className="mb-4">
+            {/* Direct UPI Payment */}
+            <button
+              type="button"
+              onClick={handleUPIPayment}
+              disabled={!schoolId}
+              className="
+                w-full
+                mb-5
+                py-4
+                rounded-2xl
+                bg-gradient-to-r
+                from-blue-600
+                via-purple-600
+                to-pink-600
+                text-white
+                text-lg
+                font-black
+                shadow-[0_6px_0_#312e81]
+                active:shadow-[0_2px_0_#312e81]
+                active:translate-y-[4px]
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+                transition
+              "
+            >
+              💳 Pay ₹{selectedPackage.amount} Now
+            </button>
 
-              <label className="block font-bold text-gray-700 mb-2">
-                UPI ID
-              </label>
-
-              <div className="flex gap-2">
-
-                <input
-                  value={paymentSettings?.upiId || ''}
-                  readOnly
-                  className="flex-1 min-w-0 border-2 border-gray-200 rounded-xl px-3 py-3 bg-gray-50 font-semibold"
-                />
-
-                <button
-                  onClick={handleCopyUPI}
-                  className="px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold shadow-[0_4px_0_#3730a3] active:shadow-[0_1px_0_#3730a3] active:translate-y-[3px]"
-                >
-                  Copy
-                </button>
-
-              </div>
+            <div className="text-center text-sm text-gray-500 mb-5">
+              📱 Button दबाने पर आपके mobile का UPI app खुलेगा।
             </div>
-
-            {/* QR */}
-            {paymentSettings?.qrImageUrl && (
-              <div className="text-center mb-5">
-
-                <p className="font-bold text-gray-700 mb-3">
-                  📱 Scan QR Code से Payment करें
-                </p>
-
-                <div className="inline-block bg-white p-3 rounded-2xl shadow-lg border">
-                  <img
-                    src={paymentSettings.qrImageUrl}
-                    alt="UPI QR Code"
-                    className="w-56 h-56 object-contain rounded-xl"
-                  />
-                </div>
-
-              </div>
-            )}
 
             {/* Instructions */}
             {paymentSettings?.instructions && (
