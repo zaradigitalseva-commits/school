@@ -68,12 +68,11 @@ export async function ensureUserRecord(
     );
   }
 
-  const userRef =
-    doc(
-      db,
-      'users',
-      uid
-    );
+  const userRef = doc(
+    db,
+    'users',
+    uid
+  );
 
   const userSnapshot =
     await getDoc(userRef);
@@ -110,12 +109,11 @@ export async function fetchUserRole(
     return null;
   }
 
-  const userRef =
-    doc(
-      db,
-      'users',
-      uid
-    );
+  const userRef = doc(
+    db,
+    'users',
+    uid
+  );
 
   const userSnapshot =
     await getDoc(userRef);
@@ -172,6 +170,87 @@ export async function fetchPublicSchools(): Promise<
 
 
 /* =========================================================
+   FETCH ALL SCHOOLS
+   Platform admin के लिए सभी schools
+========================================================= */
+
+export async function fetchAllSchools(): Promise<
+  School[]
+> {
+  const schoolsRef =
+    collection(
+      db,
+      'schools'
+    );
+
+  const snapshot =
+    await getDocs(
+      schoolsRef
+    );
+
+  return snapshot.docs.map(
+    (schoolDoc) => ({
+      id: schoolDoc.id,
+      ...schoolDoc.data(),
+    } as School)
+  );
+}
+
+
+/* =========================================================
+   UPDATE SCHOOL STATUS
+   Platform admin के लिए
+========================================================= */
+
+export async function updateSchoolStatus(
+  schoolId: string,
+  status: string
+): Promise<void> {
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  if (!status) {
+    throw new Error(
+      'School status is required.'
+    );
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  const snapshot =
+    await getDoc(
+      schoolRef
+    );
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'School not found.'
+    );
+  }
+
+  await setDoc(
+    schoolRef,
+    {
+      status,
+      updatedAt:
+        serverTimestamp(),
+    },
+    {
+      merge: true,
+    }
+  );
+}
+
+
+/* =========================================================
    FETCH SCHOOL INFO
 ========================================================= */
 
@@ -206,6 +285,8 @@ export async function fetchSchoolInfo(
     id: snapshot.id,
   } as SchoolInfo;
 }
+
+
 /* =========================================================
    FETCH SCHOOL BY SLUG
    Used for public school URL pages.
@@ -254,7 +335,6 @@ export async function fetchSchoolBySlug(
     ...schoolDoc.data(),
   } as School;
 }
-
 
 
 /* =========================================================
@@ -408,7 +488,9 @@ export function formatDate(
         }
       )
         .toDate()
-        .toLocaleDateString('en-IN');
+        .toLocaleDateString(
+          'en-IN'
+        );
     }
 
     if (
@@ -418,7 +500,11 @@ export function formatDate(
       const date =
         new Date(value);
 
-      if (!isNaN(date.getTime())) {
+      if (
+        !isNaN(
+          date.getTime()
+        )
+      ) {
         return date.toLocaleDateString(
           'en-IN'
         );
@@ -582,27 +668,34 @@ export async function registerSchool(
   const school: School = {
     id: schoolId,
 
-    name: cleanName,
+    name:
+      cleanName,
 
-    slug: cleanSlug,
+    slug:
+      cleanSlug,
 
     ownerUid,
 
-    ownerEmail: cleanEmail,
+    ownerEmail:
+      cleanEmail,
 
     status:
       'PENDING_PAYMENT',
 
-    createdAt: now,
+    createdAt:
+      now,
 
-    updatedAt: now,
+    updatedAt:
+      now,
 
-    phone: cleanPhone,
+    phone:
+      cleanPhone,
 
     whatsappNumber:
       cleanWhatsappNumber,
 
-    whatsappVerified: true,
+    whatsappVerified:
+      true,
 
     address:
       input.address?.trim() || '',
@@ -623,13 +716,16 @@ export async function registerSchool(
   const membership:
     SchoolMembership = {
 
-    id: membershipId,
+    id:
+      membershipId,
 
     schoolId,
 
-    uid: ownerUid,
+    uid:
+      ownerUid,
 
-    email: cleanEmail,
+    email:
+      cleanEmail,
 
     role:
       'school_admin',
@@ -637,11 +733,14 @@ export async function registerSchool(
     status:
       'PENDING',
 
-    assignments: [],
+    assignments:
+      [],
 
-    createdAt: now,
+    createdAt:
+      now,
 
-    updatedAt: now,
+    updatedAt:
+      now,
   };
 
   const batch =
@@ -660,11 +759,13 @@ export async function registerSchool(
   batch.set(
     slugRef,
     {
-      slug: cleanSlug,
+      slug:
+        cleanSlug,
 
       schoolId,
 
-      schoolName: cleanName,
+      schoolName:
+        cleanName,
 
       ownerUid,
 
