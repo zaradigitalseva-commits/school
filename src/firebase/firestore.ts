@@ -1,4 +1,4 @@
-
+```ts
 import {
   collection,
   doc,
@@ -20,6 +20,7 @@ import type {
   SchoolRegistrationInput,
   Teacher,
   Announcement,
+  SchoolEvent,
 } from './types';
 
 
@@ -67,11 +68,12 @@ export async function ensureUserRecord(
     );
   }
 
-  const userRef = doc(
-    db,
-    'users',
-    uid
-  );
+  const userRef =
+    doc(
+      db,
+      'users',
+      uid
+    );
 
   const userSnapshot =
     await getDoc(userRef);
@@ -108,11 +110,12 @@ export async function fetchUserRole(
     return null;
   }
 
-  const userRef = doc(
-    db,
-    'users',
-    uid
-  );
+  const userRef =
+    doc(
+      db,
+      'users',
+      uid
+    );
 
   const userSnapshot =
     await getDoc(userRef);
@@ -288,6 +291,47 @@ export async function fetchAnnouncements(
 
 
 /* =========================================================
+   FETCH EVENTS
+========================================================= */
+
+export async function fetchEvents(
+  schoolId?: string
+): Promise<SchoolEvent[]> {
+  if (!schoolId) {
+    return [];
+  }
+
+  const eventsRef =
+    collection(
+      db,
+      'events'
+    );
+
+  const eventsQuery =
+    query(
+      eventsRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      eventsQuery
+    );
+
+  return snapshot.docs.map(
+    (eventDoc) => ({
+      id: eventDoc.id,
+      ...eventDoc.data(),
+    } as SchoolEvent)
+  );
+}
+
+
+/* =========================================================
    FORMAT DATE
 ========================================================= */
 
@@ -349,10 +393,6 @@ export async function registerSchool(
   ownerEmail: string
 ): Promise<School> {
 
-  /* =======================================================
-     BASIC INPUT
-  ======================================================= */
-
   if (!ownerUid) {
     throw new Error(
       'Owner UID is required.'
@@ -364,11 +404,6 @@ export async function registerSchool(
       'School registration data is required.'
     );
   }
-
-
-  /* =======================================================
-     CLEAN DATA
-  ======================================================= */
 
   const cleanName =
     input.name?.trim() || '';
@@ -390,11 +425,6 @@ export async function registerSchool(
       ?.trim()
       .toLowerCase() || '';
 
-
-  /* =======================================================
-     BASIC VALIDATION
-  ======================================================= */
-
   if (!cleanName) {
     throw new Error(
       'School name is required.'
@@ -407,11 +437,6 @@ export async function registerSchool(
     );
   }
 
-
-  /* =======================================================
-     SLUG VALIDATION
-  ======================================================= */
-
   if (
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(
       cleanSlug
@@ -422,21 +447,11 @@ export async function registerSchool(
     );
   }
 
-
-  /* =======================================================
-     EMAIL VALIDATION
-  ======================================================= */
-
   if (!cleanEmail) {
     throw new Error(
       'Google account email is required.'
     );
   }
-
-
-  /* =======================================================
-     WHATSAPP NUMBER
-  ======================================================= */
 
   if (!cleanWhatsappNumber) {
     throw new Error(
@@ -454,12 +469,6 @@ export async function registerSchool(
     );
   }
 
-
-  /* =======================================================
-     WHATSAPP CONFIRMATION
-     This is owner confirmation, not OTP verification.
-  ======================================================= */
-
   if (
     input.whatsappVerified !== true
   ) {
@@ -467,11 +476,6 @@ export async function registerSchool(
       'Please confirm that the WhatsApp number is correct.'
     );
   }
-
-
-  /* =======================================================
-     OPTIONAL PHONE VALIDATION
-  ======================================================= */
 
   if (
     cleanPhone &&
@@ -483,11 +487,6 @@ export async function registerSchool(
       'Phone number must be a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9.'
     );
   }
-
-
-  /* =======================================================
-     CHECK SCHOOL URL / SLUG
-  ======================================================= */
 
   const slugRef =
     doc(
@@ -507,11 +506,6 @@ export async function registerSchool(
     );
   }
 
-
-  /* =======================================================
-     GENERATE SCHOOL ID
-  ======================================================= */
-
   const schoolRef =
     doc(
       collection(
@@ -523,11 +517,6 @@ export async function registerSchool(
   const schoolId =
     schoolRef.id;
 
-
-  /* =======================================================
-     GENERATE MEMBERSHIP ID
-  ======================================================= */
-
   const membershipId =
     ownerUid + '_' + schoolId;
 
@@ -538,18 +527,8 @@ export async function registerSchool(
       membershipId
     );
 
-
-  /* =======================================================
-     TIMESTAMP
-  ======================================================= */
-
   const now =
     new Date().toISOString();
-
-
-  /* =======================================================
-     SCHOOL DOCUMENT
-========================================================= */
 
   const school: School = {
     id: schoolId,
@@ -592,11 +571,6 @@ export async function registerSchool(
       'PENDING',
   };
 
-
-  /* =======================================================
-     SCHOOL ADMIN MEMBERSHIP
-========================================================= */
-
   const membership:
     SchoolMembership = {
 
@@ -621,38 +595,18 @@ export async function registerSchool(
     updatedAt: now,
   };
 
-
-  /* =======================================================
-     FIRESTORE BATCH
-========================================================= */
-
   const batch =
     writeBatch(db);
-
-
-  /* =======================================================
-     SCHOOL
-========================================================= */
 
   batch.set(
     schoolRef,
     school
   );
 
-
-  /* =======================================================
-     SCHOOL ADMIN MEMBERSHIP
-========================================================= */
-
   batch.set(
     membershipRef,
     membership
   );
-
-
-  /* =======================================================
-     SLUG RESERVATION
-========================================================= */
 
   batch.set(
     slugRef,
@@ -670,13 +624,8 @@ export async function registerSchool(
     }
   );
 
-
-  /* =======================================================
-     SAVE
-========================================================= */
-
   await batch.commit();
 
   return school;
 }
-
+```
