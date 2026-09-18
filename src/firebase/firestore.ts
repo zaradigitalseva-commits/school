@@ -206,6 +206,55 @@ export async function fetchSchoolInfo(
     id: snapshot.id,
   } as SchoolInfo;
 }
+/* =========================================================
+   FETCH SCHOOL BY SLUG
+   Used for public school URL pages.
+========================================================= */
+
+export async function fetchSchoolBySlug(
+  slug: string
+): Promise<School | null> {
+  const cleanSlug =
+    slug?.trim().toLowerCase() || '';
+
+  if (!cleanSlug) {
+    return null;
+  }
+
+  const schoolsRef =
+    collection(
+      db,
+      'schools'
+    );
+
+  const schoolsQuery =
+    query(
+      schoolsRef,
+      where(
+        'slug',
+        '==',
+        cleanSlug
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      schoolsQuery
+    );
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const schoolDoc =
+    snapshot.docs[0];
+
+  return {
+    id: schoolDoc.id,
+    ...schoolDoc.data(),
+  } as School;
+}
+
 
 
 /* =========================================================
