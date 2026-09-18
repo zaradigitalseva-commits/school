@@ -1,3 +1,4 @@
+```tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 
@@ -28,6 +29,9 @@ import SchoolPublicPage from '@/pages/SchoolPublicPage';
 import PaymentRechargePage from '@/pages/PaymentRechargePage';
 import PlatformAdminPage from '@/pages/PlatformAdminPage';
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
+
+// Super Admin school data viewer
+import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
 
 function App() {
   return (
@@ -69,6 +73,7 @@ function App() {
 
             {/* Login / Registration */}
             <Route path="/login" element={<LoginPage />} />
+
             <Route
               path="/register-school"
               element={<RegisterSchoolPage />}
@@ -76,6 +81,7 @@ function App() {
 
             {/* Schools */}
             <Route path="/schools" element={<SchoolsPage />} />
+
             <Route
               path="/school/:slug"
               element={<SchoolPublicPage />}
@@ -116,6 +122,22 @@ function App() {
 
 
           {/* =========================
+              SUPER ADMIN - FULL SCHOOL DATA
+              Platform admin only
+          ========================== */}
+          <Route
+            path="/admin/school/:schoolId"
+            element={
+              <ProtectedRoute
+                allowedRoles={['platform_admin']}
+              >
+                <SchoolSuperAdminViewPage />
+              </ProtectedRoute>
+            }
+          />
+
+
+          {/* =========================
               SCHOOL ADMIN
           ========================== */}
           <Route
@@ -146,3 +168,4 @@ function App() {
 }
 
 export default App;
+```
