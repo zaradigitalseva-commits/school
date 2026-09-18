@@ -1,17 +1,473 @@
-1. firestore.rules
-        ↓
-2. types.ts में सभी required types
-        ↓
-3. firestore.ts में केवल नए functions
-        ↓
-4. SchoolAdminPage
-        ↓
-5. Students
-6. Classes 1–12
-7. Results
-8. Homework
-9. Attendance
-10. Gallery
-11. Documents
-        ↓
-12. SchoolSuperAdminViewPage में पूरा Data
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isPlatformAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'ngogrant454@gmail.com';
+    }
+
+    function isSchoolAdmin(schoolId) {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
+        )
+        && get(
+          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
+        ).data.role == 'school_admin'
+        && get(
+          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
+        ).data.status == 'ACTIVE';
+    }
+
+    function isTeacher(schoolId) {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
+        )
+        && get(
+          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
+        ).data.role == 'teacher'
+        && get(
+          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
+        ).data.status == 'ACTIVE';
+    }
+
+    function schoolMember(schoolId) {
+      return isSchoolAdmin(schoolId) || isTeacher(schoolId);
+    }
+
+    // ============================================================
+    // USERS
+    // ============================================================
+
+    match /users/{uid} {
+      allow read: if signedIn() && (
+        request.auth.uid == uid ||
+        isPlatformAdmin()
+      );
+
+      allow create: if signedIn() &&
+        request.auth.uid == uid;
+
+      allow update: if signedIn() && (
+        request.auth.uid == uid ||
+        isPlatformAdmin()
+      );
+
+      allow delete: if isPlatformAdmin();
+    }
+
+    // ============================================================
+    // SCHOOLS
+    // ============================================================
+
+    match /schools/{schoolId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.ownerUid == request.auth.uid
+        )
+        || resource.data.status == 'LIVE';
+
+      allow create: if signedIn();
+
+      allow update: if
+        isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.ownerUid == request.auth.uid
+        );
+
+      allow delete: if isPlatformAdmin();
+    }
+
+    // ============================================================
+    // SCHOOL MEMBERSHIPS
+    // ============================================================
+
+    match /schoolMemberships/{membershipId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.uid == request.auth.uid
+        )
+        || (
+          signedIn()
+          && resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          signedIn()
+          && request.resource.data.uid == request.auth.uid
+        );
+
+      allow update: if
+        isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+
+      allow delete: if isPlatformAdmin();
+    }
+
+    // ============================================================
+    // SLUG RESERVATIONS
+    // ============================================================
+
+    match /slugReservations/{slug} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isPlatformAdmin();
+    }
+
+    // ============================================================
+    // TEACHERS
+    // ============================================================
+
+    match /teachers/{teacherId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || resource.data.schoolId is string
+           && get(
+                /databases/$(database)/documents/schools/$(resource.data.schoolId)
+              ).data.status == 'LIVE';
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+
+      allow update: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+
+      allow delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+    }
+
+    // ============================================================
+    // ANNOUNCEMENTS
+    // ============================================================
+
+    match /announcements/{announcementId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+    }
+
+    // ============================================================
+    // EVENTS
+    // ============================================================
+
+    match /events/{eventId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+    }
+
+    // ============================================================
+    // FUTURE MULTI-SCHOOL COLLECTIONS
+    // ============================================================
+
+    match /students/{studentId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+    }
+
+    match /classes/{classId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+    }
+
+    match /results/{resultId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+    }
+
+    match /homework/{homeworkId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        )
+        || (
+          request.resource.data.schoolId is string
+          && isTeacher(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && isTeacher(resource.data.schoolId)
+        );
+    }
+
+    match /attendance/{attendanceId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        )
+        || (
+          request.resource.data.schoolId is string
+          && isTeacher(request.resource.data.schoolId)
+        );
+
+      allow update, delete: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && isTeacher(resource.data.schoolId)
+        );
+    }
+
+    match /gallery/{galleryId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create, update, delete: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+    }
+
+    match /documents/{documentId} {
+
+      allow read: if
+        isPlatformAdmin()
+        || (
+          resource.data.schoolId is string
+          && schoolMember(resource.data.schoolId)
+        )
+        || (
+          resource.data.schoolId is string
+          && get(
+               /databases/$(database)/documents/schools/$(resource.data.schoolId)
+             ).data.status == 'LIVE'
+        );
+
+      allow create, update, delete: if
+        isPlatformAdmin()
+        || (
+          request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+        );
+    }
+
+    // ============================================================
+    // DEFAULT DENY
+    // ============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
