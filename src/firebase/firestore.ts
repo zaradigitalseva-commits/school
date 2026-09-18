@@ -1,4 +1,4 @@
-
+```ts
 import {
   collection,
   doc,
@@ -68,19 +68,15 @@ export async function ensureUserRecord(
       userRef,
       {
         uid,
-
         email: cleanEmail,
-
         role:
           isPlatformAdminEmail(
             cleanEmail
           )
             ? 'platform_admin'
             : 'user',
-
         createdAt:
           serverTimestamp(),
-
         updatedAt:
           serverTimestamp(),
       }
@@ -231,10 +227,6 @@ export async function registerSchool(
 
   /* =======================================================
      WHATSAPP CONFIRMATION
-
-     IMPORTANT:
-     This is owner confirmation.
-     It is NOT OTP verification.
   ======================================================= */
 
   if (
@@ -391,27 +383,15 @@ export async function registerSchool(
   const batch =
     writeBatch(db);
 
-  /* -------------------------------------------------------
-     SCHOOL
-  ------------------------------------------------------- */
-
   batch.set(
     schoolRef,
     school
   );
 
-  /* -------------------------------------------------------
-     SCHOOL ADMIN MEMBERSHIP
-  ------------------------------------------------------- */
-
   batch.set(
     membershipRef,
     membership
   );
-
-  /* -------------------------------------------------------
-     SLUG RESERVATION
-  ------------------------------------------------------- */
 
   batch.set(
     slugRef,
@@ -437,3 +417,17 @@ export async function registerSchool(
 
   return school;
 }
+```
+
+अब **इसके बाद कोई Markdown, explanation या Git command `firestore.ts` में नहीं डालना है।**
+
+फिर GitHub में commit/push करें:
+
+```bash
+git add src/firebase/firestore.ts
+git commit -m "fix firestore syntax"
+git push
+```
+
+इसके बाद जो नया **Vercel build log** आए, वह भेज दीजिए। अगर अगला error `School`, `SchoolMembership` या `SchoolRegistrationInput` का आता है, तो उसी के अनुसार अगला fix करेंगे।
+
