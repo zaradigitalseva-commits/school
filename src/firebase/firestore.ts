@@ -1,4 +1,4 @@
-```ts
+
 import {
   collection,
   doc,
@@ -628,4 +628,4 @@ export async function registerSchool(
 
   return school;
 }
-```
+
