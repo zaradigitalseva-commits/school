@@ -549,7 +549,7 @@ export async function registerSchool(
 
   /* =======================================================
      SCHOOL DOCUMENT
-  ======================================================= */
+========================================================= */
 
   const school: School = {
     id: schoolId,
@@ -586,5 +586,97 @@ export async function registerSchool(
       input.description?.trim() || '',
 
     paymentStatus:
-      'PENDIN
+      'PENDING',
+
+    subscriptionStatus:
+      'PENDING',
+  };
+
+
+  /* =======================================================
+     SCHOOL ADMIN MEMBERSHIP
+========================================================= */
+
+  const membership:
+    SchoolMembership = {
+
+    id: membershipId,
+
+    schoolId,
+
+    uid: ownerUid,
+
+    email: cleanEmail,
+
+    role:
+      'school_admin',
+
+    status:
+      'PENDING',
+
+    assignments: [],
+
+    createdAt: now,
+
+    updatedAt: now,
+  };
+
+
+  /* =======================================================
+     FIRESTORE BATCH
+========================================================= */
+
+  const batch =
+    writeBatch(db);
+
+
+  /* =======================================================
+     SCHOOL
+========================================================= */
+
+  batch.set(
+    schoolRef,
+    school
+  );
+
+
+  /* =======================================================
+     SCHOOL ADMIN MEMBERSHIP
+========================================================= */
+
+  batch.set(
+    membershipRef,
+    membership
+  );
+
+
+  /* =======================================================
+     SLUG RESERVATION
+========================================================= */
+
+  batch.set(
+    slugRef,
+    {
+      slug: cleanSlug,
+
+      schoolId,
+
+      schoolName: cleanName,
+
+      ownerUid,
+
+      createdAt:
+        serverTimestamp(),
+    }
+  );
+
+
+  /* =======================================================
+     SAVE
+========================================================= */
+
+  await batch.commit();
+
+  return school;
+}
 
