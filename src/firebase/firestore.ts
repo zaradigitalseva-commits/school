@@ -1,4 +1,4 @@
-
+```ts
 import {
   collection,
   doc,
@@ -15,6 +15,7 @@ import { db } from './config';
 
 import type {
   School,
+  SchoolInfo,
   SchoolMembership,
   SchoolRegistrationInput,
 } from './types';
@@ -133,19 +134,21 @@ export async function fetchUserRole(
 export async function fetchPublicSchools(): Promise<
   School[]
 > {
-  const schoolsRef = collection(
-    db,
-    'schools'
-  );
+  const schoolsRef =
+    collection(
+      db,
+      'schools'
+    );
 
-  const schoolsQuery = query(
-    schoolsRef,
-    where(
-      'status',
-      '==',
-      'LIVE'
-    )
-  );
+  const schoolsQuery =
+    query(
+      schoolsRef,
+      where(
+        'status',
+        '==',
+        'LIVE'
+      )
+    );
 
   const snapshot =
     await getDocs(
@@ -153,13 +156,47 @@ export async function fetchPublicSchools(): Promise<
     );
 
   return snapshot.docs.map(
-    (schoolDoc) => {
-      return {
-        id: schoolDoc.id,
-        ...schoolDoc.data(),
-      } as School;
-    }
+    (schoolDoc) => ({
+      id: schoolDoc.id,
+      ...schoolDoc.data(),
+    } as School)
   );
+}
+
+/* =========================================================
+   FETCH SCHOOL INFO
+========================================================= */
+
+export async function fetchSchoolInfo(
+  schoolId: string
+): Promise<SchoolInfo | null> {
+  if (!schoolId) {
+    return null;
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  const snapshot =
+    await getDoc(
+      schoolRef
+    );
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  const data =
+    snapshot.data();
+
+  return {
+    ...data,
+    id: snapshot.id,
+  } as SchoolInfo;
 }
 
 /* =========================================================
@@ -171,6 +208,7 @@ export async function registerSchool(
   input: SchoolRegistrationInput,
   ownerEmail: string
 ): Promise<School> {
+
   /* =======================================================
      BASIC INPUT
   ======================================================= */
@@ -274,7 +312,7 @@ export async function registerSchool(
   /* =======================================================
      WHATSAPP CONFIRMATION
      This is owner confirmation, not OTP verification.
-  ======================================================= */
+========================================================= */
 
   if (
     input.whatsappVerified !== true
@@ -286,7 +324,7 @@ export async function registerSchool(
 
   /* =======================================================
      OPTIONAL PHONE VALIDATION
-  ======================================================= */
+========================================================= */
 
   if (
     cleanPhone &&
@@ -301,13 +339,14 @@ export async function registerSchool(
 
   /* =======================================================
      CHECK SCHOOL URL / SLUG
-  ======================================================= */
+========================================================= */
 
-  const slugRef = doc(
-    db,
-    'slugReservations',
-    cleanSlug
-  );
+  const slugRef =
+    doc(
+      db,
+      'slugReservations',
+      cleanSlug
+    );
 
   const slugSnapshot =
     await getDoc(
@@ -322,41 +361,43 @@ export async function registerSchool(
 
   /* =======================================================
      GENERATE SCHOOL ID
-  ======================================================= */
+========================================================= */
 
-  const schoolRef = doc(
-    collection(
-      db,
-      'schools'
-    )
-  );
+  const schoolRef =
+    doc(
+      collection(
+        db,
+        'schools'
+      )
+    );
 
   const schoolId =
     schoolRef.id;
 
   /* =======================================================
      GENERATE MEMBERSHIP ID
-  ======================================================= */
+========================================================= */
 
   const membershipId =
     ownerUid + '_' + schoolId;
 
-  const membershipRef = doc(
-    db,
-    'schoolMemberships',
-    membershipId
-  );
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      membershipId
+    );
 
   /* =======================================================
      TIMESTAMP
-  ======================================================= */
+========================================================= */
 
   const now =
     new Date().toISOString();
 
   /* =======================================================
      SCHOOL DOCUMENT
-  ======================================================= */
+========================================================= */
 
   const school: School = {
     id: schoolId,
@@ -401,10 +442,11 @@ export async function registerSchool(
 
   /* =======================================================
      SCHOOL ADMIN MEMBERSHIP
-  ======================================================= */
+========================================================= */
 
   const membership:
     SchoolMembership = {
+
     id: membershipId,
 
     schoolId,
@@ -428,14 +470,14 @@ export async function registerSchool(
 
   /* =======================================================
      FIRESTORE BATCH
-  ======================================================= */
+========================================================= */
 
   const batch =
     writeBatch(db);
 
   /* =======================================================
      SCHOOL
-  ======================================================= */
+========================================================= */
 
   batch.set(
     schoolRef,
@@ -444,7 +486,7 @@ export async function registerSchool(
 
   /* =======================================================
      SCHOOL ADMIN MEMBERSHIP
-  ======================================================= */
+========================================================= */
 
   batch.set(
     membershipRef,
@@ -453,7 +495,7 @@ export async function registerSchool(
 
   /* =======================================================
      SLUG RESERVATION
-  ======================================================= */
+========================================================= */
 
   batch.set(
     slugRef,
@@ -473,10 +515,10 @@ export async function registerSchool(
 
   /* =======================================================
      SAVE
-  ======================================================= */
+========================================================= */
 
   await batch.commit();
 
   return school;
 }
-
+```
