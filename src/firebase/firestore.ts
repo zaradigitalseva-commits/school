@@ -1,14 +1,23 @@
-```ts
+
 import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   serverTimestamp,
   writeBatch,
+  query,
+  where,
 } from 'firebase/firestore';
 
 import { db } from './config';
+
+import type {
+  School,
+  SchoolMembership,
+  SchoolRegistrationInput,
+} from './types';
 
 /* =========================================================
    PLATFORM ADMIN
@@ -114,6 +123,43 @@ export async function fetchUserRole(
   return typeof data.role === 'string'
     ? data.role
     : null;
+}
+
+/* =========================================================
+   FETCH PUBLIC SCHOOLS
+   Only LIVE schools are shown publicly.
+========================================================= */
+
+export async function fetchPublicSchools(): Promise<
+  School[]
+> {
+  const schoolsRef = collection(
+    db,
+    'schools'
+  );
+
+  const schoolsQuery = query(
+    schoolsRef,
+    where(
+      'status',
+      '==',
+      'LIVE'
+    )
+  );
+
+  const snapshot =
+    await getDocs(
+      schoolsQuery
+    );
+
+  return snapshot.docs.map(
+    (schoolDoc) => {
+      return {
+        id: schoolDoc.id,
+        ...schoolDoc.data(),
+      } as School;
+    }
+  );
 }
 
 /* =========================================================
@@ -227,6 +273,7 @@ export async function registerSchool(
 
   /* =======================================================
      WHATSAPP CONFIRMATION
+     This is owner confirmation, not OTP verification.
   ======================================================= */
 
   if (
@@ -263,7 +310,9 @@ export async function registerSchool(
   );
 
   const slugSnapshot =
-    await getDoc(slugRef);
+    await getDoc(
+      slugRef
+    );
 
   if (slugSnapshot.exists()) {
     throw new Error(
@@ -354,7 +403,8 @@ export async function registerSchool(
      SCHOOL ADMIN MEMBERSHIP
   ======================================================= */
 
-  const membership: SchoolMembership = {
+  const membership:
+    SchoolMembership = {
     id: membershipId,
 
     schoolId,
@@ -383,15 +433,27 @@ export async function registerSchool(
   const batch =
     writeBatch(db);
 
+  /* =======================================================
+     SCHOOL
+  ======================================================= */
+
   batch.set(
     schoolRef,
     school
   );
 
+  /* =======================================================
+     SCHOOL ADMIN MEMBERSHIP
+  ======================================================= */
+
   batch.set(
     membershipRef,
     membership
   );
+
+  /* =======================================================
+     SLUG RESERVATION
+  ======================================================= */
 
   batch.set(
     slugRef,
@@ -417,17 +479,4 @@ export async function registerSchool(
 
   return school;
 }
-```
-
-अब **इसके बाद कोई Markdown, explanation या Git command `firestore.ts` में नहीं डालना है।**
-
-फिर GitHub में commit/push करें:
-
-```bash
-git add src/firebase/firestore.ts
-git commit -m "fix firestore syntax"
-git push
-```
-
-इसके बाद जो नया **Vercel build log** आए, वह भेज दीजिए। अगर अगला error `School`, `SchoolMembership` या `SchoolRegistrationInput` का आता है, तो उसी के अनुसार अगला fix करेंगे।
 
