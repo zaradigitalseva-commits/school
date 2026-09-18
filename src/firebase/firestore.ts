@@ -1,4 +1,4 @@
-```ts
+
 import {
   collection,
   doc,
@@ -437,26 +437,3 @@ export async function registerSchool(
 
   return school;
 }
-```
-
-**अब यही पूरा code** `src/firebase/firestore.ts` में replace करें।
-
-फिर:
-
-```bash
-git add src/firebase/firestore.ts
-git commit -m "fix firestore functions and syntax"
-git push
-```
-
-### एक और जरूरी बात
-
-अगर अगला Vercel error ऐसा आता है:
-
-```text
-Cannot find name 'School'
-Cannot find name 'SchoolMembership'
-Cannot find name 'SchoolRegistrationInput'
-```
-
-तो घबराने की जरूरत नहीं है। इसका मतलब सिर्फ यह होगा कि इन तीन TypeScript types का **import missing** है। तब आप मुझे अगला Vercel error भेजें, या `src/types` वाली file दिखा दें; मैं exact import लगाकर दूँगा।
