@@ -4,14 +4,17 @@ import {
   doc,
   getDoc,
   getDocs,
+  addDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   writeBatch,
   query,
   where,
 } from 'firebase/firestore';
 
-import { db } from './config';
+import { db, auth } from './config';
 
 import type {
   School,
@@ -46,6 +49,17 @@ export function isPlatformAdminEmail(
 
 
 /* =========================================================
+   LEGACY ADMIN EMAIL CHECK
+========================================================= */
+
+export function isAdminEmail(
+  email?: string | null
+): boolean {
+  return isPlatformAdminEmail(email);
+}
+
+
+/* =========================================================
    ENSURE USER RECORD
 ========================================================= */
 
@@ -68,11 +82,12 @@ export async function ensureUserRecord(
     );
   }
 
-  const userRef = doc(
-    db,
-    'users',
-    uid
-  );
+  const userRef =
+    doc(
+      db,
+      'users',
+      uid
+    );
 
   const userSnapshot =
     await getDoc(userRef);
@@ -94,6 +109,23 @@ export async function ensureUserRecord(
           serverTimestamp(),
       }
     );
+  } else if (
+    isPlatformAdminEmail(cleanEmail)
+  ) {
+    await setDoc(
+      userRef,
+      {
+        uid,
+        email: cleanEmail,
+        role:
+          'platform_admin',
+        updatedAt:
+          serverTimestamp(),
+      },
+      {
+        merge: true,
+      }
+    );
   }
 }
 
@@ -109,11 +141,12 @@ export async function fetchUserRole(
     return null;
   }
 
-  const userRef = doc(
-    db,
-    'users',
-    uid
-  );
+  const userRef =
+    doc(
+      db,
+      'users',
+      uid
+    );
 
   const userSnapshot =
     await getDoc(userRef);
@@ -132,8 +165,33 @@ export async function fetchUserRole(
 
 
 /* =========================================================
-   FETCH PUBLIC SCHOOLS
-   Only LIVE schools are shown publicly.
+   FETCH ALL USERS
+========================================================= */
+
+export async function fetchAllUsers(): Promise<
+  any[]
+> {
+  const snapshot =
+    await getDocs(
+      collection(
+        db,
+        'users'
+      )
+    );
+
+  return snapshot.docs.map(
+    (userDoc) => ({
+      id:
+        userDoc.id,
+      ...userDoc.data(),
+    })
+  );
+}
+
+
+/* =========================================================
+   PUBLIC SCHOOLS
+   Only LIVE schools are public.
 ========================================================= */
 
 export async function fetchPublicSchools(): Promise<
@@ -162,7 +220,8 @@ export async function fetchPublicSchools(): Promise<
 
   return snapshot.docs.map(
     (schoolDoc) => ({
-      id: schoolDoc.id,
+      id:
+        schoolDoc.id,
       ...schoolDoc.data(),
     } as School)
   );
@@ -171,26 +230,24 @@ export async function fetchPublicSchools(): Promise<
 
 /* =========================================================
    FETCH ALL SCHOOLS
-   Platform admin के लिए सभी schools
+   Platform Admin
 ========================================================= */
 
 export async function fetchAllSchools(): Promise<
   School[]
 > {
-  const schoolsRef =
-    collection(
-      db,
-      'schools'
-    );
-
   const snapshot =
     await getDocs(
-      schoolsRef
+      collection(
+        db,
+        'schools'
+      )
     );
 
   return snapshot.docs.map(
     (schoolDoc) => ({
-      id: schoolDoc.id,
+      id:
+        schoolDoc.id,
       ...schoolDoc.data(),
     } as School)
   );
@@ -199,7 +256,6 @@ export async function fetchAllSchools(): Promise<
 
 /* =========================================================
    UPDATE SCHOOL STATUS
-   Platform admin के लिए
 ========================================================= */
 
 export async function updateSchoolStatus(
@@ -251,6 +307,41 @@ export async function updateSchoolStatus(
 
 
 /* =========================================================
+   FETCH SCHOOL BY ID
+========================================================= */
+
+export async function fetchSchoolById(
+  schoolId: string
+): Promise<School | null> {
+  if (!schoolId) {
+    return null;
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  const snapshot =
+    await getDoc(
+      schoolRef
+    );
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return {
+    id:
+      snapshot.id,
+    ...snapshot.data(),
+  } as School;
+}
+
+
+/* =========================================================
    FETCH SCHOOL INFO
 ========================================================= */
 
@@ -277,19 +368,62 @@ export async function fetchSchoolInfo(
     return null;
   }
 
-  const data =
-    snapshot.data();
-
   return {
-    ...data,
-    id: snapshot.id,
+    ...snapshot.data(),
+    id:
+      snapshot.id,
   } as SchoolInfo;
 }
 
 
 /* =========================================================
+   SAVE SCHOOL INFO
+========================================================= */
+
+export async function saveSchoolInfo(
+  info: any
+): Promise<void> {
+  if (!info) {
+    throw new Error(
+      'School information is required.'
+    );
+  }
+
+  const schoolId =
+    info.schoolId ||
+    info.id;
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  const schoolRef =
+    doc(
+      db,
+      'schools',
+      schoolId
+    );
+
+  await setDoc(
+    schoolRef,
+    {
+      ...info,
+      id:
+        schoolId,
+      updatedAt:
+        serverTimestamp(),
+    },
+    {
+      merge: true,
+    }
+  );
+}
+
+
+/* =========================================================
    FETCH SCHOOL BY SLUG
-   Used for public school URL pages.
 ========================================================= */
 
 export async function fetchSchoolBySlug(
@@ -331,28 +465,175 @@ export async function fetchSchoolBySlug(
     snapshot.docs[0];
 
   return {
-    id: schoolDoc.id,
+    id:
+      schoolDoc.id,
     ...schoolDoc.data(),
   } as School;
 }
 
 
 /* =========================================================
-   FETCH TEACHERS
+   SCHOOL MEMBERSHIP
+========================================================= */
+
+export async function fetchMyMembership(): Promise<
+  SchoolMembership | null
+> {
+  const uid =
+    auth.currentUser?.uid;
+
+  if (!uid) {
+    return null;
+  }
+
+  const membershipsRef =
+    collection(
+      db,
+      'schoolMemberships'
+    );
+
+  const membershipsQuery =
+    query(
+      membershipsRef,
+      where(
+        'uid',
+        '==',
+        uid
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      membershipsQuery
+    );
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const membershipDoc =
+    snapshot.docs[0];
+
+  return {
+    id:
+      membershipDoc.id,
+    ...membershipDoc.data(),
+  } as SchoolMembership;
+}
+
+
+/* =========================================================
+   FETCH SCHOOL MEMBERSHIPS
+========================================================= */
+
+export async function fetchSchoolMemberships(
+  schoolId: string
+): Promise<SchoolMembership[]> {
+  if (!schoolId) {
+    return [];
+  }
+
+  const membershipsRef =
+    collection(
+      db,
+      'schoolMemberships'
+    );
+
+  const membershipsQuery =
+    query(
+      membershipsRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      membershipsQuery
+    );
+
+  return snapshot.docs.map(
+    (membershipDoc) => ({
+      id:
+        membershipDoc.id,
+      ...membershipDoc.data(),
+    } as SchoolMembership)
+  );
+}
+
+
+/* =========================================================
+   UPDATE SCHOOL MEMBERSHIP
+========================================================= */
+
+export async function updateSchoolMembership(
+  membershipId: string,
+  updates: Partial<SchoolMembership>
+): Promise<void> {
+  if (!membershipId) {
+    throw new Error(
+      'Membership ID is required.'
+    );
+  }
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      membershipId
+    );
+
+  const snapshot =
+    await getDoc(
+      membershipRef
+    );
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'School membership not found.'
+    );
+  }
+
+  await updateDoc(
+    membershipRef,
+    {
+      ...updates,
+      updatedAt:
+        serverTimestamp(),
+    }
+  );
+}
+
+
+/* =========================================================
+   TEACHERS
 ========================================================= */
 
 export async function fetchTeachers(
   schoolId?: string
 ): Promise<Teacher[]> {
-  if (!schoolId) {
-    return [];
-  }
-
   const teachersRef =
     collection(
       db,
       'teachers'
     );
+
+  if (!schoolId) {
+    const snapshot =
+      await getDocs(
+        teachersRef
+      );
+
+    return snapshot.docs.map(
+      (teacherDoc) => ({
+        id:
+          teacherDoc.id,
+        ...teacherDoc.data(),
+      } as Teacher)
+    );
+  }
 
   const teachersQuery =
     query(
@@ -371,29 +652,97 @@ export async function fetchTeachers(
 
   return snapshot.docs.map(
     (teacherDoc) => ({
-      id: teacherDoc.id,
+      id:
+        teacherDoc.id,
       ...teacherDoc.data(),
     } as Teacher)
   );
 }
 
 
+export async function addTeacher(
+  data: any
+): Promise<string> {
+  const ref =
+    await addDoc(
+      collection(
+        db,
+        'teachers'
+      ),
+      data
+    );
+
+  return ref.id;
+}
+
+
+export async function updateTeacher(
+  id: string,
+  data: any
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Teacher ID is required.'
+    );
+  }
+
+  await updateDoc(
+    doc(
+      db,
+      'teachers',
+      id
+    ),
+    data
+  );
+}
+
+
+export async function deleteTeacher(
+  id: string
+): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Teacher ID is required.'
+    );
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'teachers',
+      id
+    )
+  );
+}
+
+
 /* =========================================================
-   FETCH ANNOUNCEMENTS / NOTICES
+   ANNOUNCEMENTS / NOTICES
 ========================================================= */
 
 export async function fetchAnnouncements(
   schoolId?: string
 ): Promise<Announcement[]> {
-  if (!schoolId) {
-    return [];
-  }
-
   const announcementsRef =
     collection(
       db,
       'announcements'
     );
+
+  if (!schoolId) {
+    const snapshot =
+      await getDocs(
+        announcementsRef
+      );
+
+    return snapshot.docs.map(
+      (announcementDoc) => ({
+        id:
+          announcementDoc.id,
+        ...announcementDoc.data(),
+      } as Announcement)
+    );
+  }
 
   const announcementsQuery =
     query(
@@ -412,29 +761,85 @@ export async function fetchAnnouncements(
 
   return snapshot.docs.map(
     (announcementDoc) => ({
-      id: announcementDoc.id,
+      id:
+        announcementDoc.id,
       ...announcementDoc.data(),
     } as Announcement)
   );
 }
 
 
+export async function addAnnouncement(
+  data: any
+): Promise<string> {
+  const ref =
+    await addDoc(
+      collection(
+        db,
+        'announcements'
+      ),
+      data
+    );
+
+  return ref.id;
+}
+
+
+export async function updateAnnouncement(
+  id: string,
+  data: any
+): Promise<void> {
+  await updateDoc(
+    doc(
+      db,
+      'announcements',
+      id
+    ),
+    data
+  );
+}
+
+
+export async function deleteAnnouncement(
+  id: string
+): Promise<void> {
+  await deleteDoc(
+    doc(
+      db,
+      'announcements',
+      id
+    )
+  );
+}
+
+
 /* =========================================================
-   FETCH EVENTS
+   EVENTS
 ========================================================= */
 
 export async function fetchEvents(
   schoolId?: string
 ): Promise<SchoolEvent[]> {
-  if (!schoolId) {
-    return [];
-  }
-
   const eventsRef =
     collection(
       db,
       'events'
     );
+
+  if (!schoolId) {
+    const snapshot =
+      await getDocs(
+        eventsRef
+      );
+
+    return snapshot.docs.map(
+      (eventDoc) => ({
+        id:
+          eventDoc.id,
+        ...eventDoc.data(),
+      } as SchoolEvent)
+    );
+  }
 
   const eventsQuery =
     query(
@@ -453,9 +858,174 @@ export async function fetchEvents(
 
   return snapshot.docs.map(
     (eventDoc) => ({
-      id: eventDoc.id,
+      id:
+        eventDoc.id,
       ...eventDoc.data(),
     } as SchoolEvent)
+  );
+}
+
+
+export async function addEvent(
+  data: any
+): Promise<string> {
+  const ref =
+    await addDoc(
+      collection(
+        db,
+        'events'
+      ),
+      data
+    );
+
+  return ref.id;
+}
+
+
+export async function updateEvent(
+  id: string,
+  data: any
+): Promise<void> {
+  await updateDoc(
+    doc(
+      db,
+      'events',
+      id
+    ),
+    data
+  );
+}
+
+
+export async function deleteEvent(
+  id: string
+): Promise<void> {
+  await deleteDoc(
+    doc(
+      db,
+      'events',
+      id
+    )
+  );
+}
+
+
+/* =========================================================
+   AUTHORIZED ADMINS
+========================================================= */
+
+export async function fetchAuthorizedAdmins(): Promise<
+  any[]
+> {
+  const snapshot =
+    await getDocs(
+      collection(
+        db,
+        'authorizedAdmins'
+      )
+    );
+
+  return snapshot.docs.map(
+    (adminDoc) => ({
+      uid:
+        adminDoc.id,
+      ...adminDoc.data(),
+    })
+  );
+}
+
+
+export async function addAuthorizedAdmin(
+  uid: string,
+  email: string
+): Promise<void> {
+  await setDoc(
+    doc(
+      db,
+      'authorizedAdmins',
+      uid
+    ),
+    {
+      uid,
+      email,
+      role:
+        'admin',
+      addedAt:
+        serverTimestamp(),
+    }
+  );
+}
+
+
+export async function removeAuthorizedAdmin(
+  uid: string
+): Promise<void> {
+  await deleteDoc(
+    doc(
+      db,
+      'authorizedAdmins',
+      uid
+    )
+  );
+}
+
+
+/* =========================================================
+   AUTHORIZED FACULTY
+========================================================= */
+
+export async function fetchAuthorizedFaculty(): Promise<
+  any[]
+> {
+  const snapshot =
+    await getDocs(
+      collection(
+        db,
+        'authorizedFaculty'
+      )
+    );
+
+  return snapshot.docs.map(
+    (facultyDoc) => ({
+      uid:
+        facultyDoc.id,
+      ...facultyDoc.data(),
+    })
+  );
+}
+
+
+export async function addAuthorizedFaculty(
+  uid: string,
+  email: string
+): Promise<void> {
+  await setDoc(
+    doc(
+      db,
+      'authorizedFaculty',
+      uid
+    ),
+    {
+      uid,
+      email,
+      role:
+        'faculty',
+      addedAt:
+        serverTimestamp(),
+    }
+  );
+}
+
+
+export async function removeAuthorizedFaculty(
+  uid: string
+): Promise<void> {
+  await deleteDoc(
+    doc(
+      db,
+      'authorizedFaculty',
+      uid
+    )
   );
 }
 
@@ -480,7 +1050,8 @@ export function formatDate(
         value as {
           toDate: () => Date;
         }
-      ).toDate === 'function'
+      ).toDate ===
+        'function'
     ) {
       return (
         value as {
@@ -653,7 +1224,9 @@ export async function registerSchool(
     schoolRef.id;
 
   const membershipId =
-    ownerUid + '_' + schoolId;
+    ownerUid +
+    '_' +
+    schoolId;
 
   const membershipRef =
     doc(
@@ -666,7 +1239,8 @@ export async function registerSchool(
     new Date().toISOString();
 
   const school: School = {
-    id: schoolId,
+    id:
+      schoolId,
 
     name:
       cleanName,
