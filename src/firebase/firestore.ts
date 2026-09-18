@@ -19,6 +19,7 @@ import type {
   SchoolMembership,
   SchoolRegistrationInput,
   Teacher,
+  Announcement,
 } from './types';
 
 
@@ -242,6 +243,99 @@ export async function fetchTeachers(
       ...teacherDoc.data(),
     } as Teacher)
   );
+}
+
+
+/* =========================================================
+   FETCH ANNOUNCEMENTS / NOTICES
+========================================================= */
+
+export async function fetchAnnouncements(
+  schoolId?: string
+): Promise<Announcement[]> {
+  if (!schoolId) {
+    return [];
+  }
+
+  const announcementsRef =
+    collection(
+      db,
+      'announcements'
+    );
+
+  const announcementsQuery =
+    query(
+      announcementsRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      announcementsQuery
+    );
+
+  return snapshot.docs.map(
+    (announcementDoc) => ({
+      id: announcementDoc.id,
+      ...announcementDoc.data(),
+    } as Announcement)
+  );
+}
+
+
+/* =========================================================
+   FORMAT DATE
+========================================================= */
+
+export function formatDate(
+  value: unknown
+): string {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'toDate' in value &&
+      typeof (
+        value as {
+          toDate: () => Date;
+        }
+      ).toDate === 'function'
+    ) {
+      return (
+        value as {
+          toDate: () => Date;
+        }
+      )
+        .toDate()
+        .toLocaleDateString('en-IN');
+    }
+
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number'
+    ) {
+      const date =
+        new Date(value);
+
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString(
+          'en-IN'
+        );
+      }
+    }
+
+    return '';
+  } catch {
+    return '';
+  }
 }
 
 
@@ -492,97 +586,5 @@ export async function registerSchool(
       input.description?.trim() || '',
 
     paymentStatus:
-      'PENDING',
-
-    subscriptionStatus:
-      'PENDING',
-  };
-
-
-  /* =======================================================
-     SCHOOL ADMIN MEMBERSHIP
-  ======================================================= */
-
-  const membership:
-    SchoolMembership = {
-
-    id: membershipId,
-
-    schoolId,
-
-    uid: ownerUid,
-
-    email: cleanEmail,
-
-    role:
-      'school_admin',
-
-    status:
-      'PENDING',
-
-    assignments: [],
-
-    createdAt: now,
-
-    updatedAt: now,
-  };
-
-
-  /* =======================================================
-     FIRESTORE BATCH
-  ======================================================= */
-
-  const batch =
-    writeBatch(db);
-
-
-  /* =======================================================
-     SCHOOL
-  ======================================================= */
-
-  batch.set(
-    schoolRef,
-    school
-  );
-
-
-  /* =======================================================
-     SCHOOL ADMIN MEMBERSHIP
-  ======================================================= */
-
-  batch.set(
-    membershipRef,
-    membership
-  );
-
-
-  /* =======================================================
-     SLUG RESERVATION
-  ======================================================= */
-
-  batch.set(
-    slugRef,
-    {
-      slug: cleanSlug,
-
-      schoolId,
-
-      schoolName: cleanName,
-
-      ownerUid,
-
-      createdAt:
-        serverTimestamp(),
-    }
-  );
-
-
-  /* =======================================================
-     SAVE
-  ======================================================= */
-
-  await batch.commit();
-
-  return school;
-}
+      'PENDIN
 
