@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   approveRecharge,
@@ -27,15 +28,12 @@ import type { School } from '@/firebase/types';
  *
  * WhatsApp number international format में रखें।
  * India = 91
- *
- * Example:
- * 919112170192
  */
 const ADMIN_WHATSAPP_NUMBER = '919112170192';
 
 /*
  * =========================================================
- * WHATSAPP / SUBSCRIPTION HELPERS
+ * SUBSCRIPTION STATE
  * =========================================================
  */
 
@@ -55,21 +53,15 @@ function getSchoolSubscriptionState(
   }
 
   const now = Date.now();
-
   const remainingMs = expiry - now;
 
-  /*
-   * Expiry हो चुका है
-   */
   if (remainingMs <= 0) {
     return 'EXPIRED';
   }
 
-  /*
-   * अगले 3 दिनों के अंदर expiry है
-   */
   const remainingDays = Math.ceil(
-    remainingMs / (24 * 60 * 60 * 1000)
+    remainingMs /
+      (24 * 60 * 60 * 1000)
   );
 
   if (remainingDays <= 3) {
@@ -79,11 +71,19 @@ function getSchoolSubscriptionState(
   return 'ACTIVE';
 }
 
+/*
+ * =========================================================
+ * WHATSAPP REMINDER
+ * =========================================================
+ */
+
 function openSchoolWhatsApp(
   school: School
 ) {
   const state =
-    getSchoolSubscriptionState(school);
+    getSchoolSubscriptionState(
+      school
+    );
 
   const expiryText =
     school.subscriptionExpiryDate
@@ -97,9 +97,6 @@ function openSchoolWhatsApp(
 
   let message = '';
 
-  /*
-   * EXPIRED SCHOOL
-   */
   if (state === 'EXPIRED') {
     message =
       `नमस्कार,\n\n` +
@@ -108,12 +105,9 @@ function openSchoolWhatsApp(
       `📅 Expiry: ${expiryText}\n\n` +
       `कृपया website service जारी रखने के लिए recharge करें।\n\n` +
       `धन्यवाद।`;
-  }
-
-  /*
-   * EXPIRING SOON
-   */
-  else if (state === 'EXPIRING_SOON') {
+  } else if (
+    state === 'EXPIRING_SOON'
+  ) {
     message =
       `नमस्कार,\n\n` +
       `🏫 School: ${school.name}\n\n` +
@@ -121,12 +115,9 @@ function openSchoolWhatsApp(
       `📅 Expiry: ${expiryText}\n\n` +
       `कृपया समय पर recharge करें ताकि website service बंद न हो।\n\n` +
       `धन्यवाद।`;
-  }
-
-  /*
-   * ACTIVE
-   */
-  else if (state === 'ACTIVE') {
+  } else if (
+    state === 'ACTIVE'
+  ) {
     message =
       `नमस्कार,\n\n` +
       `🏫 School: ${school.name}\n\n` +
@@ -134,12 +125,7 @@ function openSchoolWhatsApp(
       `यह आपके school website subscription का reminder है।\n` +
       `कृपया expiry से पहले recharge कर लें।\n\n` +
       `धन्यवाद।`;
-  }
-
-  /*
-   * PENDING / NO EXPIRY
-   */
-  else {
+  } else {
     message =
       `नमस्कार,\n\n` +
       `🏫 School: ${school.name}\n\n` +
@@ -162,13 +148,47 @@ function openSchoolWhatsApp(
 
 /*
  * =========================================================
+ * RECHARGE WHATSAPP
+ * =========================================================
+ */
+
+function openSchoolRechargeWhatsApp(
+  school: School
+) {
+  const message =
+    `नमस्कार,\n\n` +
+    `🏫 School: ${school.name}\n\n` +
+    `💳 School website subscription recharge करना है।\n\n` +
+    `कृपया recharge/payment details भेजें।\n\n` +
+    `धन्यवाद।`;
+
+  const whatsappUrl =
+    `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(
+      message
+    )}`;
+
+  window.open(
+    whatsappUrl,
+    '_blank',
+    'noopener,noreferrer'
+  );
+}
+
+/*
+ * =========================================================
  * PLATFORM ADMIN PAGE
  * =========================================================
  */
 
 export default function PlatformAdminPage() {
-  const [schools, setSchools] = useState<School[]>([]);
-  const [requests, setRequests] = useState<RechargeRequest[]>([]);
+  const navigate =
+    useNavigate();
+
+  const [schools, setSchools] =
+    useState<School[]>([]);
+
+  const [requests, setRequests] =
+    useState<RechargeRequest[]>([]);
 
   const [settings, setSettings] =
     useState<PaymentSettings>({
@@ -178,11 +198,10 @@ export default function PlatformAdminPage() {
       instructions: '',
     });
 
-  /*
-   * Free approval days for each school
-   */
   const [freeDays, setFreeDays] =
-    useState<Record<string, string>>({});
+    useState<Record<string, string>>(
+      {}
+    );
 
   const [loading, setLoading] =
     useState(true);
@@ -220,22 +239,30 @@ export default function PlatformAdminPage() {
         fetchPaymentSettings(),
       ]);
 
-      setSchools(schoolData);
+      setSchools(
+        schoolData
+      );
 
-      setRequests(rechargeData);
+      setRequests(
+        rechargeData
+      );
 
       setSettings({
         upiId:
-          paymentSettings?.upiId || '',
+          paymentSettings?.upiId ||
+          '',
 
         qrImageUrl:
-          paymentSettings?.qrImageUrl || '',
+          paymentSettings?.qrImageUrl ||
+          '',
 
         supportPhone:
-          paymentSettings?.supportPhone || '',
+          paymentSettings?.supportPhone ||
+          '',
 
         instructions:
-          paymentSettings?.instructions || '',
+          paymentSettings?.instructions ||
+          '',
       });
     } catch (err) {
       console.error(err);
@@ -292,7 +319,7 @@ export default function PlatformAdminPage() {
 
   /*
    * =======================================================
-   * PAID RECHARGE APPROVAL
+   * APPROVE PAID RECHARGE
    * =======================================================
    */
 
@@ -386,7 +413,7 @@ export default function PlatformAdminPage() {
 
   /*
    * =======================================================
-   * FREE / WAIVED APPROVAL
+   * FREE APPROVAL
    * =======================================================
    */
 
@@ -394,13 +421,13 @@ export default function PlatformAdminPage() {
     school: School
   ) {
     const rawDays =
-      freeDays[school.id]?.trim() || '';
+      freeDays[school.id]?.trim() ||
+      '';
 
-    /*
-     * Only positive whole numbers
-     */
     if (
-      !/^[1-9]\d*$/.test(rawDays)
+      !/^[1-9]\d*$/.test(
+        rawDays
+      )
     ) {
       setError(
         `Please enter a valid number of days for ${school.name}. Minimum is 1 day.`
@@ -415,7 +442,9 @@ export default function PlatformAdminPage() {
       Number(rawDays);
 
     if (
-      !Number.isSafeInteger(days) ||
+      !Number.isSafeInteger(
+        days
+      ) ||
       days < 1
     ) {
       setError(
@@ -447,9 +476,6 @@ export default function PlatformAdminPage() {
         school.id
       );
 
-      /*
-       * WAIVED / FREE approval
-       */
       await updateSchoolStatus(
         school.id,
         'LIVE',
@@ -463,9 +489,6 @@ export default function PlatformAdminPage() {
         `🆓 ${school.name} has been activated free for ${days} days.`
       );
 
-      /*
-       * Clear input after approval
-       */
       setFreeDays(
         (current) => {
           const next = {
@@ -502,7 +525,9 @@ export default function PlatformAdminPage() {
 
   async function handleSchoolStatus(
     schoolId: string,
-    status: 'LIVE' | 'SUSPENDED'
+    status:
+      | 'LIVE'
+      | 'SUSPENDED'
   ) {
     const action =
       status === 'LIVE'
@@ -561,7 +586,8 @@ export default function PlatformAdminPage() {
   ) {
     return schools.find(
       (school) =>
-        school.id === schoolId
+        school.id ===
+        schoolId
     );
   }
 
@@ -596,7 +622,8 @@ export default function PlatformAdminPage() {
     school: School
   ) {
     if (
-      school.status === 'LIVE' &&
+      school.status ===
+        'LIVE' &&
       school.subscriptionExpiryDate
     ) {
       const expiry =
@@ -605,7 +632,9 @@ export default function PlatformAdminPage() {
         ).getTime();
 
       if (
-        Number.isFinite(expiry) &&
+        Number.isFinite(
+          expiry
+        ) &&
         expiry > Date.now()
       ) {
         return 'ACTIVE';
@@ -651,7 +680,8 @@ export default function PlatformAdminPage() {
   const liveSchools =
     schools.filter(
       (school) =>
-        school.status === 'LIVE'
+        school.status ===
+        'LIVE'
     );
 
   const pendingSchools =
@@ -678,9 +708,7 @@ export default function PlatformAdminPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-7xl">
 
-        {/* =================================================
-            HEADER
-        ================================================== */}
+        {/* HEADER */}
 
         <div className="mb-8 text-center text-white">
           <div className="text-6xl">
@@ -696,9 +724,7 @@ export default function PlatformAdminPage() {
           </p>
         </div>
 
-        {/* =================================================
-            MESSAGES
-        ================================================== */}
+        {/* MESSAGES */}
 
         {error && (
           <div className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-700 shadow-lg">
@@ -712,9 +738,7 @@ export default function PlatformAdminPage() {
           </div>
         )}
 
-        {/* =================================================
-            STATISTICS
-        ================================================== */}
+        {/* STATISTICS */}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -776,9 +800,7 @@ export default function PlatformAdminPage() {
 
         </div>
 
-        {/* =================================================
-            PAYMENT SETTINGS
-        ================================================== */}
+        {/* PAYMENT SETTINGS */}
 
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
@@ -796,8 +818,6 @@ export default function PlatformAdminPage() {
             }
             className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2"
           >
-
-            {/* UPI ID */}
 
             <div>
               <label className="mb-2 block font-bold text-gray-800">
@@ -822,8 +842,6 @@ export default function PlatformAdminPage() {
               />
             </div>
 
-            {/* QR */}
-
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 QR Image URL
@@ -847,8 +865,6 @@ export default function PlatformAdminPage() {
               />
             </div>
 
-            {/* SUPPORT PHONE */}
-
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 Support Phone
@@ -871,8 +887,6 @@ export default function PlatformAdminPage() {
                 className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
               />
             </div>
-
-            {/* INSTRUCTIONS */}
 
             <div>
               <label className="mb-2 block font-bold text-gray-800">
@@ -898,8 +912,6 @@ export default function PlatformAdminPage() {
               />
             </div>
 
-            {/* SAVE */}
-
             <div className="md:col-span-2">
               <button
                 type="submit"
@@ -915,9 +927,7 @@ export default function PlatformAdminPage() {
           </form>
         </section>
 
-        {/* =================================================
-            PENDING PAYMENT REQUESTS
-        ================================================== */}
+        {/* PENDING PAYMENT REQUESTS */}
 
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
@@ -934,7 +944,6 @@ export default function PlatformAdminPage() {
             </div>
 
             <div className="rounded-2xl bg-blue-50 px-5 py-3 text-center">
-
               <p className="text-xs font-bold text-blue-600">
                 PENDING
               </p>
@@ -942,7 +951,6 @@ export default function PlatformAdminPage() {
               <p className="text-2xl font-black text-blue-700">
                 {requests.length}
               </p>
-
             </div>
 
           </div>
@@ -973,8 +981,6 @@ export default function PlatformAdminPage() {
                       className="rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-lg"
                     >
 
-                      {/* SCHOOL INFORMATION */}
-
                       <div className="mb-5 rounded-2xl bg-white p-4 shadow">
 
                         <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
@@ -999,10 +1005,7 @@ export default function PlatformAdminPage() {
 
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-                        {/* AMOUNT */}
-
                         <div className="rounded-2xl bg-green-50 p-4">
-
                           <p className="text-sm font-bold text-gray-500">
                             Recharge Amount
                           </p>
@@ -1013,13 +1016,9 @@ export default function PlatformAdminPage() {
                               request.amount
                             }
                           </p>
-
                         </div>
 
-                        {/* DAYS */}
-
                         <div className="rounded-2xl bg-purple-50 p-4">
-
                           <p className="text-sm font-bold text-gray-500">
                             Subscription
                           </p>
@@ -1030,13 +1029,9 @@ export default function PlatformAdminPage() {
                             }{' '}
                             days
                           </p>
-
                         </div>
 
-                        {/* UTR */}
-
                         <div className="rounded-2xl bg-blue-50 p-4">
-
                           <p className="text-sm font-bold text-gray-500">
                             UTR
                           </p>
@@ -1047,13 +1042,9 @@ export default function PlatformAdminPage() {
                               '—'
                             }
                           </p>
-
                         </div>
 
-                        {/* DATE */}
-
                         <div className="rounded-2xl bg-yellow-50 p-4">
-
                           <p className="text-sm font-bold text-gray-500">
                             Request Date
                           </p>
@@ -1067,12 +1058,9 @@ export default function PlatformAdminPage() {
                               )
                             }
                           </p>
-
                         </div>
 
                       </div>
-
-                      {/* NOTE */}
 
                       {(
                         request as RechargeRequest & {
@@ -1080,7 +1068,6 @@ export default function PlatformAdminPage() {
                         }
                       ).note && (
                         <div className="mt-4 rounded-2xl bg-gray-50 p-4">
-
                           <p className="text-sm font-bold text-gray-500">
                             Note
                           </p>
@@ -1094,11 +1081,8 @@ export default function PlatformAdminPage() {
                               ).note
                             }
                           </p>
-
                         </div>
                       )}
-
-                      {/* PAYMENT PROOF */}
 
                       {(
                         request as RechargeRequest & {
@@ -1106,7 +1090,6 @@ export default function PlatformAdminPage() {
                         }
                       ).proofUrl && (
                         <div className="mt-4">
-
                           <a
                             href={
                               (
@@ -1121,11 +1104,8 @@ export default function PlatformAdminPage() {
                           >
                             🔗 Open Payment Proof
                           </a>
-
                         </div>
                       )}
-
-                      {/* ACTION BUTTONS */}
 
                       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
 
@@ -1181,7 +1161,7 @@ export default function PlatformAdminPage() {
             </h2>
 
             <p className="mt-1 text-gray-600">
-              यहाँ से Admin paid या free दोनों तरीके से school activate कर सकता है।
+              यहाँ से हर school का पूरा data, recharge, WhatsApp और status manage करें।
             </p>
           </div>
 
@@ -1218,9 +1198,7 @@ export default function PlatformAdminPage() {
 
                     <div className="flex flex-col gap-5">
 
-                      {/* =================================
-                          SCHOOL DETAILS
-                      ================================== */}
+                      {/* SCHOOL DETAILS */}
 
                       <div>
 
@@ -1259,10 +1237,7 @@ export default function PlatformAdminPage() {
 
                         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
-                          {/* SUBSCRIPTION */}
-
                           <div className="rounded-2xl bg-white p-3 shadow-sm">
-
                             <p className="text-xs font-bold text-gray-500">
                               Subscription
                             </p>
@@ -1282,13 +1257,9 @@ export default function PlatformAdminPage() {
                                 subscriptionLabel
                               }
                             </p>
-
                           </div>
 
-                          {/* APPROVAL TYPE */}
-
                           <div className="rounded-2xl bg-white p-3 shadow-sm">
-
                             <p className="text-xs font-bold text-gray-500">
                               Approval Type
                             </p>
@@ -1299,13 +1270,9 @@ export default function PlatformAdminPage() {
                                 '—'
                               }
                             </p>
-
                           </div>
 
-                          {/* DAYS */}
-
                           <div className="rounded-2xl bg-white p-3 shadow-sm">
-
                             <p className="text-xs font-bold text-gray-500">
                               Days
                             </p>
@@ -1317,13 +1284,9 @@ export default function PlatformAdminPage() {
                                   : '—'
                               }
                             </p>
-
                           </div>
 
-                          {/* AMOUNT */}
-
                           <div className="rounded-2xl bg-white p-3 shadow-sm">
-
                             <p className="text-xs font-bold text-gray-500">
                               Amount
                             </p>
@@ -1336,19 +1299,15 @@ export default function PlatformAdminPage() {
                                   : '—'
                               }
                             </p>
-
                           </div>
 
                         </div>
 
-                        {/* =================================
-                            DATES
-                        ================================== */}
+                        {/* DATES */}
 
                         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
 
                           <div className="rounded-2xl bg-blue-50 p-3">
-
                             <p className="text-xs font-bold text-blue-600">
                               Subscription Start
                             </p>
@@ -1360,7 +1319,6 @@ export default function PlatformAdminPage() {
                                 )
                               }
                             </p>
-
                           </div>
 
                           <div
@@ -1374,7 +1332,6 @@ export default function PlatformAdminPage() {
                                   : 'bg-orange-50'
                             }`}
                           >
-
                             <p
                               className={`text-xs font-bold ${
                                 whatsappState ===
@@ -1406,22 +1363,17 @@ export default function PlatformAdminPage() {
                                 )
                               }
                             </p>
-
                           </div>
 
                         </div>
 
                       </div>
 
-                      {/* =================================
-                          ACTION AREA
-                      ================================== */}
+                      {/* ACTION AREA */}
 
                       <div className="border-t-2 border-gray-100 pt-5">
 
-                        {/* =================================
-                            FREE APPROVAL
-                        ================================== */}
+                        {/* FREE APPROVAL */}
 
                         {school.status !==
                           'LIVE' && (
@@ -1463,9 +1415,6 @@ export default function PlatformAdminPage() {
                                         .target
                                         .value;
 
-                                    /*
-                                     * Only digits or empty
-                                     */
                                     if (
                                       value ===
                                         '' ||
@@ -1521,15 +1470,41 @@ export default function PlatformAdminPage() {
                           </div>
                         )}
 
-                        {/* =================================
-                            WHATSAPP + SUSPEND / RESTORE
-                        ================================== */}
+                        {/* =================================================
+                            SCHOOL ACTION BUTTONS
+                        ================================================== */}
 
-                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
-                          {/* =================================
-                              WHATSAPP BUTTON
-                          ================================== */}
+                          {/* FULL DATA */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                `/admin/school/${school.id}`
+                              )
+                            }
+                            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(49,46,129)] active:translate-y-1 active:shadow-none"
+                          >
+                            👁️ पूरा Data
+                          </button>
+
+                          {/* RECHARGE */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openSchoolRechargeWhatsApp(
+                                school
+                              )
+                            }
+                            className="rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(126,34,206)] active:translate-y-1 active:shadow-none"
+                          >
+                            💳 Recharge
+                          </button>
+
+                          {/* WHATSAPP */}
 
                           <button
                             type="button"
@@ -1557,9 +1532,7 @@ export default function PlatformAdminPage() {
                                 : '📲 WhatsApp Reminder'}
                           </button>
 
-                          {/* =================================
-                              SUSPEND / RESTORE
-                          ================================== */}
+                          {/* SUSPEND / RESTORE */}
 
                           {school.status ===
                           'SUSPENDED' ? (
@@ -1595,9 +1568,7 @@ export default function PlatformAdminPage() {
 
                         </div>
 
-                        {/* =================================
-                            WHATSAPP STATUS INFO
-                        ================================== */}
+                        {/* STATUS INFO */}
 
                         <div className="mt-3">
 
@@ -1650,9 +1621,7 @@ export default function PlatformAdminPage() {
           </div>
         </section>
 
-        {/* =================================================
-            SUSPENDED SUMMARY
-        ================================================== */}
+        {/* SUSPENDED SUMMARY */}
 
         {suspendedSchools.length >
           0 && (
