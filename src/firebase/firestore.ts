@@ -18,7 +18,9 @@ import type {
   SchoolInfo,
   SchoolMembership,
   SchoolRegistrationInput,
+  Teacher,
 } from './types';
+
 
 /* =========================================================
    PLATFORM ADMIN
@@ -39,6 +41,7 @@ export function isPlatformAdminEmail(
     PLATFORM_ADMIN_EMAIL.toLowerCase()
   );
 }
+
 
 /* =========================================================
    ENSURE USER RECORD
@@ -92,6 +95,7 @@ export async function ensureUserRecord(
   }
 }
 
+
 /* =========================================================
    FETCH USER ROLE
 ========================================================= */
@@ -123,6 +127,7 @@ export async function fetchUserRole(
     ? data.role
     : null;
 }
+
 
 /* =========================================================
    FETCH PUBLIC SCHOOLS
@@ -161,6 +166,7 @@ export async function fetchPublicSchools(): Promise<
   );
 }
 
+
 /* =========================================================
    FETCH SCHOOL INFO
 ========================================================= */
@@ -197,6 +203,48 @@ export async function fetchSchoolInfo(
   } as SchoolInfo;
 }
 
+
+/* =========================================================
+   FETCH TEACHERS
+========================================================= */
+
+export async function fetchTeachers(
+  schoolId?: string
+): Promise<Teacher[]> {
+  if (!schoolId) {
+    return [];
+  }
+
+  const teachersRef =
+    collection(
+      db,
+      'teachers'
+    );
+
+  const teachersQuery =
+    query(
+      teachersRef,
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      teachersQuery
+    );
+
+  return snapshot.docs.map(
+    (teacherDoc) => ({
+      id: teacherDoc.id,
+      ...teacherDoc.data(),
+    } as Teacher)
+  );
+}
+
+
 /* =========================================================
    REGISTER SCHOOL
 ========================================================= */
@@ -223,6 +271,7 @@ export async function registerSchool(
     );
   }
 
+
   /* =======================================================
      CLEAN DATA
   ======================================================= */
@@ -247,6 +296,7 @@ export async function registerSchool(
       ?.trim()
       .toLowerCase() || '';
 
+
   /* =======================================================
      BASIC VALIDATION
   ======================================================= */
@@ -263,6 +313,7 @@ export async function registerSchool(
     );
   }
 
+
   /* =======================================================
      SLUG VALIDATION
   ======================================================= */
@@ -277,6 +328,7 @@ export async function registerSchool(
     );
   }
 
+
   /* =======================================================
      EMAIL VALIDATION
   ======================================================= */
@@ -287,9 +339,10 @@ export async function registerSchool(
     );
   }
 
+
   /* =======================================================
      WHATSAPP NUMBER
-========================================================= */
+  ======================================================= */
 
   if (!cleanWhatsappNumber) {
     throw new Error(
@@ -307,6 +360,7 @@ export async function registerSchool(
     );
   }
 
+
   /* =======================================================
      WHATSAPP CONFIRMATION
      This is owner confirmation, not OTP verification.
@@ -319,6 +373,7 @@ export async function registerSchool(
       'Please confirm that the WhatsApp number is correct.'
     );
   }
+
 
   /* =======================================================
      OPTIONAL PHONE VALIDATION
@@ -334,6 +389,7 @@ export async function registerSchool(
       'Phone number must be a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9.'
     );
   }
+
 
   /* =======================================================
      CHECK SCHOOL URL / SLUG
@@ -357,6 +413,7 @@ export async function registerSchool(
     );
   }
 
+
   /* =======================================================
      GENERATE SCHOOL ID
   ======================================================= */
@@ -372,6 +429,7 @@ export async function registerSchool(
   const schoolId =
     schoolRef.id;
 
+
   /* =======================================================
      GENERATE MEMBERSHIP ID
   ======================================================= */
@@ -386,12 +444,14 @@ export async function registerSchool(
       membershipId
     );
 
+
   /* =======================================================
      TIMESTAMP
   ======================================================= */
 
   const now =
     new Date().toISOString();
+
 
   /* =======================================================
      SCHOOL DOCUMENT
@@ -438,12 +498,14 @@ export async function registerSchool(
       'PENDING',
   };
 
+
   /* =======================================================
      SCHOOL ADMIN MEMBERSHIP
   ======================================================= */
 
   const membership:
     SchoolMembership = {
+
     id: membershipId,
 
     schoolId,
@@ -465,12 +527,14 @@ export async function registerSchool(
     updatedAt: now,
   };
 
+
   /* =======================================================
      FIRESTORE BATCH
   ======================================================= */
 
   const batch =
     writeBatch(db);
+
 
   /* =======================================================
      SCHOOL
@@ -481,6 +545,7 @@ export async function registerSchool(
     school
   );
 
+
   /* =======================================================
      SCHOOL ADMIN MEMBERSHIP
   ======================================================= */
@@ -489,6 +554,7 @@ export async function registerSchool(
     membershipRef,
     membership
   );
+
 
   /* =======================================================
      SLUG RESERVATION
@@ -509,6 +575,7 @@ export async function registerSchool(
         serverTimestamp(),
     }
   );
+
 
   /* =======================================================
      SAVE
