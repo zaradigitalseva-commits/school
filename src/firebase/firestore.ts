@@ -1742,6 +1742,98 @@ export async function fetchSchoolCollection(
 
 
 /* =========================================================
+   PLATFORM ADVERTISEMENTS
+========================================================= */
+
+export interface PlatformAd {
+  id: string;
+  type: 'scrolling' | 'slider';
+  text?: string;
+  imageUrl?: string;
+  linkUrl?: string;
+  active: boolean;
+  order?: number;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export async function fetchActivePlatformAds(): Promise<PlatformAd[]> {
+  const adsQuery = query(
+    collection(db, 'platformAds'),
+    where('active', '==', true)
+  );
+
+  const snapshot = await getDocs(adsQuery);
+
+  return snapshot.docs
+    .map((adDoc) => ({
+      id: adDoc.id,
+      ...adDoc.data(),
+    } as PlatformAd))
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+export async function fetchAllPlatformAds(): Promise<PlatformAd[]> {
+  const snapshot = await getDocs(
+    collection(db, 'platformAds')
+  );
+
+  return snapshot.docs
+    .map((adDoc) => ({
+      id: adDoc.id,
+      ...adDoc.data(),
+    } as PlatformAd))
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+export async function createPlatformAd(
+  input: Omit<PlatformAd, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  if (
+    input.type === 'scrolling' &&
+    !input.text?.trim()
+  ) {
+    throw new Error('Scrolling advertisement text is required.');
+  }
+
+  if (
+    input.type === 'slider' &&
+    !input.imageUrl?.trim()
+  ) {
+    throw new Error('Slider advertisement image URL is required.');
+  }
+
+  const ref = await addDoc(
+    collection(db, 'platformAds'),
+    {
+      ...cleanData(input as Record<string, any>),
+      text: input.text?.trim() || '',
+      imageUrl: input.imageUrl?.trim() || '',
+      linkUrl: input.linkUrl?.trim() || '',
+      active: Boolean(input.active),
+      order: Number(input.order || 0),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+  );
+
+  return ref.id;
+}
+
+export async function deletePlatformAd(
+  adId: string
+): Promise<void> {
+  if (!adId) {
+    throw new Error('Advertisement ID is required.');
+  }
+
+  await deleteDoc(
+    doc(db, 'platformAds', adId)
+  );
+}
+
+
+/* =========================================================
    AUTHORIZED ADMINS
 ========================================================= */
 
