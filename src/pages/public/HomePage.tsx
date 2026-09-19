@@ -1126,7 +1126,19 @@ function SchoolCard({
     'https://images.pexels.com/photos/207692/pexels-photo-207692.jpeg?auto=compress&cs=tinysrgb&w=1200';
 
   return (
-    <article className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+    <article
+      role="link"
+      tabIndex={0}
+      aria-label={`Visit ${school.name}`}
+      onClick={() => window.location.assign(`/school/${school.slug}`)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          window.location.assign(`/school/${school.slug}`);
+        }
+      }}
+      className="group cursor-pointer overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm outline-none transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl focus:ring-4 focus:ring-blue-500/30"
+    >
 
       {/* IMAGE */}
 
@@ -1203,15 +1215,12 @@ function SchoolCard({
           </p>
         )}
 
-        {/* VISIT SCHOOL */}
+        {/* WHOLE CARD IS CLICKABLE */}
 
-        <Link
-          to={`/school/${school.slug}`}
-          className="btn-3d mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-5 py-3 font-extrabold text-white"
-        >
-          Visit School
-          <ArrowRight className="h-5 w-5" />
-        </Link>
+        <div className="mt-5 flex items-center justify-between rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-5 py-3 font-extrabold text-white shadow-[0_5px_0_rgb(49,46,129)]">
+          <span>Open School Website</span>
+          <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
+        </div>
 
       </div>
 
