@@ -32,6 +32,21 @@ export default function RegisterSchoolPage() {
   const [phone, setPhone] =
     useState('');
 
+  const [schoolEmail, setSchoolEmail] =
+    useState('');
+
+  const [city, setCity] =
+    useState('');
+
+  const [state, setState] =
+    useState('');
+
+  const [principalName, setPrincipalName] =
+    useState('');
+
+  const [foundedYear, setFoundedYear] =
+    useState('');
+
   const [whatsappNumber, setWhatsappNumber] =
     useState('');
 
@@ -195,6 +210,34 @@ export default function RegisterSchoolPage() {
        WHATSAPP
     ------------------------------------------------------- */
 
+    const cleanSchoolEmail =
+      schoolEmail.trim().toLowerCase();
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanSchoolEmail)) {
+      setError('Please enter a valid school email address.');
+      return;
+    }
+
+    const cleanCity = city.trim();
+    if (!cleanCity) {
+      setError('Please enter school city.');
+      return;
+    }
+
+    const cleanState = state.trim();
+    if (!cleanState) {
+      setError('Please enter school state.');
+      return;
+    }
+
+    const cleanPrincipalName = principalName.trim();
+    if (!cleanPrincipalName) {
+      setError('Please enter principal/head name.');
+      return;
+    }
+
+    const cleanFoundedYear = foundedYear.trim();
+
     const cleanWhatsappNumber =
       whatsappNumber.trim();
 
@@ -281,6 +324,21 @@ export default function RegisterSchoolPage() {
 
             phone:
               cleanPhone,
+
+            email:
+              cleanSchoolEmail,
+
+            city:
+              cleanCity,
+
+            state:
+              cleanState,
+
+            principalName:
+              cleanPrincipalName,
+
+            foundedYear:
+              cleanFoundedYear,
 
             tagline:
               cleanTagline,
@@ -496,6 +554,82 @@ export default function RegisterSchoolPage() {
                 required
                 className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500 resize-none"
               />
+            </div>
+
+            {/* SCHOOL CONTACT / LOCATION */}
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="block font-bold text-gray-800 mb-2">
+                  ✉️ School Email *
+                </label>
+                <input
+                  type="email"
+                  value={schoolEmail}
+                  onChange={(e) => setSchoolEmail(e.target.value)}
+                  placeholder="school@example.com"
+                  required
+                  className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-800 mb-2">
+                  🏙️ City *
+                </label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Enter city"
+                  required
+                  className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-800 mb-2">
+                  🗺️ State *
+                </label>
+                <input
+                  type="text"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="Enter state"
+                  required
+                  className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-800 mb-2">
+                  👨‍💼 Principal / Head Name *
+                </label>
+                <input
+                  type="text"
+                  value={principalName}
+                  onChange={(e) => setPrincipalName(e.target.value)}
+                  placeholder="Enter principal/head name"
+                  required
+                  className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-800 mb-2">
+                  📅 Founded Year
+                  <span className="font-normal text-gray-500"> (Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  min="1800"
+                  max={new Date().getFullYear()}
+                  value={foundedYear}
+                  onChange={(e) => setFoundedYear(e.target.value)}
+                  placeholder="Example: 2005"
+                  className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
+                />
+              </div>
             </div>
 
             {/* WHATSAPP */}
