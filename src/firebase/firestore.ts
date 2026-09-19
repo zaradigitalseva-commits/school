@@ -376,6 +376,9 @@ export async function saveSchoolInfo(
   */
   delete safeInfo.ownerUid;
   delete safeInfo.ownerEmail;
+  // Slugs are reserved globally and are not editable from
+  // the school admin profile.
+  delete safeInfo.slug;
 
   await setDoc(
     schoolRef,
