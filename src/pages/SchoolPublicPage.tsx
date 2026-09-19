@@ -20,11 +20,9 @@ import {
 } from 'lucide-react';
 
 import {
-  fetchSchoolBySlug,
-  fetchAnnouncements,
-  fetchEvents,
-  fetchTeachers,
-  fetchPublicResults,
+  subscribeToSchoolBySlug,
+  subscribeToSchoolPublicCollection,
+  subscribeToPublicResults,
   formatDate,
 } from '@/firebase/firestore';
 
@@ -52,79 +50,82 @@ export default function SchoolPublicPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    let mounted = true;
+    if (!slug) {
+      setError('School URL is missing.');
+      setLoading(false);
+      return;
+    }
 
-    async function loadSchoolWebsite() {
-      if (!slug) {
-        setError('School URL is missing.');
-        setLoading(false);
-        return;
-      }
+    setLoading(true);
+    setContentLoading(true);
+    setError('');
 
-      try {
-        setLoading(true);
-        setContentLoading(true);
-        setError('');
+    let schoolId = '';
+    let unsubAnnouncements = () => {};
+    let unsubEvents = () => {};
+    let unsubTeachers = () => {};
 
-        const schoolData = await fetchSchoolBySlug(slug);
-
-        if (!mounted) return;
-
+    const unsubscribeSchool = subscribeToSchoolBySlug(
+      slug,
+      (schoolData) => {
         if (!schoolData) {
           setSchool(null);
           setError('School not found or school is not currently live.');
           setLoading(false);
           setContentLoading(false);
+          unsubAnnouncements();
+          unsubEvents();
+          unsubTeachers();
           return;
         }
 
+        schoolId = schoolData.id;
         setSchool(schoolData);
         setLoading(false);
+        setContentLoading(false);
 
-        /*
-         * IMPORTANT:
-         * Every school-public query MUST be scoped to the
-         * currently opened school's Firestore document ID.
-         * This prevents School A from showing School B content.
-         */
-        const schoolId = schoolData.id;
+        unsubAnnouncements();
+        unsubEvents();
+        unsubTeachers();
 
-        const [announcementData, eventData, teacherData] =
-          await Promise.all([
-            fetchAnnouncements(schoolId),
-            fetchEvents(schoolId),
-            fetchTeachers(schoolId),
-          ]);
+        unsubAnnouncements = subscribeToSchoolPublicCollection(
+          schoolId,
+          'announcements',
+          (rows) => setAnnouncements((rows as Announcement[]).slice(0, 3)),
+          (err) => console.error('Live notices error:', err)
+        );
 
-        if (!mounted) return;
+        unsubEvents = subscribeToSchoolPublicCollection(
+          schoolId,
+          'events',
+          (rows) => setEvents((rows as SchoolEvent[]).slice(0, 3)),
+          (err) => console.error('Live events error:', err)
+        );
 
-        setAnnouncements(announcementData.slice(0, 3));
-        setEvents(eventData.slice(0, 3));
-        setTeachers(teacherData.slice(0, 4));
-      } catch (err) {
-        console.error('Failed to load school website:', err);
-
-        if (mounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Unable to load school website.'
-          );
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          setContentLoading(false);
-        }
+        unsubTeachers = subscribeToSchoolPublicCollection(
+          schoolId,
+          'teachers',
+          (rows) => setTeachers((rows as Teacher[]).slice(0, 4)),
+          (err) => console.error('Live teachers error:', err)
+        );
+      },
+      (err) => {
+        console.error('Live school error:', err);
+        setError(err.message || 'Unable to load school website.');
+        setLoading(false);
+        setContentLoading(false);
       }
-    }
-
-    loadSchoolWebsite();
+    );
 
     return () => {
-      mounted = false;
+      unsubscribeSchool();
+      unsubAnnouncements();
+      unsubEvents();
+      unsubTeachers();
     };
   }, [slug]);
+
+  const [searchedRollNumber, setSearchedRollNumber] = useState('');
 
   if (loading) {
     return <LoadingSpinner fullScreen label="Loading school website..." />;
@@ -169,28 +170,35 @@ export default function SchoolPublicPage() {
     school.heroImageUrl ||
     'https://images.pexels.com/photos/207692/pexels-photo-207692.jpeg?auto=compress&cs=tinysrgb&w=1600';
 
-  async function searchPublicResults() {
-    const cleanRoll = rollNumber.trim();
-
-    if (!cleanRoll || !school?.id) {
+  useEffect(() => {
+    if (!school?.id || !searchedRollNumber.trim()) {
       setPublicResults([]);
+      setResultSearchLoading(false);
       return;
     }
 
-    try {
-      setResultSearchLoading(true);
-      setPublicResults(
-        await fetchPublicResults(
-          school.id,
-          cleanRoll
-        )
-      );
-    } catch (err) {
-      console.error('Public result lookup failed:', err);
-      setPublicResults([]);
-    } finally {
-      setResultSearchLoading(false);
-    }
+    setResultSearchLoading(true);
+
+    const unsubscribe = subscribeToPublicResults(
+      school.id,
+      searchedRollNumber,
+      (rows) => {
+        setPublicResults(rows);
+        setResultSearchLoading(false);
+      },
+      (err) => {
+        console.error('Live public result lookup failed:', err);
+        setPublicResults([]);
+        setResultSearchLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, [school?.id, searchedRollNumber]);
+
+  function searchPublicResults() {
+    const cleanRoll = rollNumber.trim();
+    setSearchedRollNumber(cleanRoll);
   }
 
   const campusImages =
