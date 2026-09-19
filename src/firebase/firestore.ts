@@ -444,6 +444,32 @@ export async function fetchSchoolBySlug(
    SCHOOL MEMBERSHIP
 ========================================================= */
 
+export async function ensureSchoolOwnerMembership(uid: string, email: string): Promise<SchoolMembership | null> {
+  if (!uid) return null;
+  const q = query(collection(db, 'schools'), where('ownerUid', '==', uid), where('status', '==', 'LIVE'));
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  const schoolDoc = snapshot.docs[0];
+  const school = schoolDoc.data();
+  const membershipId = uid + '_' + schoolDoc.id;
+  const membershipRef = doc(db, 'schoolMemberships', membershipId);
+  const membershipSnap = await getDoc(membershipRef);
+  if (membershipSnap.exists() && membershipSnap.data().status === 'ACTIVE') {
+    return { id: membershipSnap.id, ...membershipSnap.data() } as SchoolMembership;
+  }
+  await setDoc(membershipRef, {
+    id: membershipId, uid, schoolId: schoolDoc.id,
+    email: (email || school.ownerEmail || '').trim().toLowerCase(),
+    role: 'school_admin', status: 'ACTIVE', assignments: [],
+    approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  }, { merge: true });
+  return {
+    id: membershipId, uid, schoolId: schoolDoc.id,
+    email: (email || school.ownerEmail || '').trim().toLowerCase(),
+    role: 'school_admin', status: 'ACTIVE', assignments: [],
+  } as SchoolMembership;
+}
+
 export async function fetchMyMemberships(): Promise<SchoolMembership[]> {
   const uid = auth.currentUser?.uid;
 
