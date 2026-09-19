@@ -261,7 +261,7 @@ export default function PlatformAdminPage() {
       await savePaymentSettings(settings);
 
       setMessage(
-        'Payment settings saved successfully.'
+        '✅ Admin payment settings successfully configured.'
       );
     } catch (err) {
       console.error(err);
