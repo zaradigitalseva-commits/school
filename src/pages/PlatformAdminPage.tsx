@@ -560,6 +560,34 @@ export default function PlatformAdminPage() {
 
   /*
    * =======================================================
+   * ADVERTISEMENT MANAGER
+   * =======================================================
+   */
+
+  if (showAdvertisementManager) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <div className="sticky top-0 z-50 flex items-center justify-between gap-3 bg-slate-900 px-4 py-3 shadow-lg">
+          <div className="font-black text-white">
+            📢 Advertisement Admin
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvertisementManager(false)}
+            className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(153,27,27)] active:translate-y-1 active:shadow-none"
+          >
+            ← Back to Platform Admin
+          </button>
+        </div>
+
+        <AdvertisementManagerPage />
+      </div>
+    );
+  }
+
+  /*
+   * =======================================================
    * SCHOOL COUNTS
    * =======================================================
    */
@@ -1406,27 +1434,6 @@ export default function PlatformAdminPage() {
           </div>
 
         </section>
-
-        {/* =================================================
-            ADVERTISEMENT MANAGER MODAL
-        ================================================== */}
-
-        {showAdvertisementManager && (
-          <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-2 sm:p-4">
-            <div className="min-h-full">
-              <div className="relative mx-auto min-h-[calc(100vh-1rem)] max-w-7xl overflow-hidden rounded-3xl bg-slate-950 shadow-2xl sm:min-h-[calc(100vh-2rem)]">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvertisementManager(false)}
-                  className="fixed right-4 top-4 z-[110] rounded-full bg-red-600 px-4 py-3 text-lg font-black text-white shadow-lg hover:bg-red-700"
-                >
-                  ✕ Close
-                </button>
-                <AdvertisementManagerPage />
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* =================================================
             DIRECT RECHARGE MODAL
