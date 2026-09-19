@@ -1365,3 +1365,52 @@ export async function rejectRecharge(
     }
   );
 }
+
+
+/* =========================================================
+   REALTIME PAYMENT LISTENERS
+========================================================= */
+export function subscribeToPaymentSettings(
+  onData: (settings: PaymentSettings) => void,
+  onError?: (error: Error) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'platformSettings', 'payment'),
+    (snapshot) => onData((snapshot.exists() ? snapshot.data() : {}) as PaymentSettings),
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToPendingRecharges(
+  onData: (requests: RechargeRequest[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const q = query(collection(db, 'rechargeRequests'), where('status', '==', 'PENDING'));
+  return onSnapshot(
+    q,
+    (snapshot) => onData(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as RechargeRequest))),
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToSchoolRechargeHistory(
+  schoolId: string,
+  onData: (items: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!schoolId) return () => {};
+  const q = query(collection(db, 'walletTransactions'), where('schoolId', '==', schoolId));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      items.sort((a: any, b: any) => {
+        const at = a.createdAt?.toMillis?.() ?? (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const bt = b.createdAt?.toMillis?.() ?? (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return bt - at;
+      });
+      onData(items);
+    },
+    (error) => onError?.(error)
+  );
+}
