@@ -2397,6 +2397,41 @@ export async function registerSchool(
    REALTIME LISTENERS
 ========================================================= */
 
+/* =========================================================
+   REALTIME PUBLIC SCHOOLS
+   Only LIVE schools are exposed on the public homepage.
+========================================================= */
+
+export function subscribeToPublicSchools(
+  onData: (schools: School[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const schoolsQuery = query(
+    collection(db, 'schools'),
+    where('status', '==', 'LIVE')
+  );
+
+  return onSnapshot(
+    schoolsQuery,
+    (snapshot) => {
+      const schools = snapshot.docs.map(
+        (schoolDoc) =>
+          ({
+            id: schoolDoc.id,
+            ...schoolDoc.data(),
+          } as School)
+      );
+
+      onData(schools);
+    },
+    (error) => onError?.(error)
+  );
+}
+
+/* =========================================================
+   REALTIME LISTENERS
+========================================================= */
+
 export function subscribeToMyMembership(
   uid: string,
   onData: (membership: SchoolMembership | null) => void,
