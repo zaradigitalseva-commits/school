@@ -1106,6 +1106,133 @@ export async function approveRecharge(
 }
 
 /* =========================================================
+   PLATFORM ADMIN DIRECT RECHARGE
+========================================================= */
+
+export async function adminRechargeSchool(
+  schoolId: string,
+  amount: number,
+  days: number
+): Promise<void> {
+  if (!schoolId) {
+    throw new Error('School ID is required.');
+  }
+
+  const selectedPackage = getPackage(amount, days);
+
+  const schoolRef = doc(db, 'schools', schoolId);
+  const walletRef = doc(db, 'wallets', schoolId);
+  const subscriptionRef = doc(db, 'subscriptions', schoolId);
+
+  await runTransaction(db, async (transaction) => {
+    const schoolSnap = await transaction.get(schoolRef);
+    const walletSnap = await transaction.get(walletRef);
+    const subscriptionSnap = await transaction.get(subscriptionRef);
+
+    if (!schoolSnap.exists()) {
+      throw new Error('School not found.');
+    }
+
+    const school = schoolSnap.data();
+    const ownerUid = String(school.ownerUid || '').trim();
+    const ownerEmail = String(school.ownerEmail || '').trim();
+
+    if (!ownerUid) {
+      throw new Error('School owner UID is missing.');
+    }
+
+    const oldWalletBalance = walletSnap.exists()
+      ? Number(walletSnap.data().balance || 0)
+      : 0;
+
+    const existingSubscription = subscriptionSnap.exists()
+      ? subscriptionSnap.data()
+      : {};
+
+    const oldExpiry = timestampToMillis(existingSubscription.expiresAt);
+    const baseTime = Math.max(Date.now(), oldExpiry);
+
+    const newExpiry = new Date(
+      baseTime + selectedPackage.days * 24 * 60 * 60 * 1000
+    );
+
+    const walletTransactionRef = doc(
+      collection(db, 'walletTransactions')
+    );
+
+    const membershipRef = doc(
+      db,
+      'schoolMemberships',
+      `${ownerUid}_${schoolId}`
+    );
+
+    transaction.set(
+      walletRef,
+      {
+        schoolId,
+        balance: oldWalletBalance + selectedPackage.amount,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    transaction.set(walletTransactionRef, {
+      schoolId,
+      type: 'CREDIT',
+      amount: selectedPackage.amount,
+      balanceAfter: oldWalletBalance + selectedPackage.amount,
+      source: 'ADMIN_RECHARGE',
+      createdAt: serverTimestamp(),
+    });
+
+    transaction.set(
+      subscriptionRef,
+      {
+        schoolId,
+        status: 'ACTIVE',
+        planAmount: selectedPackage.amount,
+        planDays: selectedPackage.days,
+        startedAt: new Date(baseTime),
+        expiresAt: newExpiry,
+        lastRechargeId: walletTransactionRef.id,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    transaction.update(schoolRef, {
+      status: 'LIVE',
+      paymentStatus: 'PAID',
+      subscriptionStatus: 'ACTIVE',
+      subscriptionStartDate: new Date(baseTime).toISOString(),
+      subscriptionExpiryDate: newExpiry.toISOString(),
+      subscriptionDays: selectedPackage.days,
+      paymentApprovalType: 'ADMIN_RECHARGE',
+      paymentAmount: selectedPackage.amount,
+      paymentId: walletTransactionRef.id,
+      paymentDate: new Date().toISOString(),
+      approvedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+
+    transaction.set(
+      membershipRef,
+      {
+        uid: ownerUid,
+        schoolId,
+        email: ownerEmail,
+        role: 'school_admin',
+        status: 'ACTIVE',
+        assignments: [],
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+}
+
+/* =========================================================
    REJECT RECHARGE
 ========================================================= */
 
