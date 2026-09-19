@@ -395,9 +395,6 @@ export default function PaymentRechargePage() {
         `Subscription: ${selectedPackage.days} Days\n` +
         `Amount: ₹${selectedPackage.amount}\n` +
         `UTR Number: ${cleanUtr}\n` +
-        `Screenshot/Proof: ${
-          proofImageUrl.trim() || 'Not provided'
-        }\n` +
         `Submitted Time: ${new Date().toLocaleString(
           'en-IN'
         )}\n\n` +
