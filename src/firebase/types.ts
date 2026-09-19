@@ -116,7 +116,7 @@ export interface SchoolMembership {
 
   role: 'school_admin' | 'teacher';
 
-  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED';
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
 
   assignments?: string[];
 
