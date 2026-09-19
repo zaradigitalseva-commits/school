@@ -14,7 +14,7 @@ import type {
   RechargeRequest,
 } from '@/firebase/payment';
 
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 
 const BILLING_PACKAGES = [
@@ -114,65 +114,104 @@ export default function PaymentRechargePage() {
         let currentSchoolId = requestedSchoolId;
         let currentSchoolName = '';
 
-        const schoolRef = collection(db, 'schools');
+        let schools: Array<{ id: string; name: string }> = [];
 
         /*
-         * Load every school owned by this Google account.
-         * Never silently choose the first school when an owner
-         * has multiple schools.
+         * If schoolId is supplied, read that exact school document.
+         * This avoids a collection query being rejected by Firestore
+         * rules because the query cannot prove every possible result
+         * is readable.
          */
-        const ownedQuery = query(
-          schoolRef,
-          where('ownerUid', '==', user.uid)
-        );
-
-        const ownedSnapshot = await getDocs(ownedQuery);
-
-        const schools = ownedSnapshot.docs.map((schoolDoc) => {
-          const data = schoolDoc.data();
-          return {
-            id: schoolDoc.id,
-            name: String(
-              data.name ||
-                data.schoolName ||
-                'Unnamed School'
-            ).trim(),
-          };
-        });
-
-        setOwnedSchools(schools);
-
-        if (currentSchoolId) {
-          const selected = schools.find(
-            (item) => item.id === currentSchoolId
+        if (requestedSchoolId) {
+          const selectedRef = doc(
+            db,
+            'schools',
+            requestedSchoolId
           );
 
-          if (!selected) {
+          const selectedSnapshot = await getDoc(selectedRef);
+
+          if (!selectedSnapshot.exists()) {
+            throw new Error('School not found.');
+          }
+
+          const selectedData = selectedSnapshot.data();
+
+          if (String(selectedData.ownerUid || '') !== user.uid) {
             throw new Error(
               'You are not authorized to access this school payment page.'
             );
           }
 
-          currentSchoolName = selected.name;
-        } else if (schools.length === 1) {
-          currentSchoolId = schools[0].id;
-          currentSchoolName = schools[0].name;
-        } else if (schools.length === 0) {
-          throw new Error(
-            'आपके account से कोई school नहीं मिला।'
+          const selectedSchool = {
+            id: selectedSnapshot.id,
+            name: String(
+              selectedData.name ||
+                selectedData.schoolName ||
+                'Unnamed School'
+            ).trim(),
+          };
+
+          schools = [selectedSchool];
+          currentSchoolId = selectedSchool.id;
+          currentSchoolName = selectedSchool.name;
+        } else {
+          /*
+           * No schoolId supplied: load schools owned by this account.
+           */
+          const ownedQuery = query(
+            collection(db, 'schools'),
+            where('ownerUid', '==', user.uid)
           );
+
+          const ownedSnapshot = await getDocs(ownedQuery);
+
+          schools = ownedSnapshot.docs.map((schoolDoc) => {
+            const data = schoolDoc.data();
+            return {
+              id: schoolDoc.id,
+              name: String(
+                data.name ||
+                  data.schoolName ||
+                  'Unnamed School'
+              ).trim(),
+            };
+          });
+
+          if (schools.length === 1) {
+            currentSchoolId = schools[0].id;
+            currentSchoolName = schools[0].name;
+          } else if (schools.length === 0) {
+            throw new Error(
+              'आपके account से कोई school नहीं मिला।'
+            );
+          }
         }
 
+        setOwnedSchools(schools);
         setSchoolId(currentSchoolId);
         setSchoolName(currentSchoolName);
 
-        const [settings, requests] = await Promise.all([
-          fetchPaymentSettings(),
-          fetchMyRechargeRequests(user.uid),
-        ]);
+        /*
+         * Payment settings/history are independent of the school
+         * document. Load them separately so one optional read does
+         * not blank the entire payment page.
+         */
+        try {
+          const settings = await fetchPaymentSettings();
+          setPaymentSettings(settings);
+        } catch (settingsError) {
+          console.error('Payment settings load failed:', settingsError);
+          setPaymentSettings(null);
+        }
 
-        setPaymentSettings(settings);
-        setHistory(requests);
+        try {
+          const requests = await fetchMyRechargeRequests(user.uid);
+          setHistory(requests);
+        } catch (historyError) {
+          console.error('Payment history load failed:', historyError);
+          setHistory([]);
+        }
       } catch (err) {
         console.error(err);
 
