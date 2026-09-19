@@ -69,7 +69,7 @@ function getSchoolSubscriptionState(
     remainingMs / (24 * 60 * 60 * 1000)
   );
 
-  if (remainingDays <= 3) {
+  if (remainingDays <= 7) {
     return 'EXPIRING_SOON';
   }
 
@@ -105,11 +105,19 @@ function openSchoolWhatsApp(school: School) {
       `कृपया website service जारी रखने के लिए recharge करें।\n\n` +
       `धन्यवाद।`;
   } else if (state === 'EXPIRING_SOON') {
+    const remainingDays = school.subscriptionExpiryDate
+      ? Math.max(0, Math.ceil((new Date(school.subscriptionExpiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : 0;
+    const totalAmount = Number(school.totalRechargeAmount ?? school.paymentAmount ?? 0);
+    const totalDays = Number(school.totalRechargeDays ?? school.subscriptionDays ?? 0);
     message =
       `नमस्कार,\n\n` +
-      `🏫 School: ${school.name}\n\n` +
-      `⚠️ आपके school website subscription की अवधि जल्द समाप्त होने वाली है।\n` +
-      `📅 Expiry: ${expiryText}\n\n` +
+      `🏫 School: ${school.name}\n` +
+      `⏳ Remaining: ${remainingDays} days\n` +
+      `📅 Expiry: ${expiryText}\n` +
+      `💰 Total Recharge: ₹${totalAmount}\n` +
+      `📦 Total Recharge Days: ${totalDays}\n\n` +
+      `⚠️ आपकी school website subscription जल्द समाप्त होने वाली है।\n` +
       `कृपया समय पर recharge करें ताकि website service बंद न हो।\n\n` +
       `धन्यवाद।`;
   } else if (state === 'ACTIVE') {
@@ -781,6 +789,40 @@ export default function PlatformAdminPage() {
 
         </div>
 
+        {/* EXPIRY ALERTS */}
+        {schools.some((school) => getSchoolSubscriptionState(school) === 'EXPIRING_SOON' || getSchoolSubscriptionState(school) === 'EXPIRED') && (
+          <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900">⚠️ Recharge / Expiry Alerts</h2>
+                <p className="mt-1 text-gray-600">7 दिन या उससे कम बाकी और expired schools यहाँ दिखेंगे।</p>
+              </div>
+              <div className="rounded-2xl bg-orange-50 px-5 py-3 text-center">
+                <p className="text-xs font-bold text-orange-600">ATTENTION</p>
+                <p className="text-2xl font-black text-orange-700">{schools.filter((school) => getSchoolSubscriptionState(school) === 'EXPIRING_SOON' || getSchoolSubscriptionState(school) === 'EXPIRED').length}</p>
+              </div>
+            </div>
+            <div className="mt-5 space-y-3">
+              {schools.filter((school) => getSchoolSubscriptionState(school) === 'EXPIRING_SOON' || getSchoolSubscriptionState(school) === 'EXPIRED').map((school) => {
+                const days = school.subscriptionExpiryDate ? Math.ceil((new Date(school.subscriptionExpiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)) : null;
+                return (
+                  <div key={school.id} className="rounded-2xl border-2 border-orange-100 bg-orange-50 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h3 className="font-black text-gray-900">{school.name}</h3>
+                        <p className="text-sm font-bold text-orange-700">{days !== null && days > 0 ? `⏳ ${days} दिन बाकी` : '🔴 Subscription expired'}</p>
+                        <p className="text-xs text-gray-600">Expiry: {school.subscriptionExpiryDate ? new Date(school.subscriptionExpiryDate).toLocaleString('en-IN') : 'N/A'} • Total: ₹{Number(school.totalRechargeAmount ?? school.paymentAmount ?? 0)} / {Number(school.totalRechargeDays ?? school.subscriptionDays ?? 0)} days</p>
+                      </div>
+                      <button type="button" onClick={() => openSchoolWhatsApp(school)} className="rounded-xl bg-emerald-600 px-4 py-3 font-black text-white shadow-[0_4px_0_rgb(5,150,105)] active:translate-y-1 active:shadow-none">
+                        📲 WhatsApp Reminder
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
         {statsView && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 px-4 py-6">
             <div className="flex min-h-full items-start justify-center py-4 md:items-center md:py-8">
