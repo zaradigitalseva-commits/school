@@ -67,59 +67,40 @@ export async function ensureUserRecord(
   email: string
 ): Promise<void> {
   if (!uid) {
-    throw new Error(
-      'User UID is required.'
-    );
+    throw new Error('User UID is required.');
   }
 
   const cleanEmail =
     email?.trim().toLowerCase() || '';
 
   if (!cleanEmail) {
-    throw new Error(
-      'User email is required.'
-    );
+    throw new Error('User email is required.');
   }
 
   const userRef =
-    doc(
-      db,
-      'users',
-      uid
-    );
+    doc(db, 'users', uid);
 
   const userSnapshot =
     await getDoc(userRef);
 
   if (!userSnapshot.exists()) {
+    await setDoc(userRef, {
+      uid,
+      email: cleanEmail,
+      role: isPlatformAdminEmail(cleanEmail)
+        ? 'platform_admin'
+        : 'user',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } else if (isPlatformAdminEmail(cleanEmail)) {
     await setDoc(
       userRef,
       {
         uid,
         email: cleanEmail,
-        role: isPlatformAdminEmail(
-          cleanEmail
-        )
-          ? 'platform_admin'
-          : 'user',
-        createdAt:
-          serverTimestamp(),
-        updatedAt:
-          serverTimestamp(),
-      }
-    );
-  } else if (
-    isPlatformAdminEmail(cleanEmail)
-  ) {
-    await setDoc(
-      userRef,
-      {
-        uid,
-        email: cleanEmail,
-        role:
-          'platform_admin',
-        updatedAt:
-          serverTimestamp(),
+        role: 'platform_admin',
+        updatedAt: serverTimestamp(),
       },
       {
         merge: true,
@@ -141,11 +122,7 @@ export async function fetchUserRole(
   }
 
   const userRef =
-    doc(
-      db,
-      'users',
-      uid
-    );
+    doc(db, 'users', uid);
 
   const userSnapshot =
     await getDoc(userRef);
@@ -167,21 +144,15 @@ export async function fetchUserRole(
    FETCH ALL USERS
 ========================================================= */
 
-export async function fetchAllUsers(): Promise<
-  any[]
-> {
+export async function fetchAllUsers(): Promise<any[]> {
   const snapshot =
     await getDocs(
-      collection(
-        db,
-        'users'
-      )
+      collection(db, 'users')
     );
 
   return snapshot.docs.map(
     (userDoc) => ({
-      id:
-        userDoc.id,
+      id: userDoc.id,
       ...userDoc.data(),
     })
   );
@@ -193,34 +164,22 @@ export async function fetchAllUsers(): Promise<
    Only LIVE schools are public.
 ========================================================= */
 
-export async function fetchPublicSchools(): Promise<
-  School[]
-> {
+export async function fetchPublicSchools(): Promise<School[]> {
   const schoolsRef =
-    collection(
-      db,
-      'schools'
-    );
+    collection(db, 'schools');
 
   const schoolsQuery =
     query(
       schoolsRef,
-      where(
-        'status',
-        '==',
-        'LIVE'
-      )
+      where('status', '==', 'LIVE')
     );
 
   const snapshot =
-    await getDocs(
-      schoolsQuery
-    );
+    await getDocs(schoolsQuery);
 
   return snapshot.docs.map(
     (schoolDoc) => ({
-      id:
-        schoolDoc.id,
+      id: schoolDoc.id,
       ...schoolDoc.data(),
     } as School)
   );
@@ -232,21 +191,15 @@ export async function fetchPublicSchools(): Promise<
    Platform Admin
 ========================================================= */
 
-export async function fetchAllSchools(): Promise<
-  School[]
-> {
+export async function fetchAllSchools(): Promise<School[]> {
   const snapshot =
     await getDocs(
-      collection(
-        db,
-        'schools'
-      )
+      collection(db, 'schools')
     );
 
   return snapshot.docs.map(
     (schoolDoc) => ({
-      id:
-        schoolDoc.id,
+      id: schoolDoc.id,
       ...schoolDoc.data(),
     } as School)
   );
@@ -262,41 +215,28 @@ export async function updateSchoolStatus(
   status: string
 ): Promise<void> {
   if (!schoolId) {
-    throw new Error(
-      'School ID is required.'
-    );
+    throw new Error('School ID is required.');
   }
 
   if (!status) {
-    throw new Error(
-      'School status is required.'
-    );
+    throw new Error('School status is required.');
   }
 
   const schoolRef =
-    doc(
-      db,
-      'schools',
-      schoolId
-    );
+    doc(db, 'schools', schoolId);
 
   const snapshot =
-    await getDoc(
-      schoolRef
-    );
+    await getDoc(schoolRef);
 
   if (!snapshot.exists()) {
-    throw new Error(
-      'School not found.'
-    );
+    throw new Error('School not found.');
   }
 
   await setDoc(
     schoolRef,
     {
       status,
-      updatedAt:
-        serverTimestamp(),
+      updatedAt: serverTimestamp(),
     },
     {
       merge: true,
@@ -317,24 +257,17 @@ export async function fetchSchoolById(
   }
 
   const schoolRef =
-    doc(
-      db,
-      'schools',
-      schoolId
-    );
+    doc(db, 'schools', schoolId);
 
   const snapshot =
-    await getDoc(
-      schoolRef
-    );
+    await getDoc(schoolRef);
 
   if (!snapshot.exists()) {
     return null;
   }
 
   return {
-    id:
-      snapshot.id,
+    id: snapshot.id,
     ...snapshot.data(),
   } as School;
 }
@@ -352,16 +285,10 @@ export async function fetchSchoolInfo(
   }
 
   const schoolRef =
-    doc(
-      db,
-      'schools',
-      schoolId
-    );
+    doc(db, 'schools', schoolId);
 
   const snapshot =
-    await getDoc(
-      schoolRef
-    );
+    await getDoc(schoolRef);
 
   if (!snapshot.exists()) {
     return null;
@@ -369,8 +296,7 @@ export async function fetchSchoolInfo(
 
   return {
     ...snapshot.data(),
-    id:
-      snapshot.id,
+    id: snapshot.id,
   } as SchoolInfo;
 }
 
@@ -389,8 +315,7 @@ export async function saveSchoolInfo(
   }
 
   const schoolId =
-    info.schoolId ||
-    info.id;
+    info.schoolId || info.id;
 
   if (!schoolId) {
     throw new Error(
@@ -399,20 +324,19 @@ export async function saveSchoolInfo(
   }
 
   const schoolRef =
-    doc(
-      db,
-      'schools',
-      schoolId
-    );
+    doc(db, 'schools', schoolId);
+
+  const {
+    schoolId: ignoredSchoolId,
+    ...safeInfo
+  } = info;
 
   await setDoc(
     schoolRef,
     {
-      ...info,
-      id:
-        schoolId,
-      updatedAt:
-        serverTimestamp(),
+      ...safeInfo,
+      id: schoolId,
+      updatedAt: serverTimestamp(),
     },
     {
       merge: true,
@@ -436,25 +360,16 @@ export async function fetchSchoolBySlug(
   }
 
   const schoolsRef =
-    collection(
-      db,
-      'schools'
-    );
+    collection(db, 'schools');
 
   const schoolsQuery =
     query(
       schoolsRef,
-      where(
-        'slug',
-        '==',
-        cleanSlug
-      )
+      where('slug', '==', cleanSlug)
     );
 
   const snapshot =
-    await getDocs(
-      schoolsQuery
-    );
+    await getDocs(schoolsQuery);
 
   if (snapshot.empty) {
     return null;
@@ -464,8 +379,7 @@ export async function fetchSchoolBySlug(
     snapshot.docs[0];
 
   return {
-    id:
-      schoolDoc.id,
+    id: schoolDoc.id,
     ...schoolDoc.data(),
   } as School;
 }
@@ -486,25 +400,16 @@ export async function fetchMyMembership(): Promise<
   }
 
   const membershipsRef =
-    collection(
-      db,
-      'schoolMemberships'
-    );
+    collection(db, 'schoolMemberships');
 
   const membershipsQuery =
     query(
       membershipsRef,
-      where(
-        'uid',
-        '==',
-        uid
-      )
+      where('uid', '==', uid)
     );
 
   const snapshot =
-    await getDocs(
-      membershipsQuery
-    );
+    await getDocs(membershipsQuery);
 
   if (snapshot.empty) {
     return null;
@@ -514,8 +419,7 @@ export async function fetchMyMembership(): Promise<
     snapshot.docs[0];
 
   return {
-    id:
-      membershipDoc.id,
+    id: membershipDoc.id,
     ...membershipDoc.data(),
   } as SchoolMembership;
 }
@@ -533,30 +437,20 @@ export async function fetchSchoolMemberships(
   }
 
   const membershipsRef =
-    collection(
-      db,
-      'schoolMemberships'
-    );
+    collection(db, 'schoolMemberships');
 
   const membershipsQuery =
     query(
       membershipsRef,
-      where(
-        'schoolId',
-        '==',
-        schoolId
-      )
+      where('schoolId', '==', schoolId)
     );
 
   const snapshot =
-    await getDocs(
-      membershipsQuery
-    );
+    await getDocs(membershipsQuery);
 
   return snapshot.docs.map(
     (membershipDoc) => ({
-      id:
-        membershipDoc.id,
+      id: membershipDoc.id,
       ...membershipDoc.data(),
     } as SchoolMembership)
   );
@@ -585,9 +479,7 @@ export async function updateSchoolMembership(
     );
 
   const snapshot =
-    await getDoc(
-      membershipRef
-    );
+    await getDoc(membershipRef);
 
   if (!snapshot.exists()) {
     throw new Error(
@@ -599,10 +491,218 @@ export async function updateSchoolMembership(
     membershipRef,
     {
       ...updates,
-      updatedAt:
-        serverTimestamp(),
+      updatedAt: serverTimestamp(),
     }
   );
+}
+
+
+/* =========================================================
+   GENERIC SCHOOL DOCUMENT HELPERS
+========================================================= */
+
+async function getSchoolDocument(
+  collectionName: string,
+  schoolId: string,
+  documentId: string
+): Promise<any | null> {
+  if (!collectionName || !schoolId || !documentId) {
+    return null;
+  }
+
+  const ref =
+    doc(
+      db,
+      collectionName,
+      documentId
+    );
+
+  const snapshot =
+    await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  const data =
+    snapshot.data();
+
+  if (data.schoolId !== schoolId) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...data,
+  };
+}
+
+
+async function addSchoolDocument(
+  collectionName: string,
+  schoolId: string,
+  data: any
+): Promise<string> {
+  if (!collectionName) {
+    throw new Error(
+      'Collection name is required.'
+    );
+  }
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  if (!data) {
+    throw new Error(
+      'Document data is required.'
+    );
+  }
+
+  /*
+    Never trust schoolId coming from the UI.
+    The schoolId supplied to this function is always used.
+  */
+  const {
+    schoolId: ignoredSchoolId,
+    id: ignoredId,
+    ...safeData
+  } = data;
+
+  const ref =
+    await addDoc(
+      collection(
+        db,
+        collectionName
+      ),
+      {
+        ...safeData,
+        schoolId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+    );
+
+  return ref.id;
+}
+
+
+async function updateSchoolDocument(
+  collectionName: string,
+  schoolId: string,
+  documentId: string,
+  data: any
+): Promise<void> {
+  if (!collectionName) {
+    throw new Error(
+      'Collection name is required.'
+    );
+  }
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  if (!documentId) {
+    throw new Error(
+      'Document ID is required.'
+    );
+  }
+
+  const ref =
+    doc(
+      db,
+      collectionName,
+      documentId
+    );
+
+  const snapshot =
+    await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Document not found.'
+    );
+  }
+
+  const existingData =
+    snapshot.data();
+
+  if (existingData.schoolId !== schoolId) {
+    throw new Error(
+      'You are not allowed to modify this school data.'
+    );
+  }
+
+  const {
+    schoolId: ignoredSchoolId,
+    id: ignoredId,
+    ...safeData
+  } = data || {};
+
+  await updateDoc(
+    ref,
+    {
+      ...safeData,
+      updatedAt: serverTimestamp(),
+    }
+  );
+}
+
+
+async function deleteSchoolDocument(
+  collectionName: string,
+  schoolId: string,
+  documentId: string
+): Promise<void> {
+  if (!collectionName) {
+    throw new Error(
+      'Collection name is required.'
+    );
+  }
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required.'
+    );
+  }
+
+  if (!documentId) {
+    throw new Error(
+      'Document ID is required.'
+    );
+  }
+
+  const ref =
+    doc(
+      db,
+      collectionName,
+      documentId
+    );
+
+  const snapshot =
+    await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Document not found.'
+    );
+  }
+
+  const existingData =
+    snapshot.data();
+
+  if (existingData.schoolId !== schoolId) {
+    throw new Error(
+      'You are not allowed to delete this school data.'
+    );
+  }
+
+  await deleteDoc(ref);
 }
 
 
@@ -614,21 +714,15 @@ export async function fetchTeachers(
   schoolId?: string
 ): Promise<Teacher[]> {
   const teachersRef =
-    collection(
-      db,
-      'teachers'
-    );
+    collection(db, 'teachers');
 
   if (!schoolId) {
     const snapshot =
-      await getDocs(
-        teachersRef
-      );
+      await getDocs(teachersRef);
 
     return snapshot.docs.map(
       (teacherDoc) => ({
-        id:
-          teacherDoc.id,
+        id: teacherDoc.id,
         ...teacherDoc.data(),
       } as Teacher)
     );
@@ -637,22 +731,15 @@ export async function fetchTeachers(
   const teachersQuery =
     query(
       teachersRef,
-      where(
-        'schoolId',
-        '==',
-        schoolId
-      )
+      where('schoolId', '==', schoolId)
     );
 
   const snapshot =
-    await getDocs(
-      teachersQuery
-    );
+    await getDocs(teachersQuery);
 
   return snapshot.docs.map(
     (teacherDoc) => ({
-      id:
-        teacherDoc.id,
+      id: teacherDoc.id,
       ...teacherDoc.data(),
     } as Teacher)
   );
@@ -662,16 +749,20 @@ export async function fetchTeachers(
 export async function addTeacher(
   data: any
 ): Promise<string> {
-  const ref =
-    await addDoc(
-      collection(
-        db,
-        'teachers'
-      ),
-      data
-    );
+  const schoolId =
+    data?.schoolId;
 
-  return ref.id;
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required for teacher.'
+    );
+  }
+
+  return addSchoolDocument(
+    'teachers',
+    schoolId,
+    data
+  );
 }
 
 
@@ -685,12 +776,19 @@ export async function updateTeacher(
     );
   }
 
-  await updateDoc(
-    doc(
-      db,
-      'teachers',
-      id
-    ),
+  const schoolId =
+    data?.schoolId;
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required for teacher update.'
+    );
+  }
+
+  await updateSchoolDocument(
+    'teachers',
+    schoolId,
+    id,
     data
   );
 }
@@ -705,6 +803,10 @@ export async function deleteTeacher(
     );
   }
 
+  /*
+    Kept compatible with the old function.
+    Security rules should also protect this operation.
+  */
   await deleteDoc(
     doc(
       db,
@@ -723,21 +825,15 @@ export async function fetchAnnouncements(
   schoolId?: string
 ): Promise<Announcement[]> {
   const announcementsRef =
-    collection(
-      db,
-      'announcements'
-    );
+    collection(db, 'announcements');
 
   if (!schoolId) {
     const snapshot =
-      await getDocs(
-        announcementsRef
-      );
+      await getDocs(announcementsRef);
 
     return snapshot.docs.map(
       (announcementDoc) => ({
-        id:
-          announcementDoc.id,
+        id: announcementDoc.id,
         ...announcementDoc.data(),
       } as Announcement)
     );
@@ -746,22 +842,15 @@ export async function fetchAnnouncements(
   const announcementsQuery =
     query(
       announcementsRef,
-      where(
-        'schoolId',
-        '==',
-        schoolId
-      )
+      where('schoolId', '==', schoolId)
     );
 
   const snapshot =
-    await getDocs(
-      announcementsQuery
-    );
+    await getDocs(announcementsQuery);
 
   return snapshot.docs.map(
     (announcementDoc) => ({
-      id:
-        announcementDoc.id,
+      id: announcementDoc.id,
       ...announcementDoc.data(),
     } as Announcement)
   );
@@ -771,16 +860,20 @@ export async function fetchAnnouncements(
 export async function addAnnouncement(
   data: any
 ): Promise<string> {
-  const ref =
-    await addDoc(
-      collection(
-        db,
-        'announcements'
-      ),
-      data
-    );
+  const schoolId =
+    data?.schoolId;
 
-  return ref.id;
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required for notice.'
+    );
+  }
+
+  return addSchoolDocument(
+    'announcements',
+    schoolId,
+    data
+  );
 }
 
 
@@ -788,12 +881,25 @@ export async function updateAnnouncement(
   id: string,
   data: any
 ): Promise<void> {
-  await updateDoc(
-    doc(
-      db,
-      'announcements',
-      id
-    ),
+  if (!id) {
+    throw new Error(
+      'Announcement ID is required.'
+    );
+  }
+
+  const schoolId =
+    data?.schoolId;
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required for notice update.'
+    );
+  }
+
+  await updateSchoolDocument(
+    'announcements',
+    schoolId,
+    id,
     data
   );
 }
@@ -802,6 +908,12 @@ export async function updateAnnouncement(
 export async function deleteAnnouncement(
   id: string
 ): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Announcement ID is required.'
+    );
+  }
+
   await deleteDoc(
     doc(
       db,
@@ -820,21 +932,15 @@ export async function fetchEvents(
   schoolId?: string
 ): Promise<SchoolEvent[]> {
   const eventsRef =
-    collection(
-      db,
-      'events'
-    );
+    collection(db, 'events');
 
   if (!schoolId) {
     const snapshot =
-      await getDocs(
-        eventsRef
-      );
+      await getDocs(eventsRef);
 
     return snapshot.docs.map(
       (eventDoc) => ({
-        id:
-          eventDoc.id,
+        id: eventDoc.id,
         ...eventDoc.data(),
       } as SchoolEvent)
     );
@@ -843,22 +949,15 @@ export async function fetchEvents(
   const eventsQuery =
     query(
       eventsRef,
-      where(
-        'schoolId',
-        '==',
-        schoolId
-      )
+      where('schoolId', '==', schoolId)
     );
 
   const snapshot =
-    await getDocs(
-      eventsQuery
-    );
+    await getDocs(eventsQuery);
 
   return snapshot.docs.map(
     (eventDoc) => ({
-      id:
-        eventDoc.id,
+      id: eventDoc.id,
       ...eventDoc.data(),
     } as SchoolEvent)
   );
@@ -868,16 +967,20 @@ export async function fetchEvents(
 export async function addEvent(
   data: any
 ): Promise<string> {
-  const ref =
-    await addDoc(
-      collection(
-        db,
-        'events'
-      ),
-      data
-    );
+  const schoolId =
+    data?.schoolId;
 
-  return ref.id;
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required for event.'
+    );
+  }
+
+  return addSchoolDocument(
+    'events',
+    schoolId,
+    data
+  );
 }
 
 
@@ -885,12 +988,25 @@ export async function updateEvent(
   id: string,
   data: any
 ): Promise<void> {
-  await updateDoc(
-    doc(
-      db,
-      'events',
-      id
-    ),
+  if (!id) {
+    throw new Error(
+      'Event ID is required.'
+    );
+  }
+
+  const schoolId =
+    data?.schoolId;
+
+  if (!schoolId) {
+    throw new Error(
+      'School ID is required for event update.'
+    );
+  }
+
+  await updateSchoolDocument(
+    'events',
+    schoolId,
+    id,
     data
   );
 }
@@ -899,6 +1015,12 @@ export async function updateEvent(
 export async function deleteEvent(
   id: string
 ): Promise<void> {
+  if (!id) {
+    throw new Error(
+      'Event ID is required.'
+    );
+  }
+
   await deleteDoc(
     doc(
       db,
@@ -910,9 +1032,371 @@ export async function deleteEvent(
 
 
 /* =========================================================
+   STUDENTS
+========================================================= */
+
+export async function fetchStudents(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'students'
+  );
+}
+
+
+export async function addStudent(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'students',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateStudent(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'students',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteStudent(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'students',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
+   CLASSES 1 - 12
+========================================================= */
+
+export async function fetchClasses(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'classes'
+  );
+}
+
+
+export async function addClass(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'classes',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateClass(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'classes',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteClass(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'classes',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
+   RESULTS
+========================================================= */
+
+export async function fetchResults(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'results'
+  );
+}
+
+
+export async function addResult(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'results',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateResult(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'results',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteResult(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'results',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
+   HOMEWORK
+========================================================= */
+
+export async function fetchHomework(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'homework'
+  );
+}
+
+
+export async function addHomework(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'homework',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateHomework(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'homework',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteHomework(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'homework',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
+   ATTENDANCE
+========================================================= */
+
+export async function fetchAttendance(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'attendance'
+  );
+}
+
+
+export async function addAttendance(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'attendance',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateAttendance(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'attendance',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteAttendance(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'attendance',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
+   GALLERY
+========================================================= */
+
+export async function fetchGallery(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'gallery'
+  );
+}
+
+
+export async function addGalleryItem(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'gallery',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateGalleryItem(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'gallery',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteGalleryItem(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'gallery',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
+   DOCUMENTS
+========================================================= */
+
+export async function fetchDocuments(
+  schoolId: string
+): Promise<any[]> {
+  return fetchSchoolCollection(
+    schoolId,
+    'documents'
+  );
+}
+
+
+export async function addDocument(
+  schoolId: string,
+  data: any
+): Promise<string> {
+  return addSchoolDocument(
+    'documents',
+    schoolId,
+    data
+  );
+}
+
+
+export async function updateDocument(
+  schoolId: string,
+  id: string,
+  data: any
+): Promise<void> {
+  return updateSchoolDocument(
+    'documents',
+    schoolId,
+    id,
+    data
+  );
+}
+
+
+export async function deleteDocument(
+  schoolId: string,
+  id: string
+): Promise<void> {
+  return deleteSchoolDocument(
+    'documents',
+    schoolId,
+    id
+  );
+}
+
+
+/* =========================================================
    FETCH SCHOOL COLLECTION
-   Students / Classes / Results / Homework /
-   Attendance / Gallery / Documents
 ========================================================= */
 
 export async function fetchSchoolCollection(
@@ -947,8 +1431,7 @@ export async function fetchSchoolCollection(
 
     return snapshot.docs.map(
       (item) => ({
-        id:
-          item.id,
+        id: item.id,
         ...item.data(),
       })
     );
@@ -967,9 +1450,7 @@ export async function fetchSchoolCollection(
    AUTHORIZED ADMINS
 ========================================================= */
 
-export async function fetchAuthorizedAdmins(): Promise<
-  any[]
-> {
+export async function fetchAuthorizedAdmins(): Promise<any[]> {
   const snapshot =
     await getDocs(
       collection(
@@ -980,8 +1461,7 @@ export async function fetchAuthorizedAdmins(): Promise<
 
   return snapshot.docs.map(
     (adminDoc) => ({
-      uid:
-        adminDoc.id,
+      uid: adminDoc.id,
       ...adminDoc.data(),
     })
   );
@@ -1001,10 +1481,8 @@ export async function addAuthorizedAdmin(
     {
       uid,
       email,
-      role:
-        'admin',
-      addedAt:
-        serverTimestamp(),
+      role: 'admin',
+      addedAt: serverTimestamp(),
     }
   );
 }
@@ -1027,9 +1505,7 @@ export async function removeAuthorizedAdmin(
    AUTHORIZED FACULTY
 ========================================================= */
 
-export async function fetchAuthorizedFaculty(): Promise<
-  any[]
-> {
+export async function fetchAuthorizedFaculty(): Promise<any[]> {
   const snapshot =
     await getDocs(
       collection(
@@ -1040,8 +1516,7 @@ export async function fetchAuthorizedFaculty(): Promise<
 
   return snapshot.docs.map(
     (facultyDoc) => ({
-      uid:
-        facultyDoc.id,
+      uid: facultyDoc.id,
       ...facultyDoc.data(),
     })
   );
@@ -1061,10 +1536,8 @@ export async function addAuthorizedFaculty(
     {
       uid,
       email,
-      role:
-        'faculty',
-      addedAt:
-        serverTimestamp(),
+      role: 'faculty',
+      addedAt: serverTimestamp(),
     }
   );
 }
@@ -1103,8 +1576,7 @@ export function formatDate(
         value as {
           toDate: () => Date;
         }
-      ).toDate ===
-        'function'
+      ).toDate === 'function'
     ) {
       return (
         value as {
@@ -1112,9 +1584,7 @@ export function formatDate(
         }
       )
         .toDate()
-        .toLocaleDateString(
-          'en-IN'
-        );
+        .toLocaleDateString('en-IN');
     }
 
     if (
@@ -1124,11 +1594,7 @@ export function formatDate(
       const date =
         new Date(value);
 
-      if (
-        !isNaN(
-          date.getTime()
-        )
-      ) {
+      if (!isNaN(date.getTime())) {
         return date.toLocaleDateString(
           'en-IN'
         );
@@ -1255,9 +1721,7 @@ export async function registerSchool(
     );
 
   const slugSnapshot =
-    await getDoc(
-      slugRef
-    );
+    await getDoc(slugRef);
 
   if (slugSnapshot.exists()) {
     throw new Error(
@@ -1292,37 +1756,28 @@ export async function registerSchool(
     new Date().toISOString();
 
   const school: School = {
-    id:
-      schoolId,
+    id: schoolId,
 
-    name:
-      cleanName,
+    name: cleanName,
 
-    slug:
-      cleanSlug,
+    slug: cleanSlug,
 
     ownerUid,
 
-    ownerEmail:
-      cleanEmail,
+    ownerEmail: cleanEmail,
 
-    status:
-      'PENDING_PAYMENT',
+    status: 'PENDING_PAYMENT',
 
-    createdAt:
-      now,
+    createdAt: now,
 
-    updatedAt:
-      now,
+    updatedAt: now,
 
-    phone:
-      cleanPhone,
+    phone: cleanPhone,
 
     whatsappNumber:
       cleanWhatsappNumber,
 
-    whatsappVerified:
-      true,
+    whatsappVerified: true,
 
     address:
       input.address?.trim() || '',
@@ -1333,8 +1788,7 @@ export async function registerSchool(
     description:
       input.description?.trim() || '',
 
-    paymentStatus:
-      'PENDING',
+    paymentStatus: 'PENDING',
 
     subscriptionStatus:
       'PENDING',
@@ -1343,31 +1797,23 @@ export async function registerSchool(
   const membership:
     SchoolMembership = {
 
-    id:
-      membershipId,
+    id: membershipId,
 
     schoolId,
 
-    uid:
-      ownerUid,
+    uid: ownerUid,
 
-    email:
-      cleanEmail,
+    email: cleanEmail,
 
-    role:
-      'school_admin',
+    role: 'school_admin',
 
-    status:
-      'PENDING',
+    status: 'PENDING',
 
-    assignments:
-      [],
+    assignments: [],
 
-    createdAt:
-      now,
+    createdAt: now,
 
-    updatedAt:
-      now,
+    updatedAt: now,
   };
 
   const batch =
@@ -1386,8 +1832,7 @@ export async function registerSchool(
   batch.set(
     slugRef,
     {
-      slug:
-        cleanSlug,
+      slug: cleanSlug,
 
       schoolId,
 
