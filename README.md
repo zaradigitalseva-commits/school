@@ -1,2 +1,4 @@
 # school
-school website 
+school website
+
+<!-- Vercel Git integration test -->
