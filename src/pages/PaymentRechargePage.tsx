@@ -834,7 +834,7 @@ export default function PaymentRechargePage() {
                 >
                   {submitting
                     ? '⏳ Submitting...'
-                    : '✅ Submit Payment Request'}
+                    : '📤 UTR SEND'}
                 </button>
               </form>
             </section>
