@@ -251,14 +251,24 @@ export default function HomePage() {
               </Link>
 
               {user ? (
-                <button
-                  type="button"
-                  onClick={openDashboard}
-                  className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Dashboard
-                </button>
+                isPlatformAdminEmail(user.email) || role === 'platform_admin' ? (
+                  <Link
+                    to="/admin"
+                    className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-700 px-4 py-2.5 text-sm font-bold text-white"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Admin Panel
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openDashboard}
+                    className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    Dashboard
+                  </button>
+                )
               ) : (
                 <button
                   type="button"
@@ -285,14 +295,24 @@ export default function HomePage() {
               </Link>
 
               {user ? (
-                <button
-                  type="button"
-                  onClick={openDashboard}
-                  title="Dashboard"
-                  className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
-                >
-                  <LogIn className="h-5 w-5" />
-                </button>
+                isPlatformAdminEmail(user.email) || role === 'platform_admin' ? (
+                  <Link
+                    to="/admin"
+                    title="Admin Panel"
+                    className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-700 text-white"
+                  >
+                    <ShieldCheck className="h-5 w-5" />
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openDashboard}
+                    title="Dashboard"
+                    className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
+                  >
+                    <LogIn className="h-5 w-5" />
+                  </button>
+                )
               ) : (
                 <button
                   type="button"
