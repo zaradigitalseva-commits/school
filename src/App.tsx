@@ -184,7 +184,13 @@ function App() {
 
           <Route
             path="/ad"
-            element={<AdvertisementManagerPage />}
+            element={
+              <ProtectedRoute
+                allowedRoles={['platform_admin']}
+              >
+                <AdvertisementManagerPage />
+              </ProtectedRoute>
+            }
           />
 
           <Route
