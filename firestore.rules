@@ -68,9 +68,6 @@ service cloud.firestore {
         || (signedIn() && resource.data.ownerUid == request.auth.uid)
         || resource.data.status == 'LIVE';
 
-      // Registration must create the deterministic owner-registration record
-      // in the same transaction. This enforces one Google account = one school
-      // even if someone tries to bypass the UI and write directly to Firestore.
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status == 'PENDING_PAYMENT'
@@ -86,15 +83,13 @@ service cloud.firestore {
           && request.resource.data.status == resource.data.status
           && request.resource.data.paymentStatus == resource.data.paymentStatus
           && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus
-          && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly([
-               'name', 'address', 'phone', 'email',
-               'whatsappNumber', 'whatsappVerified', 'tagline',
-               'description', 'logoUrl', 'heroImageUrl',
-               'principalName', 'principalMessage', 'principalImageUrl',
-               'campusImages', 'totalStudents', 'totalTeachers',
-               'foundedYear', 'updatedAt'
-             ]));
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'address', 'phone', 'email', 'whatsappNumber',
+            'whatsappVerified', 'tagline', 'description', 'logoUrl',
+            'heroImageUrl', 'principalName', 'principalMessage',
+            'principalImageUrl', 'campusImages', 'totalStudents',
+            'totalTeachers', 'foundedYear', 'updatedAt'
+          ]));
 
       allow delete: if isPlatformAdmin();
     }
@@ -102,10 +97,8 @@ service cloud.firestore {
     match /schoolMemberships/{membershipId} {
       allow read: if isPlatformAdmin()
         || (signedIn() && resource.data.uid == request.auth.uid)
-        || (signedIn() && resource.data.schoolId is string
-            && isSchoolAdmin(resource.data.schoolId));
+        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
 
-      // Registration may create only its own PENDING school_admin membership.
       allow create: if isPlatformAdmin()
         || (signedIn()
           && request.resource.data.uid == request.auth.uid
@@ -120,8 +113,6 @@ service cloud.firestore {
           && isSchoolAdmin(request.resource.data.schoolId)
           && request.resource.data.uid is string);
 
-      // A school admin may manage staff in only their own school.
-      // They cannot convert a staff member into a school administrator.
       allow update: if isPlatformAdmin()
         || (signedIn()
           && resource.data.schoolId is string
@@ -134,9 +125,6 @@ service cloud.firestore {
       allow delete: if isPlatformAdmin();
     }
 
-    // One Google account can own only one school.
-    // The document ID is the authenticated user's UID, so a second
-    // registration attempt cannot create another owner record.
     match /schoolOwnerRegistrations/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow create: if signedIn()
@@ -150,7 +138,6 @@ service cloud.firestore {
 
     match /slugReservations/{slug} {
       allow read: if signedIn();
-      // Only the owner registering a school may reserve the slug.
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.schoolId is string
@@ -162,14 +149,11 @@ service cloud.firestore {
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
-
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
-
       allow update: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
             && request.resource.data.schoolId == resource.data.schoolId);
-
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
@@ -246,7 +230,7 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
         || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
             && request.resource.data.schoolId == resource.data.schoolId
-            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+            && teacherAssigned(request.resource.data.schoolId, resource.data.className));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
@@ -262,7 +246,7 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
         || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
             && request.resource.data.schoolId == resource.data.schoolId
-            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+            && teacherAssigned(resource.data.schoolId, resource.data.className));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
@@ -283,33 +267,33 @@ service cloud.firestore {
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
     }
 
-    // Payment data: platform admin controls settings/approval and school owner
-    // may create/read only their own recharge requests.
     match /platformSettings/{settingId} {
       allow read: if signedIn();
       allow create, update, delete: if isPlatformAdmin();
     }
 
     match /platformAds/{adId} {
-      // Public platform advertisements are readable only when active.
-      allow read: if resource.data.active == true
-        || isPlatformAdmin();
+      allow read: if resource.data.active == true || isPlatformAdmin();
       allow create, update, delete: if isPlatformAdmin();
     }
 
     match /rechargeRequests/{rechargeId} {
       allow read: if isPlatformAdmin()
         || (signedIn() && resource.data.uid == request.auth.uid);
+
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.schoolId is string
         && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
         && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid
         && request.resource.data.status == 'PENDING';
+
       allow update: if isPlatformAdmin()
-        || (signedIn() && resource.data.uid == request.auth.uid
-            && request.resource.data.status == resource.data.status
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['proofImageUrl', 'updatedAt']));
+        || (signedIn()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']));
+
       allow delete: if isPlatformAdmin();
     }
 
