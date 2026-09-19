@@ -17,8 +17,8 @@ import {
 import { auth, googleProvider } from '@/firebase/config';
 
 import {
-  fetchUserRole,
   ensureUserRecord,
+  fetchMyMembership,
   isPlatformAdminEmail,
 } from '@/firebase/firestore';
 
@@ -162,74 +162,28 @@ export function AuthProvider({
                */
 
               try {
-                await ensureUserRecord(
-                  firebaseUser.uid,
-                  email,
-                  firebaseUser.displayName,
-                  firebaseUser.photoURL
-                );
-              } catch (recordError) {
-                console.error(
-                  'Platform admin user record update failed:',
-                  recordError
-                );
-              }
-
-              /*
-               * IMPORTANT:
-               * Never wait for fetchUserRole() for the
-               * fixed Platform Admin.
-               */
-
-              setRole('platform_admin');
-              setLoading(false);
-
-              return;
-            }
-
-            /*
-             * =================================================
-             * 2. NORMAL USER RECORD
-             * =================================================
+                /*
+             * Normal users are identified by their ACTIVE
+             * school membership. We do not trust users/{uid}.role
+             * for school_admin/teacher access because a normal user
+             * must never be able to promote their own role.
              */
-
             await ensureUserRecord(
               firebaseUser.uid,
-              email,
-              firebaseUser.displayName,
-              firebaseUser.photoURL
+              email
             );
 
-            /*
-             * =================================================
-             * 3. RESOLVE APPLICATION ROLE
-             * =================================================
-             *
-             * IMPORTANT FIX:
-             *
-             * fetchUserRole() receives UID only.
-             *
-             * Do NOT pass email here.
-             */
-
-            const resolvedRole =
-              await fetchUserRole(
-                firebaseUser.uid
-              );
-
-            /*
-             * =================================================
-             * 4. ACCEPT ONLY VALID ROLES
-             * =================================================
-             */
+            const membership =
+              await fetchMyMembership();
 
             if (
-              resolvedRole ===
-              'school_admin'
+              membership?.status === 'ACTIVE' &&
+              membership.role === 'school_admin'
             ) {
               setRole('school_admin');
             } else if (
-              resolvedRole === 'teacher'
+              membership?.status === 'ACTIVE' &&
+              membership.role === 'teacher'
             ) {
               setRole('teacher');
             } else {
