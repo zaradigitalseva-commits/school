@@ -56,7 +56,6 @@ export interface RechargeRequest {
   utr: string;
   utrNormalized: string;
 
-  proofImageUrl?: string;
 
   status:
     | 'PENDING'
@@ -341,8 +340,7 @@ export async function createRechargeRequest(
     amount: number;
     days: number;
     utr: string;
-    proofImageUrl?: string;
-  }
+    }
 ): Promise<string> {
 
   if (!params.schoolId) {
@@ -529,10 +527,6 @@ export async function createRechargeRequest(
             params.utr.trim(),
 
           utrNormalized,
-
-          proofImageUrl:
-            params.proofImageUrl?.trim() ||
-            '',
 
           status:
             'PENDING',
