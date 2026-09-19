@@ -6,7 +6,6 @@ import {
   getDocs,
   query,
   runTransaction,
-  writeBatch,
   serverTimestamp,
   where,
 } from 'firebase/firestore';
@@ -546,6 +545,47 @@ export async function fetchMyRechargeRequests(
         timestampToMillis(
           a.createdAt
         )
+    );
+}
+
+/* =========================================================
+   SCHOOL RECHARGE HISTORY
+========================================================= */
+
+export interface SchoolRechargeHistoryItem {
+  id: string;
+  schoolId: string;
+  amount: number;
+  days?: number;
+  type?: string;
+  source?: string;
+  utr?: string;
+  rechargeRequestId?: string;
+  createdAt?: unknown;
+  balanceAfter?: number;
+}
+
+export async function fetchSchoolRechargeHistory(
+  schoolId: string
+): Promise<SchoolRechargeHistoryItem[]> {
+  if (!schoolId) return [];
+
+  const q = query(
+    collection(db, 'walletTransactions'),
+    where('schoolId', '==', schoolId)
+  );
+
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs
+    .map((item) => ({
+      id: item.id,
+      ...item.data(),
+    } as SchoolRechargeHistoryItem))
+    .sort(
+      (a, b) =>
+        timestampToMillis(b.createdAt) -
+        timestampToMillis(a.createdAt)
     );
 }
 
