@@ -6,8 +6,6 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 
-import AdvertisementManagerPage from '@/pages/admin/AdvertisementManagerPage';
-
 import {
   BILLING_PACKAGES,
   adminRechargeSchool,
@@ -181,9 +179,6 @@ export default function PlatformAdminPage() {
 
   const [rechargeSchool, setRechargeSchool] =
     useState<School | null>(null);
-
-  const [showAdvertisementManager, setShowAdvertisementManager] =
-    useState(false);
 
   const [rechargePackage, setRechargePackage] =
     useState(BILLING_PACKAGES[1]);
@@ -560,37 +555,6 @@ export default function PlatformAdminPage() {
 
   /*
    * =======================================================
-   * ADVERTISEMENT MANAGER
-   * =======================================================
-   */
-
-  if (showAdvertisementManager) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-3 text-white sm:p-6">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/10 p-3 shadow-xl backdrop-blur">
-            <div>
-              <div className="text-xl font-black">📢 Advertisement Admin</div>
-              <div className="text-sm font-bold text-white/70">
-                Platform advertisements
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowAdvertisementManager(false)}
-              className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(153,27,27)] active:translate-y-1 active:shadow-none"
-            >
-              ← Back to Platform Admin
-            </button>
-          </div>
-          <AdvertisementManagerPage />
-        </div>
-      </div>
-    );
-  }
-
-  /*
-   * =======================================================
    * SCHOOL COUNTS
    * =======================================================
    */
@@ -652,7 +616,7 @@ export default function PlatformAdminPage() {
 
           <button
             type="button"
-            onClick={() => setShowAdvertisementManager(true)}
+            onClick={() => navigate('/admin/advertisements')}
             className="block w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-center text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:scale-[1.01] hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
           >
             📢 Advertisement Admin
