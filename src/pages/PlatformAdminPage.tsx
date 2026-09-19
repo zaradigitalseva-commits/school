@@ -612,7 +612,7 @@ export default function PlatformAdminPage() {
 
         <div className="mb-6 flex justify-center">
           <a
-            href="/admin/advertisements"
+            href="/ad"
             className="inline-flex items-center justify-center rounded-2xl bg-white px-8 py-4 text-2xl font-black text-purple-700 shadow-[0_6px_0_rgb(67,56,202)] transition hover:scale-105 hover:bg-yellow-300 active:translate-y-1 active:shadow-none"
           >
             AD
