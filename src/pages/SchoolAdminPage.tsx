@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import {
   fetchSchoolById,
   fetchMyMembership,
+  fetchMyMemberships,
   fetchSchoolMemberships,
   updateSchoolMembership,
   saveSchoolInfo,
@@ -70,9 +71,13 @@ type AnyRecord = {
 
 export default function SchoolAdminPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [schoolId, setSchoolId] =
     useState<string | null>(null);
+
+  const [myMemberships, setMyMemberships] =
+    useState<SchoolMembership[]>([]);
 
   const [school, setSchool] =
     useState<School | null>(null);
@@ -112,13 +117,34 @@ export default function SchoolAdminPage() {
      LOAD SCHOOL
   ========================================================= */
 
-  const loadSchool = async () => {
+  const loadSchool = async (preferredSchoolId?: string) => {
     try {
       setLoading(true);
       setError('');
 
+      const allMemberships =
+        await fetchMyMemberships();
+
+      const activeAdminMemberships =
+        allMemberships.filter(
+          (membership) =>
+            membership.role === 'school_admin' &&
+            membership.status === 'ACTIVE'
+        );
+
+      setMyMemberships(
+        activeAdminMemberships
+      );
+
+      const requestedSchoolId =
+        preferredSchoolId ||
+        searchParams.get('schoolId') ||
+        '';
+
       const myMembership =
-        await fetchMyMembership();
+        await fetchMyMembership(
+          requestedSchoolId || undefined
+        );
 
       if (!myMembership) {
         setError(
@@ -160,6 +186,16 @@ export default function SchoolAdminPage() {
       }
 
       setSchoolId(currentSchoolId);
+
+      if (
+        searchParams.get('schoolId') !==
+        currentSchoolId
+      ) {
+        setSearchParams(
+          { schoolId: currentSchoolId },
+          { replace: true }
+        );
+      }
 
       const schoolData =
         await fetchSchoolById(
@@ -966,6 +1002,34 @@ export default function SchoolAdminPage() {
           </div>
 
         </div>
+
+        {myMemberships.length > 1 && (
+          <select
+            value={schoolId || ''}
+            onChange={(event) => {
+              void loadSchool(event.target.value);
+            }}
+            style={{
+              maxWidth: 240,
+              borderRadius: 12,
+              border: '1px solid #cbd5e1',
+              padding: '10px 12px',
+              fontWeight: 800,
+              background: '#fff',
+              color: '#0f172a',
+            }}
+            aria-label="Select school"
+          >
+            {myMemberships.map((membership) => (
+              <option
+                key={membership.id}
+                value={membership.schoolId}
+              >
+                School: {membership.schoolId}
+              </option>
+            ))}
+          </select>
+        )}
 
         <button
           style={
