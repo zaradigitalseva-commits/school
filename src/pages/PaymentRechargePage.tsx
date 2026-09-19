@@ -80,6 +80,7 @@ export default function PaymentRechargePage() {
   );
 
   const [utr, setUtr] = useState('');
+  const [showUtrForm, setShowUtrForm] = useState(false);
 
   const [paymentSettings, setPaymentSettings] =
     useState<PaymentSettings | null>(null);
@@ -191,6 +192,11 @@ export default function PaymentRechargePage() {
         setOwnedSchools(schools);
         setSchoolId(currentSchoolId);
         setSchoolName(currentSchoolName);
+        try {
+          setShowUtrForm(sessionStorage.getItem('school-payment-started-' + currentSchoolId) === '1');
+        } catch {
+          setShowUtrForm(false);
+        }
 
         /*
          * Payment settings/history are independent of the school
@@ -284,6 +290,12 @@ export default function PaymentRechargePage() {
     /*
      * Mobile में installed UPI app open होगी.
      */
+    try {
+      sessionStorage.setItem('school-payment-started-' + schoolId, '1');
+    } catch {
+      // Ignore storage errors.
+    }
+    setShowUtrForm(true);
     window.location.href = paymentUrl;
   };
 
@@ -373,6 +385,12 @@ export default function PaymentRechargePage() {
       );
 
       setUtr('');
+      try {
+        sessionStorage.removeItem('school-payment-started-' + schoolId);
+      } catch {
+        // Ignore storage errors.
+      }
+      setShowUtrForm(false);
 
       /*
        * Refresh history अलग से करें.
@@ -729,6 +747,7 @@ export default function PaymentRechargePage() {
           {/* RIGHT - FORM + HISTORY */}
           <div className="space-y-6">
             {/* SUBMIT FORM */}
+            {showUtrForm ? (
             <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
               <h2 className="text-xl font-black text-slate-900">
                 🧾 Submit Payment Details
