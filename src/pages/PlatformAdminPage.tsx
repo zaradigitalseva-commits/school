@@ -641,21 +641,30 @@ export default function PlatformAdminPage() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-          <div className="rounded-3xl bg-white p-6 shadow-2xl">
+          <button
+            type="button"
+            onClick={() => document.getElementById('all-schools')?.scrollIntoView({ behavior: 'smooth' })}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+          >
             <div className="text-4xl">
               🏫
             </div>
 
             <p className="mt-3 text-sm font-bold text-gray-500">
               Total Schools
+
             </p>
 
             <p className="text-3xl font-black text-gray-900">
               {schools.length}
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-3xl bg-white p-6 shadow-2xl">
+          <button
+            type="button"
+            onClick={() => document.getElementById('live-schools')?.scrollIntoView({ behavior: 'smooth' })}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+          >
             <div className="text-4xl">
               🟢
             </div>
@@ -667,9 +676,13 @@ export default function PlatformAdminPage() {
             <p className="text-3xl font-black text-green-600">
               {liveSchools.length}
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-3xl bg-white p-6 shadow-2xl">
+          <button
+            type="button"
+            onClick={() => document.getElementById('pending-schools')?.scrollIntoView({ behavior: 'smooth' })}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+          >
             <div className="text-4xl">
               ⏳
             </div>
@@ -681,9 +694,13 @@ export default function PlatformAdminPage() {
             <p className="text-3xl font-black text-yellow-600">
               {pendingSchools.length}
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-3xl bg-white p-6 shadow-2xl">
+          <button
+            type="button"
+            onClick={() => document.getElementById('pending-requests')?.scrollIntoView({ behavior: 'smooth' })}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+          >
             <div className="text-4xl">
               💳
             </div>
@@ -817,7 +834,7 @@ export default function PlatformAdminPage() {
             PENDING PAYMENT REQUESTS
         ================================================== */}
 
-        <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+        <section id="pending-requests" className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
 
@@ -1037,7 +1054,10 @@ export default function PlatformAdminPage() {
             ALL SCHOOLS
         ================================================== */}
 
-        <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+        <section
+          id="all-schools"
+          className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8"
+        >
 
           <div>
 
@@ -1052,6 +1072,9 @@ export default function PlatformAdminPage() {
           </div>
 
           <div className="mt-5 space-y-5">
+
+            <div id="live-schools" />
+            <div id="pending-schools" />
 
             {schools.map((school) => {
 
