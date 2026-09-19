@@ -80,7 +80,6 @@ export default function PaymentRechargePage() {
   );
 
   const [utr, setUtr] = useState('');
-  const [proofImageUrl, setProofImageUrl] = useState('');
 
   const [paymentSettings, setPaymentSettings] =
     useState<PaymentSettings | null>(null);
@@ -328,7 +327,6 @@ export default function PaymentRechargePage() {
         amount: selectedPackage.amount,
         days: selectedPackage.days,
         utr: cleanUtr,
-        proofImageUrl: proofImageUrl.trim() || undefined,
       });
 
       setMessage(
@@ -336,7 +334,6 @@ export default function PaymentRechargePage() {
       );
 
       setUtr('');
-      setProofImageUrl('');
 
       /*
        * Refresh history
@@ -726,45 +723,6 @@ export default function PaymentRechargePage() {
                   </p>
                 </div>
 
-                {/* PROOF */}
-                <div>
-                  <label className="mb-2 block font-black text-slate-700">
-                    Payment Screenshot / Proof URL
-                    <span className="ml-1 text-sm font-semibold text-slate-400">
-                      (Optional)
-                    </span>
-                  </label>
-
-                  <input
-                    type="url"
-                    value={proofImageUrl}
-                    onChange={(event) =>
-                      setProofImageUrl(event.target.value)
-                    }
-                    placeholder="https://..."
-                    className="
-                      w-full
-                      rounded-2xl
-                      border-2
-                      border-slate-200
-                      bg-white
-                      px-4 py-4
-                      font-bold
-                      text-slate-900
-                      outline-none
-                      transition
-                      focus:border-purple-500
-                      focus:ring-4
-                      focus:ring-purple-100
-                    "
-                  />
-
-                  <p className="mt-2 text-xs font-bold text-slate-400">
-                    यदि screenshot किसी image hosting पर है तो उसका
-                    URL डाल सकते हैं।
-                  </p>
-                </div>
-
                 {/* SUMMARY */}
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3">
@@ -933,16 +891,6 @@ export default function PaymentRechargePage() {
                             </div>
                           )}
 
-                          {item.proofImageUrl && (
-                            <a
-                              href={item.proofImageUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2 inline-flex w-fit rounded-xl bg-white px-3 py-2 text-sm font-black text-blue-600 shadow"
-                            >
-                              🖼️ View Payment Proof
-                            </a>
-                          )}
                         </div>
                       </div>
                     );
