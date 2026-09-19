@@ -252,7 +252,8 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
         || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
             && request.resource.data.schoolId == resource.data.schoolId
-            && teacherAssigned(resource.data.schoolId, resource.data.className));
+            && request.resource.data.className == resource.data.className
+            && teacherAssigned(resource.data.schoolId, request.resource.data.className));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
@@ -292,7 +293,17 @@ service cloud.firestore {
         && request.resource.data.schoolId is string
         && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
         && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid
-        && request.resource.data.status == 'PENDING';
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.amount in [300, 600, 900, 1200, 3000]
+        && (
+          (request.resource.data.amount == 300 && request.resource.data.days == 28) ||
+          (request.resource.data.amount == 600 && request.resource.data.days == 56) ||
+          (request.resource.data.amount == 900 && request.resource.data.days == 84) ||
+          (request.resource.data.amount == 1200 && request.resource.data.days == 112) ||
+          (request.resource.data.amount == 3000 && request.resource.data.days == 280)
+        )
+        && request.resource.data.utr is string
+        && request.resource.data.utrNormalized is string;
 
       allow update: if isPlatformAdmin()
         || (signedIn()
