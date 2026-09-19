@@ -5,8 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 
 import {
   createRechargeRequest,
-  fetchMyRechargeRequests,
-  fetchPaymentSettings,
+  subscribeToMyRechargeRequests,
+  subscribeToPaymentSettings,
 } from '@/firebase/payment';
 
 import type {
@@ -98,7 +98,7 @@ export default function PaymentRechargePage() {
    * ---------------------------------------------------------
    */
   useEffect(() => {
-    async function loadPage() {
+    async function loadSchool() {
       try {
         setLoading(true);
         setError('');
@@ -108,73 +108,37 @@ export default function PaymentRechargePage() {
           return;
         }
 
-        const requestedSchoolId =
-          searchParams.get('schoolId')?.trim() || '';
-
+        const requestedSchoolId = searchParams.get('schoolId')?.trim() || '';
         let currentSchoolId = requestedSchoolId;
         let currentSchoolName = '';
-
         let schools: Array<{ id: string; name: string }> = [];
 
-        /*
-         * If schoolId is supplied, read that exact school document.
-         * This avoids a collection query being rejected by Firestore
-         * rules because the query cannot prove every possible result
-         * is readable.
-         */
         if (requestedSchoolId) {
-          const selectedRef = doc(
-            db,
-            'schools',
-            requestedSchoolId
-          );
-
-          const selectedSnapshot = await getDoc(selectedRef);
-
-          if (!selectedSnapshot.exists()) {
-            throw new Error('School not found.');
-          }
+          const selectedSnapshot = await getDoc(doc(db, 'schools', requestedSchoolId));
+          if (!selectedSnapshot.exists()) throw new Error('School not found.');
 
           const selectedData = selectedSnapshot.data();
-
           if (String(selectedData.ownerUid || '') !== user.uid) {
-            throw new Error(
-              'You are not authorized to access this school payment page.'
-            );
+            throw new Error('You are not authorized to access this school payment page.');
           }
 
           const selectedSchool = {
             id: selectedSnapshot.id,
-            name: String(
-              selectedData.name ||
-                selectedData.schoolName ||
-                'Unnamed School'
-            ).trim(),
+            name: String(selectedData.name || selectedData.schoolName || 'Unnamed School').trim(),
           };
-
           schools = [selectedSchool];
           currentSchoolId = selectedSchool.id;
           currentSchoolName = selectedSchool.name;
         } else {
-          /*
-           * No schoolId supplied: load schools owned by this account.
-           */
-          const ownedQuery = query(
-            collection(db, 'schools'),
-            where('ownerUid', '==', user.uid)
+          const ownedSnapshot = await getDocs(
+            query(collection(db, 'schools'), where('ownerUid', '==', user.uid))
           );
-
-          const ownedSnapshot = await getDocs(ownedQuery);
 
           schools = ownedSnapshot.docs.map((schoolDoc) => {
             const data = schoolDoc.data();
             return {
               id: schoolDoc.id,
-              name: String(
-                data.name ||
-                  data.schoolName ||
-                  'Unnamed School'
-              ).trim(),
+              name: String(data.name || data.schoolName || 'Unnamed School').trim(),
             };
           });
 
@@ -182,50 +146,43 @@ export default function PaymentRechargePage() {
             currentSchoolId = schools[0].id;
             currentSchoolName = schools[0].name;
           } else if (schools.length === 0) {
-            throw new Error(
-              'आपके account से कोई school नहीं मिला।'
-            );
+            throw new Error('आपके account से कोई school नहीं मिला।');
           }
         }
 
         setOwnedSchools(schools);
         setSchoolId(currentSchoolId);
         setSchoolName(currentSchoolName);
-        /*
-         * Payment settings/history are independent of the school
-         * document. Load them separately so one optional read does
-         * not blank the entire payment page.
-         */
-        try {
-          const settings = await fetchPaymentSettings();
-          setPaymentSettings(settings);
-        } catch (settingsError) {
-          console.error('Payment settings load failed:', settingsError);
-          setPaymentSettings(null);
-        }
-
-        try {
-          const requests = await fetchMyRechargeRequests(user.uid);
-          setHistory(requests);
-        } catch (historyError) {
-          console.error('Payment history load failed:', historyError);
-          setHistory([]);
-        }
       } catch (err) {
         console.error(err);
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Payment page load नहीं हो सका।'
-        );
+        setError(err instanceof Error ? err.message : 'Payment page load नहीं हो सका।');
       } finally {
         setLoading(false);
       }
     }
 
-    loadPage();
+    loadSchool();
   }, [user?.uid, searchParams]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribeSettings = subscribeToPaymentSettings(
+      (settings) => setPaymentSettings(settings),
+      (error) => console.error('Live payment settings error:', error)
+    );
+
+    const unsubscribeHistory = subscribeToMyRechargeRequests(
+      user.uid,
+      (requests) => setHistory(requests),
+      (error) => console.error('Live payment history error:', error)
+    );
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeHistory();
+    };
+  }, [user?.uid]);
 
   /*
    * ---------------------------------------------------------
@@ -381,17 +338,6 @@ export default function PaymentRechargePage() {
        * History read fail होने पर भी successful submit का message
        * हटना नहीं चाहिए.
        */
-      try {
-        const updatedHistory =
-          await fetchMyRechargeRequests(user.uid);
-
-        setHistory(updatedHistory);
-      } catch (historyError) {
-        console.error(
-          'Payment history refresh failed:',
-          historyError
-        );
-      }
 
       /*
        * WhatsApp message
