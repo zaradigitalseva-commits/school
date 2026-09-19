@@ -1041,37 +1041,26 @@ export default function PlatformAdminPage() {
                       </div>
                     )}
 
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    {/* =================================================
+    ADVERTISEMENT ADMIN BUTTON
+================================================== */}
 
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          handleApprove(
-                            request.id
-                          )
-                        }
-                        className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(4,120,87)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
-                      >
-                        {busy
-                          ? '⏳ Processing...'
-                          : `✅ Approve ₹${request.amount} / ${request.days} Days`}
-                      </button>
+<div className="mb-6">
+  <button
+    type="button"
+    onClick={() => {
+      window.location.href = '/admin/advertisements';
+    }}
+    className="w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
+  >
+    📢 Advertisement Admin
 
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          handleReject(
-                            request.id
-                          )
-                        }
-                        className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(159,18,57)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
-                      >
-                        ❌ Reject Payment
-                      </button>
+    <span className="mt-1 block text-sm font-bold text-white/80">
+      Paid Slider + Scrolling Advertisement
+    </span>
+  </button>
+</div>
 
-                    </div>
 
                   </div>
                 );
