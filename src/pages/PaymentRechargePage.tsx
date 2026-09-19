@@ -637,36 +637,43 @@ export default function PaymentRechargePage() {
                   </p>
 
                   {/* PAY NOW */}
-                  <button
-                    type="button"
-                    onClick={handleUPIPayment}
-                    disabled={
-                      !schoolId ||
-                      !paymentSettings?.upiId?.trim()
-                    }
-                    className="
-                      mt-5
-                      w-full
-                      rounded-2xl
-                      bg-gradient-to-r
-                      from-green-500
-                      via-emerald-500
-                      to-teal-500
-                      px-6 py-4
-                      text-lg
-                      font-black
-                      text-white
-                      shadow-[0_7px_0_rgb(4,120,87)]
-                      transition
-                      hover:brightness-105
-                      active:translate-y-1
-                      active:shadow-none
-                      disabled:cursor-not-allowed
-                      disabled:opacity-50
-                    "
-                  >
-                    💳 Pay ₹{selectedPackage.amount} Now
-                  </button>
+                  {upiPaymentUrl ? (
+                    <a
+                      href={upiPaymentUrl}
+                      className="
+                        mt-5
+                        flex w-full items-center justify-center
+                        rounded-2xl
+                        bg-gradient-to-r
+                        from-green-500
+                        via-emerald-500
+                        to-teal-500
+                        px-6 py-4
+                        text-lg
+                        font-black
+                        text-white
+                        shadow-[0_7px_0_rgb(4,120,87)]
+                        transition
+                        hover:brightness-105
+                        active:translate-y-1
+                        active:shadow-none
+                      "
+                      aria-label={`Pay ₹${selectedPackage.amount} Now via UPI`}
+                    >
+                      💳 Pay ₹{selectedPackage.amount} Now
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="
+                        mt-5 w-full rounded-2xl bg-slate-300
+                        px-6 py-4 text-lg font-black text-slate-500
+                      "
+                    >
+                      💳 Pay ₹{selectedPackage.amount} Now
+                    </button>
+                  )}
 
                   <p className="mt-3 text-center text-xs font-bold text-slate-400">
                     Pay Now दबाने पर आपके mobile में available UPI
