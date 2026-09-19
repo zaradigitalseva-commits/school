@@ -5,13 +5,14 @@ import {
 } from 'react';
 
 import { useNavigate } from 'react-router-dom';
-
 import { useAuth } from '@/context/AuthContext';
-
 import { registerSchool } from '@/firebase/firestore';
 
 /* =========================================================
    REGISTER SCHOOL PAGE
+   Only essential information is collected here.
+   Other school details can be completed later from
+   School Admin -> School Info.
 ========================================================= */
 
 export default function RegisterSchoolPage() {
@@ -23,97 +24,31 @@ export default function RegisterSchoolPage() {
     signInWithGoogle,
   } = useAuth();
 
-  const [schoolName, setSchoolName] =
-    useState('');
+  const [schoolName, setSchoolName] = useState('');
+  const [address, setAddress] = useState('');
+  const [schoolEmail, setSchoolEmail] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [principalName, setPrincipalName] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappVerified, setWhatsappVerified] = useState(false);
 
-  const [address, setAddress] =
-    useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const [phone, setPhone] =
-    useState('');
+  const isValidIndianMobile = (value: string) =>
+    /^[6-9][0-9]{9}$/.test(value);
 
-  const [schoolEmail, setSchoolEmail] =
-    useState('');
-
-  const [city, setCity] =
-    useState('');
-
-  const [state, setState] =
-    useState('');
-
-  const [principalName, setPrincipalName] =
-    useState('');
-
-  const [foundedYear, setFoundedYear] =
-    useState('');
-
-  const [whatsappNumber, setWhatsappNumber] =
-    useState('');
-
-  const [tagline, setTagline] =
-    useState('');
-
-  const [description, setDescription] =
-    useState('');
-
-  const [whatsappVerified, setWhatsappVerified] =
-    useState(false);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState('');
-
-  const [success, setSuccess] =
-    useState('');
-
-  /* =======================================================
-     INDIAN MOBILE VALIDATION
-  ======================================================= */
-
-  const isValidIndianMobile = (
-    value: string
-  ) => {
-    return /^[6-9][0-9]{9}$/.test(value);
-  };
-
-  /* =======================================================
-     CREATE SCHOOL SLUG
-  ======================================================= */
-
-  const createSlug = (
-    value: string
-  ) => {
+  const createSlug = (value: string) => {
     const slug = value
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-    return (
-      slug ||
-      `school-${Date.now()}`
-    );
+    return slug || `school-${Date.now()}`;
   };
-
-  /* =======================================================
-     PHONE CHANGE
-  ======================================================= */
-
-  const handlePhoneChange = (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = event.target.value
-      .replace(/\D/g, '')
-      .slice(0, 10);
-
-    setPhone(value);
-  };
-
-  /* =======================================================
-     WHATSAPP CHANGE
-  ======================================================= */
 
   const handleWhatsappChange = (
     event: ChangeEvent<HTMLInputElement>
@@ -123,53 +58,28 @@ export default function RegisterSchoolPage() {
       .slice(0, 10);
 
     setWhatsappNumber(value);
-
-    /*
-     * Number changed, so confirmation
-     * must be checked again.
-     */
     setWhatsappVerified(false);
   };
-
-  /* =======================================================
-     GOOGLE LOGIN
-  ======================================================= */
 
   const handleGoogleLogin = async () => {
     try {
       setError('');
       setLoading(true);
-
       await signInWithGoogle();
     } catch (err) {
-      console.error(
-        'Google login error:',
-        err
-      );
-
-      setError(
-        'Google Login failed. Please try again.'
-      );
+      console.error('Google login error:', err);
+      setError('Google Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  /* =======================================================
-     SUBMIT REGISTRATION
-  ======================================================= */
-
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-
     setError('');
     setSuccess('');
-
-    /* -------------------------------------------------------
-       LOGIN CHECK
-    ------------------------------------------------------- */
 
     if (!user) {
       setError(
@@ -178,81 +88,45 @@ export default function RegisterSchoolPage() {
       return;
     }
 
-    /* -------------------------------------------------------
-       SCHOOL NAME
-    ------------------------------------------------------- */
-
-    const cleanSchoolName =
-      schoolName.trim();
+    const cleanSchoolName = schoolName.trim();
+    const cleanAddress = address.trim();
+    const cleanSchoolEmail = schoolEmail.trim().toLowerCase();
+    const cleanCity = city.trim();
+    const cleanState = state.trim();
+    const cleanPrincipalName = principalName.trim();
+    const cleanWhatsappNumber = whatsappNumber.trim();
 
     if (!cleanSchoolName) {
-      setError(
-        'Please enter school name.'
-      );
+      setError('Please enter school name.');
       return;
     }
-
-    /* -------------------------------------------------------
-       ADDRESS
-    ------------------------------------------------------- */
-
-    const cleanAddress =
-      address.trim();
 
     if (!cleanAddress) {
-      setError(
-        'Please enter school address.'
-      );
+      setError('Please enter school address.');
       return;
     }
-
-    /* -------------------------------------------------------
-       WHATSAPP
-    ------------------------------------------------------- */
-
-    const cleanSchoolEmail =
-      schoolEmail.trim().toLowerCase();
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanSchoolEmail)) {
-      setError('Please enter a valid school email address.');
+      setError('Please enter a valid school contact email.');
       return;
     }
 
-    const cleanCity = city.trim();
     if (!cleanCity) {
       setError('Please enter school city.');
       return;
     }
 
-    const cleanState = state.trim();
     if (!cleanState) {
       setError('Please enter school state.');
       return;
     }
 
-    const cleanPrincipalName = principalName.trim();
     if (!cleanPrincipalName) {
       setError('Please enter principal/head name.');
       return;
     }
 
-    const cleanFoundedYear = foundedYear.trim();
-
-    const cleanWhatsappNumber =
-      whatsappNumber.trim();
-
-    if (!cleanWhatsappNumber) {
-      setError(
-        'Please enter WhatsApp number.'
-      );
-      return;
-    }
-
-    if (
-      !isValidIndianMobile(
-        cleanWhatsappNumber
-      )
-    ) {
+    if (!isValidIndianMobile(cleanWhatsappNumber)) {
       setError(
         'Please enter a valid 10-digit Indian WhatsApp number.'
       );
@@ -266,123 +140,37 @@ export default function RegisterSchoolPage() {
       return;
     }
 
-    /* -------------------------------------------------------
-       OPTIONAL PHONE
-    ------------------------------------------------------- */
-
-    const cleanPhone =
-      phone.trim();
-
-    if (
-      cleanPhone &&
-      !isValidIndianMobile(
-        cleanPhone
-      )
-    ) {
-      setError(
-        'Please enter a valid 10-digit phone number.'
-      );
-      return;
-    }
-
-    /* -------------------------------------------------------
-       OPTIONAL INFORMATION
-    ------------------------------------------------------- */
-
-    const cleanTagline =
-      tagline.trim();
-
-    const cleanDescription =
-      description.trim();
-
-    /* -------------------------------------------------------
-       SLUG
-    ------------------------------------------------------- */
-
-    const slug =
-      createSlug(
-        cleanSchoolName
-      );
-
-    /* -------------------------------------------------------
-       SAVE
-    ------------------------------------------------------- */
-
     try {
       setLoading(true);
 
-      const registeredSchool =
-        await registerSchool(
-          user.uid,
-          {
-            name: cleanSchoolName,
-
-            slug,
-
-            address:
-              cleanAddress,
-
-            phone:
-              cleanPhone,
-
-            email:
-              cleanSchoolEmail,
-
-            city:
-              cleanCity,
-
-            state:
-              cleanState,
-
-            principalName:
-              cleanPrincipalName,
-
-            foundedYear:
-              cleanFoundedYear,
-
-            tagline:
-              cleanTagline,
-
-            description:
-              cleanDescription,
-
-            whatsappNumber:
-              cleanWhatsappNumber,
-
-            whatsappVerified:
-              true,
-          },
-          user.email || ''
-        );
-
-      console.log(
-        'School registered:',
-        registeredSchool
+      const registeredSchool = await registerSchool(
+        user.uid,
+        {
+          name: cleanSchoolName,
+          slug: createSlug(cleanSchoolName),
+          address: cleanAddress,
+          email: cleanSchoolEmail,
+          city: cleanCity,
+          state: cleanState,
+          principalName: cleanPrincipalName,
+          phone: cleanWhatsappNumber,
+          whatsappNumber: cleanWhatsappNumber,
+          whatsappVerified: true,
+        },
+        user.email || ''
       );
+
+      console.log('School registered:', registeredSchool);
 
       setSuccess(
         'School registered successfully. Please complete payment.'
       );
 
-      /*
-       * Registration creates the school as
-       * PENDING_PAYMENT.
-       *
-       * Go to recharge/payment page.
-       */
       setTimeout(() => {
-        navigate(
-          '/payment/recharge',
-          {
-            replace: true,
-          }
-        );
+        navigate('/payment/recharge', { replace: true });
       }, 800);
     } catch (err) {
-      console.error(
-        'School registration error:',
-        err
-      );
+      console.error('School registration error:', err);
 
       const message =
         err instanceof Error
@@ -395,50 +183,32 @@ export default function RegisterSchoolPage() {
     }
   };
 
-  /* =======================================================
-     AUTH LOADING
-  ======================================================= */
-
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-6">
         <div className="bg-white rounded-3xl shadow-2xl p-8 text-center">
-          <div className="text-4xl mb-4">
-            🏫
-          </div>
-
+          <div className="text-4xl mb-4">🏫</div>
           <h2 className="text-xl font-bold text-gray-800">
             Loading...
           </h2>
-
-          <p className="text-gray-500 mt-2">
-            Please wait
-          </p>
+          <p className="text-gray-500 mt-2">Please wait</p>
         </div>
       </div>
     );
   }
 
-  /* =======================================================
-     LOGIN REQUIRED
-  ======================================================= */
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-4">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 sm:p-8 text-center">
-
-          <div className="text-6xl mb-4">
-            🏫
-          </div>
+          <div className="text-6xl mb-4">🏫</div>
 
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
             Register Your School
           </h1>
 
           <p className="text-gray-600 mt-3">
-            Please login with your Google account
-            to register your school.
+            Please login with your Google account to register your school.
           </p>
 
           <button
@@ -452,9 +222,7 @@ export default function RegisterSchoolPage() {
               active:shadow-[0_3px_0_#b91c1c]
               transition-all disabled:opacity-60"
           >
-            {loading
-              ? 'Logging in...'
-              : '🔐 Continue with Google'}
+            {loading ? 'Logging in...' : '🔐 Continue with Google'}
           </button>
 
           {error && (
@@ -467,26 +235,12 @@ export default function RegisterSchoolPage() {
     );
   }
 
-  /* =======================================================
-     REGISTRATION FORM
-  ======================================================= */
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8 sm:py-12">
-
       <div className="max-w-3xl mx-auto">
-
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-
           <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 p-6 sm:p-8 text-white text-center">
-
-            <div className="text-5xl mb-3">
-              🏫
-            </div>
+            <div className="text-5xl mb-3">🏫</div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold">
               Register Your School
@@ -497,58 +251,45 @@ export default function RegisterSchoolPage() {
             </p>
 
             <div className="mt-4 bg-white/15 rounded-2xl p-3 text-sm">
-              Logged in as:
+              <div>Logged in with Google:</div>
+              <strong>{user.email}</strong>
+            </div>
+
+            <div className="mt-3 bg-yellow-300/20 border border-white/30 rounded-2xl p-3 text-sm">
+              🔒 <strong>1 Google account = 1 school</strong>
               <br />
-              <strong>
-                {user.email}
-              </strong>
+              This Google account can register only one school.
             </div>
           </div>
-
-          {/* =================================================
-              FORM
-          ================================================= */}
 
           <form
             onSubmit={handleSubmit}
             className="p-5 sm:p-8 space-y-5"
           >
-
-            {/* SCHOOL NAME */}
-
             <div>
               <label className="block font-bold text-gray-800 mb-2">
                 🏫 School Name *
               </label>
-
               <input
                 type="text"
                 value={schoolName}
-                onChange={(e) =>
-                  setSchoolName(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setSchoolName(e.target.value)}
                 placeholder="Enter school name"
                 required
                 className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
               />
+              <p className="text-xs text-gray-500 mt-2">
+                Your school website link will be created automatically from this name.
+              </p>
             </div>
-
-            {/* ADDRESS */}
 
             <div>
               <label className="block font-bold text-gray-800 mb-2">
                 📍 School Address *
               </label>
-
               <textarea
                 value={address}
-                onChange={(e) =>
-                  setAddress(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setAddress(e.target.value)}
                 placeholder="Enter complete school address"
                 rows={3}
                 required
@@ -556,12 +297,10 @@ export default function RegisterSchoolPage() {
               />
             </div>
 
-            {/* SCHOOL CONTACT / LOCATION */}
-
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="block font-bold text-gray-800 mb-2">
-                  ✉️ School Email *
+                  ✉️ School Contact Email *
                 </label>
                 <input
                   type="email"
@@ -571,6 +310,9 @@ export default function RegisterSchoolPage() {
                   required
                   className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
                 />
+                <p className="text-xs text-gray-500 mt-2">
+                  This is the school's public contact email. It can be different from your Google login email.
+                </p>
               </div>
 
               <div>
@@ -614,34 +356,14 @@ export default function RegisterSchoolPage() {
                   className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
                 />
               </div>
-
-              <div>
-                <label className="block font-bold text-gray-800 mb-2">
-                  📅 Founded Year
-                  <span className="font-normal text-gray-500"> (Optional)</span>
-                </label>
-                <input
-                  type="number"
-                  min="1800"
-                  max={new Date().getFullYear()}
-                  value={foundedYear}
-                  onChange={(e) => setFoundedYear(e.target.value)}
-                  placeholder="Example: 2005"
-                  className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
-                />
-              </div>
             </div>
 
-            {/* WHATSAPP */}
-
             <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-4">
-
               <label className="block font-bold text-gray-800 mb-2">
                 📱 School WhatsApp Number *
               </label>
 
               <div className="flex">
-
                 <span className="flex items-center px-4 bg-gray-100 border-2 border-r-0 border-gray-200 rounded-l-2xl font-bold text-gray-700">
                   +91
                 </span>
@@ -650,120 +372,31 @@ export default function RegisterSchoolPage() {
                   type="tel"
                   inputMode="numeric"
                   value={whatsappNumber}
-                  onChange={
-                    handleWhatsappChange
-                  }
+                  onChange={handleWhatsappChange}
                   placeholder="10 digit mobile number"
                   maxLength={10}
                   required
                   className="w-full rounded-r-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-green-500"
                 />
-
               </div>
 
               <label className="flex items-start gap-3 mt-4 cursor-pointer">
-
                 <input
                   type="checkbox"
-                  checked={
-                    whatsappVerified
-                  }
-                  onChange={(e) =>
-                    setWhatsappVerified(
-                      e.target.checked
-                    )
-                  }
+                  checked={whatsappVerified}
+                  onChange={(e) => setWhatsappVerified(e.target.checked)}
                   className="mt-1 h-5 w-5"
                 />
 
                 <span className="text-sm text-gray-700">
-                  I confirm that this is the
-                  school's correct WhatsApp
-                  number.
+                  I confirm that this is the school's correct WhatsApp number.
                 </span>
-
               </label>
 
               <p className="text-xs text-gray-500 mt-2">
-                ₹0 verification means owner
-                confirmation only. No OTP is
-                sent.
+                This is only your confirmation. No OTP is sent.
               </p>
             </div>
-
-            {/* OPTIONAL PHONE */}
-
-            <div>
-              <label className="block font-bold text-gray-800 mb-2">
-                ☎️ Phone Number
-                <span className="font-normal text-gray-500">
-                  {' '}
-                  (Optional)
-                </span>
-              </label>
-
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={
-                  handlePhoneChange
-                }
-                placeholder="10 digit phone number"
-                maxLength={10}
-                className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* TAGLINE */}
-
-            <div>
-              <label className="block font-bold text-gray-800 mb-2">
-                ✨ School Tagline
-                <span className="font-normal text-gray-500">
-                  {' '}
-                  (Optional)
-                </span>
-              </label>
-
-              <input
-                type="text"
-                value={tagline}
-                onChange={(e) =>
-                  setTagline(
-                    e.target.value
-                  )
-                }
-                placeholder="Example: Knowledge • Discipline • Success"
-                className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* DESCRIPTION */}
-
-            <div>
-              <label className="block font-bold text-gray-800 mb-2">
-                📝 School Description
-                <span className="font-normal text-gray-500">
-                  {' '}
-                  (Optional)
-                </span>
-              </label>
-
-              <textarea
-                value={description}
-                onChange={(e) =>
-                  setDescription(
-                    e.target.value
-                  )
-                }
-                placeholder="Short description about your school"
-                rows={4}
-                className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500 resize-none"
-              />
-            </div>
-
-            {/* ERROR */}
 
             {error && (
               <div className="rounded-2xl bg-red-50 border-2 border-red-200 text-red-700 p-4 font-medium">
@@ -771,15 +404,11 @@ export default function RegisterSchoolPage() {
               </div>
             )}
 
-            {/* SUCCESS */}
-
             {success && (
               <div className="rounded-2xl bg-green-50 border-2 border-green-200 text-green-700 p-4 font-medium">
                 ✅ {success}
               </div>
             )}
-
-            {/* SUBMIT */}
 
             <button
               type="submit"
@@ -791,37 +420,25 @@ export default function RegisterSchoolPage() {
                 active:shadow-[0_4px_0_#047857]
                 transition-all disabled:opacity-60"
             >
-              {loading
-                ? '⏳ Registering School...'
-                : '🏫 Register School'}
+              {loading ? '⏳ Registering School...' : '🏫 Register School'}
             </button>
 
-            {/* PAYMENT INFO */}
-
             <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
-              <strong>
-                ℹ️ Registration Process
-              </strong>
+              <strong>ℹ️ Registration Process</strong>
 
               <div className="mt-2 space-y-1">
-                <div>
-                  1️⃣ Google Login
-                </div>
-                <div>
-                  2️⃣ School Registration
-                </div>
-                <div>
-                  3️⃣ Payment / Recharge
-                </div>
-                <div>
-                  4️⃣ Platform Admin Approval
-                </div>
-                <div>
-                  5️⃣ School Website Goes LIVE
-                </div>
+                <div>1️⃣ Google Login</div>
+                <div>2️⃣ Fill essential school details</div>
+                <div>3️⃣ Register School</div>
+                <div>4️⃣ Payment / Recharge</div>
+                <div>5️⃣ Platform Admin Approval</div>
+                <div>6️⃣ School Website Goes LIVE</div>
               </div>
-            </div>
 
+              <p className="mt-3 text-xs text-blue-700">
+                Logo, photos, tagline, description, founded year and other details can be added later from School Admin → School Info.
+              </p>
+            </div>
           </form>
         </div>
       </div>
