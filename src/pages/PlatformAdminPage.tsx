@@ -1409,7 +1409,23 @@ export default function PlatformAdminPage() {
                             ⛔ Suspend
                           </button>
 
-                        ) : null}
+                        ) : (
+
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              setRechargeSchool(school);
+                              setRechargePackage(BILLING_PACKAGES[1]);
+                              setError('');
+                              setMessage('');
+                            }}
+                            className="rounded-xl bg-green-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                          >
+                            🟢 Activate
+                          </button>
+
+                        )}
 
                       </div>
 
