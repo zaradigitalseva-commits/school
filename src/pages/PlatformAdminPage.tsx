@@ -608,19 +608,15 @@ export default function PlatformAdminPage() {
 
         </div>
 
-        {/* =================================================
-            ADVERTISEMENT ADMIN
-        ================================================== */}
+        {/* ADVERTISEMENT LINK */}
 
         <div className="mb-6">
-
           <a
             href="https://school-gules-pi.vercel.app/admin/advertisements"
-            className="inline-flex items-center rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-8 py-4 text-2xl font-black text-white shadow-[0_6px_0_rgb(67,56,202)] transition hover:scale-[1.03] hover:brightness-110 active:translate-y-1 active:shadow-none"
+            className="font-black text-white underline underline-offset-4 hover:text-yellow-200"
           >
             AD
           </a>
-
         </div>
 
         {/* =================================================
