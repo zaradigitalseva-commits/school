@@ -1,4 +1,26 @@
 // ============================================================
+// USER ROLES
+// ============================================================
+
+export type UserRole =
+  | 'user'
+  | 'teacher'
+  | 'school_admin'
+  | 'platform_admin';
+
+
+// ============================================================
+// SCHOOL STATUS
+// ============================================================
+
+export type SchoolStatus =
+  | 'PENDING_PAYMENT'
+  | 'LIVE'
+  | 'SUSPENDED'
+  | 'ARCHIVED';
+
+
+// ============================================================
 // SCHOOL
 // ============================================================
 
@@ -9,9 +31,6 @@ export interface School {
   slug: string;
 
   ownerUid: string;
-
-  // Google Login email - automatically saved,
-  // not entered manually in registration form.
   ownerEmail: string;
 
   status: SchoolStatus;
@@ -28,6 +47,8 @@ export interface School {
   address?: string;
   phone?: string;
   email?: string;
+  whatsappNumber?: string;
+  whatsappVerified?: boolean;
 
   principalName?: string;
   principalMessage?: string;
@@ -48,20 +69,15 @@ export interface School {
   subscriptionPlan?: string;
   subscriptionStatus?: string;
 
-  // Subscription validity
   subscriptionStartDate?: string;
   subscriptionExpiryDate?: string;
   subscriptionDays?: number;
 
-  // Payment information
   paymentStatus?: string;
   paymentId?: string;
   paymentAmount?: number;
   paymentDate?: string;
 
-  // How the subscription was approved
-  // PAID   = payment approved
-  // WAIVED = free/test approval by Platform Admin
   paymentApprovalType?: 'PAID' | 'WAIVED';
 
   // ============================================================
@@ -75,4 +91,118 @@ export interface School {
   archivedAt?: string;
 
   suspensionReason?: string;
+}
+
+
+// ============================================================
+// SCHOOL INFO
+// ============================================================
+
+export interface SchoolInfo extends School {
+  schoolId?: string;
+}
+
+
+// ============================================================
+// SCHOOL MEMBERSHIP
+// ============================================================
+
+export interface SchoolMembership {
+  id: string;
+
+  schoolId: string;
+  uid: string;
+  email: string;
+
+  role: 'school_admin' | 'teacher';
+
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED';
+
+  assignments?: string[];
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+
+// ============================================================
+// SCHOOL REGISTRATION
+// ============================================================
+
+export interface SchoolRegistrationInput {
+  name: string;
+  slug: string;
+
+  phone?: string;
+  whatsappNumber: string;
+  whatsappVerified: boolean;
+
+  address?: string;
+  tagline?: string;
+  description?: string;
+
+  logoUrl?: string;
+  heroImageUrl?: string;
+}
+
+
+// ============================================================
+// TEACHER
+// ============================================================
+
+export interface Teacher {
+  id: string;
+
+  schoolId: string;
+
+  uid?: string;
+  email?: string;
+
+  name: string;
+  phone?: string;
+
+  subject?: string;
+  assignedClass?: string;
+
+  status?: 'ACTIVE' | 'INACTIVE';
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// ANNOUNCEMENT / NOTICE
+// ============================================================
+
+export interface Announcement {
+  id: string;
+
+  schoolId: string;
+
+  title: string;
+  content?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+
+// ============================================================
+// SCHOOL EVENT
+// ============================================================
+
+export interface SchoolEvent {
+  id: string;
+
+  schoolId: string;
+
+  title: string;
+  description?: string;
+
+  eventDate?: string;
+  imageUrl?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
 }
