@@ -79,15 +79,17 @@ export default function SchoolPublicPage() {
 
         /*
          * IMPORTANT:
-         * These functions are currently your existing Firebase functions.
-         * If they are not school-specific yet, we will update them next
-         * to use schoolId so School A never sees School B data.
+         * Every school-public query MUST be scoped to the
+         * currently opened school's Firestore document ID.
+         * This prevents School A from showing School B content.
          */
+        const schoolId = schoolData.id;
+
         const [announcementData, eventData, teacherData] =
           await Promise.all([
-            fetchAnnouncements(),
-            fetchEvents(),
-            fetchTeachers(),
+            fetchAnnouncements(schoolId),
+            fetchEvents(schoolId),
+            fetchTeachers(schoolId),
           ]);
 
         if (!mounted) return;
