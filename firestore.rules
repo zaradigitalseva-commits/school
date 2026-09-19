@@ -128,6 +128,20 @@ service cloud.firestore {
       allow delete: if isPlatformAdmin();
     }
 
+    // One Google account can own only one school.
+    // The document ID is the authenticated user's UID, so a second
+    // registration attempt cannot create another owner record.
+    match /schoolOwnerRegistrations/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && !exists(/databases/$(database)/documents/schoolOwnerRegistrations/$(uid))
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
+      allow update, delete: if isPlatformAdmin();
+    }
+
     match /slugReservations/{slug} {
       allow read: if signedIn();
       // Only the owner registering a school may reserve the slug.
