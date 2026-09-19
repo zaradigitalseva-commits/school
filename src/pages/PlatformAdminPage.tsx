@@ -11,6 +11,7 @@ import {
   adminRechargeSchool,
   approveRecharge,
   fetchPendingRecharges,
+  fetchSchoolRechargeHistory,
   fetchPaymentSettings,
   rejectRecharge,
   savePaymentSettings,
@@ -179,6 +180,15 @@ export default function PlatformAdminPage() {
 
   const [rechargeSchool, setRechargeSchool] =
     useState<School | null>(null);
+
+  const [rechargeHistory, setRechargeHistory] =
+    useState<Record<string, Awaited<ReturnType<typeof fetchSchoolRechargeHistory>>>>({});
+
+  const [historyOpen, setHistoryOpen] =
+    useState<string | null>(null);
+
+  const [historyLoading, setHistoryLoading] =
+    useState<string | null>(null);
 
   const [rechargePackage, setRechargePackage] =
     useState(BILLING_PACKAGES[1]);
@@ -520,6 +530,37 @@ export default function PlatformAdminPage() {
    * HELPERS
    * =======================================================
    */
+
+  async function handleRechargeHistory(schoolId: string) {
+    if (historyOpen === schoolId) {
+      setHistoryOpen(null);
+      return;
+    }
+
+    setHistoryOpen(schoolId);
+
+    if (rechargeHistory[schoolId]) {
+      return;
+    }
+
+    try {
+      setHistoryLoading(schoolId);
+      const history = await fetchSchoolRechargeHistory(schoolId);
+      setRechargeHistory((current) => ({
+        ...current,
+        [schoolId]: history,
+      }));
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Recharge history load नहीं हो सकी।'
+      );
+    } finally {
+      setHistoryLoading(null);
+    }
+  }
 
   function getSchoolById(
     schoolId: string
@@ -1398,6 +1439,52 @@ export default function PlatformAdminPage() {
 
                     </div>
 
+                    {historyOpen === school.id && (
+                      <div className="rounded-2xl border-2 border-cyan-100 bg-cyan-50 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-black text-cyan-900">
+                            📜 Recharge History
+                          </p>
+                          <p className="text-sm font-black text-cyan-700">
+                            {rechargeHistory[school.id]?.length || 0} recharge record(s)
+                          </p>
+                        </div>
+
+                        {(rechargeHistory[school.id] || []).length === 0 ? (
+                          <p className="mt-3 rounded-xl bg-white p-3 text-sm font-bold text-gray-600">
+                            अभी कोई recharge transaction record नहीं मिला।
+                          </p>
+                        ) : (
+                          <div className="mt-3 space-y-2">
+                            {rechargeHistory[school.id].map((item) => (
+                              <div key={item.id} className="rounded-xl bg-white p-3 shadow-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <p className="font-black text-gray-900">
+                                    ₹{item.amount} {item.days ? `/ ${item.days} days` : ''}
+                                  </p>
+                                  <p className="text-xs font-black text-green-700">
+                                    {item.source || 'RECHARGE'}
+                                  </p>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                  {item.createdAt ? 'Transaction recorded' : 'Date unavailable'}
+                                </p>
+                                {item.utr && (
+                                  <p className="mt-1 text-xs font-bold text-gray-600">
+                                    UTR: {item.utr}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="mt-3 text-xs font-bold text-cyan-800">
+                          ℹ️ पुराना recharge transaction delete नहीं होता। School card पर latest subscription दिखती है; पूरी history यहाँ दिखेगी।
+                        </p>
+                      </div>
+                    )}
+
                     <div className="border-t-2 border-gray-100 pt-5">
 
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1425,6 +1512,19 @@ export default function PlatformAdminPage() {
                           className="rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(126,34,206)] active:translate-y-1 active:shadow-none"
                         >
                           💳 Recharge
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={historyLoading === school.id}
+                          onClick={() => void handleRechargeHistory(school.id)}
+                          className="rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(3,105,161)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+                        >
+                          {historyLoading === school.id
+                            ? '⏳ Loading...'
+                            : historyOpen === school.id
+                              ? '📜 Hide Recharge History'
+                              : '📜 Recharge History'}
                         </button>
 
                         <button
