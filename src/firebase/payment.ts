@@ -6,6 +6,7 @@ import {
   getDocs,
   query,
   runTransaction,
+  writeBatch,
   serverTimestamp,
   where,
 } from 'firebase/firestore';
@@ -455,78 +456,47 @@ export async function createRechargeRequest(
     );
 
   /* =======================================================
-     TRANSACTION
+     ATOMIC PAYMENT REQUEST + UTR RESERVATION
   ======================================================= */
 
-  await runTransaction(
-    db,
-    async (transaction) => {
+  /*
+   * Firestore Web SDK में transaction.create() उपलब्ध नहीं है.
+   * इसलिए writeBatch().create() इस्तेमाल किया गया है.
+   *
+   * UTR document पहले से मौजूद होने पर batch atomic रूप से fail होगा.
+   * इससे duplicate UTR भी नहीं जाएगा और missing-permission read की
+   * जरूरत भी नहीं पड़ेगी.
+   */
+  const batch = writeBatch(db);
 
-      /*
-       * Duplicate UTR check
-       */
-
-      /*
-       * Reserve UTR atomically.
-       * transaction.create() fails if this UTR document already exists,
-       * so no permission-requiring read of a missing reservation is needed.
-       */
-      transaction.create(
-        utrRef,
-        {
-          utrNormalized,
-
-          rechargeRequestId:
-            rechargeRef.id,
-
-          schoolId:
-            params.schoolId,
-
-          schoolName,
-
-          uid:
-            params.uid,
-
-          createdAt:
-            serverTimestamp(),
-        }
-      );
-
-      /*
-       * Create Payment Request
-       */
-
-      transaction.set(
-        rechargeRef,
-        {
-          schoolId:
-            params.schoolId,
-
-          schoolName,
-
-          uid:
-            params.uid,
-
-          amount:
-            selectedPackage.amount,
-
-          days:
-            selectedPackage.days,
-
-          utr:
-            params.utr.trim(),
-
-          utrNormalized,
-
-          status:
-            'PENDING',
-
-          createdAt:
-            serverTimestamp(),
-        }
-      );
+  batch.create(
+    utrRef,
+    {
+      utrNormalized,
+      rechargeRequestId: rechargeRef.id,
+      schoolId: params.schoolId,
+      schoolName,
+      uid: params.uid,
+      createdAt: serverTimestamp(),
     }
   );
+
+  batch.create(
+    rechargeRef,
+    {
+      schoolId: params.schoolId,
+      schoolName,
+      uid: params.uid,
+      amount: selectedPackage.amount,
+      days: selectedPackage.days,
+      utr: params.utr.trim(),
+      utrNormalized,
+      status: 'PENDING',
+      createdAt: serverTimestamp(),
+    }
+  );
+
+  await batch.commit();
 
   return rechargeRef.id;
 }
