@@ -42,6 +42,7 @@ import SchoolPublicPage from '@/pages/SchoolPublicPage';
 import PaymentRechargePage from '@/pages/PaymentRechargePage';
 import PlatformAdminPage from '@/pages/PlatformAdminPage';
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
+import TeacherDashboardPage from '@/pages/TeacherDashboardPage';
 
 // =====================================================
 // ADVERTISEMENT ADMIN
@@ -222,6 +223,23 @@ function App() {
                 allowedRoles={['platform_admin']}
               >
                 <SchoolSuperAdminViewPage />
+              </ProtectedRoute>
+            }
+          />
+
+
+          {/* =====================================================
+              TEACHER
+              School-scoped teacher dashboard
+          ===================================================== */}
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute
+                allowedRoles={['teacher']}
+              >
+                <TeacherDashboardPage />
               </ProtectedRoute>
             }
           />
