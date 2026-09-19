@@ -869,6 +869,16 @@ export async function addTeacher(
     );
   }
 
+  if (
+    data?.photoDataUrl &&
+    typeof data.photoDataUrl === 'string' &&
+    data.photoDataUrl.length > 450000
+  ) {
+    throw new Error(
+      'Teacher photo is too large. Please choose another photo.'
+    );
+  }
+
   return addSchoolDocument(
     'teachers',
     schoolId,
@@ -893,6 +903,16 @@ export async function updateTeacher(
   if (!schoolId) {
     throw new Error(
       'School ID is required for teacher update.'
+    );
+  }
+
+  if (
+    data?.photoDataUrl &&
+    typeof data.photoDataUrl === 'string' &&
+    data.photoDataUrl.length > 450000
+  ) {
+    throw new Error(
+      'Teacher photo is too large. Please choose another photo.'
     );
   }
 
