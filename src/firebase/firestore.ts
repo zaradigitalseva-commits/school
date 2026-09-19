@@ -2260,18 +2260,16 @@ export async function registerSchool(
   };
 
   await runTransaction(db, async (transaction) => {
+    // We only read the slug reservation here. The membership document is
+    // intentionally NOT read before creation because a new membership does
+    // not exist yet, and Firestore rules correctly deny reads of another
+    // user's/non-existent membership documents. The slug reservation is the
+    // uniqueness check for the public school URL.
     const slugSnapshot = await transaction.get(slugRef);
-    const membershipSnapshot = await transaction.get(membershipRef);
 
     if (slugSnapshot.exists()) {
       throw new Error(
         'This school URL is already registered. Please use a different school name.'
-      );
-    }
-
-    if (membershipSnapshot.exists()) {
-      throw new Error(
-        'This school registration already exists.'
       );
     }
 
