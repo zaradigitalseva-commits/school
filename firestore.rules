@@ -304,16 +304,20 @@ service cloud.firestore {
     }
 
     match /utrReservations/{utr} {
-      allow read: if isPlatformAdmin()
-        || (
-          signedIn()
-          && resource.data.uid == request.auth.uid
-        );
+      /*
+       * Transaction duplicate-UTR check uses transaction.get(utrRef).
+       * A missing document must be readable, otherwise Firestore
+       * returns "Missing or insufficient permissions" before create.
+       */
+      allow get: if signedIn();
+      allow list: if isPlatformAdmin();
+
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.schoolId is string
         && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
         && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
+
       allow update, delete: if isPlatformAdmin();
     }
 
