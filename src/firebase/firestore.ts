@@ -415,7 +415,8 @@ export async function fetchSchoolBySlug(
   const schoolsQuery =
     query(
       schoolsRef,
-      where('slug', '==', cleanSlug)
+      where('slug', '==', cleanSlug),
+      where('status', '==', 'LIVE')
     );
 
   const snapshot =
