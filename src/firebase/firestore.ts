@@ -11,6 +11,7 @@ import {
   writeBatch,
   query,
   where,
+  runTransaction,
 } from 'firebase/firestore';
 
 import { db, auth } from './config';
@@ -2045,15 +2046,6 @@ export async function registerSchool(
       cleanSlug
     );
 
-  const slugSnapshot =
-    await getDoc(slugRef);
-
-  if (slugSnapshot.exists()) {
-    throw new Error(
-      'This school URL is already registered. Please use a different school name.'
-    );
-  }
-
   const schoolRef =
     doc(
       collection(
@@ -2077,114 +2069,76 @@ export async function registerSchool(
       membershipId
     );
 
-  /*
-    Prevent duplicate membership
-    from being silently overwritten.
-  */
-  const existingMembership =
-    await getDoc(membershipRef);
-
-  if (existingMembership.exists()) {
-    throw new Error(
-      'This school registration already exists.'
-    );
-  }
-
   const now =
     new Date().toISOString();
 
   const school: School = {
     id: schoolId,
-
     name: cleanName,
-
     slug: cleanSlug,
-
     ownerUid,
-
     ownerEmail: cleanEmail,
-
     status: 'PENDING_PAYMENT',
-
     createdAt: now,
-
     updatedAt: now,
-
     phone: cleanPhone,
-
-    whatsappNumber:
-      cleanWhatsappNumber,
-
+    whatsappNumber: cleanWhatsappNumber,
     whatsappVerified: true,
-
-    address:
-      input.address?.trim() || '',
-
-    tagline:
-      input.tagline?.trim() || '',
-
-    description:
-      input.description?.trim() || '',
-
+    address: input.address?.trim() || '',
+    tagline: input.tagline?.trim() || '',
+    description: input.description?.trim() || '',
     paymentStatus: 'PENDING',
-
-    subscriptionStatus:
-      'PENDING',
+    subscriptionStatus: 'PENDING',
   };
 
-  const membership:
-    SchoolMembership = {
-
+  const membership: SchoolMembership = {
     id: membershipId,
-
     schoolId,
-
     uid: ownerUid,
-
     email: cleanEmail,
-
     role: 'school_admin',
-
     status: 'PENDING',
-
     assignments: [],
-
     createdAt: now,
-
     updatedAt: now,
   };
 
-  const batch =
-    writeBatch(db);
+  await runTransaction(db, async (transaction) => {
+    const [slugSnapshot, membershipSnapshot] = await Promise.all([
+      transaction.get(slugRef),
+      transaction.get(membershipRef),
+    ]);
 
-  batch.set(
-    schoolRef,
-    school
-  );
-
-  batch.set(
-    membershipRef,
-    membership
-  );
-
-  batch.set(
-    slugRef,
-    {
-      slug: cleanSlug,
-
-      schoolId,
-
-      schoolName:
-        cleanName,
-
-      ownerUid,
-
-      createdAt:
-        serverTimestamp(),
+    if (slugSnapshot.exists()) {
+      throw new Error(
+        'This school URL is already registered. Please use a different school name.'
+      );
     }
-  );
 
-  await batch.commit();
+    if (membershipSnapshot.exists()) {
+      throw new Error(
+        'This school registration already exists.'
+      );
+    }
+
+    transaction.set(schoolRef, school);
+
+    transaction.set(
+      membershipRef,
+      membership
+    );
+
+    transaction.set(
+      slugRef,
+      {
+        slug: cleanSlug,
+        schoolId,
+        schoolName: cleanName,
+        ownerUid,
+        createdAt: serverTimestamp(),
+      }
+    );
+  });
 
   return school;
 }
