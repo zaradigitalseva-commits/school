@@ -2336,6 +2336,24 @@ export async function registerSchool(
    REALTIME LISTENERS
 ========================================================= */
 
+export function subscribeToMyMembership(
+  uid: string,
+  onData: (membership: SchoolMembership | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!uid) return () => {};
+  const q = query(collection(db, 'schoolMemberships'), where('uid', '==', uid));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const memberships = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as SchoolMembership));
+      const active = memberships.filter((m) => m.status === 'ACTIVE');
+      onData(active.find((m) => m.role === 'school_admin') || active[0] || memberships[0] || null);
+    },
+    (error) => onError?.(error)
+  );
+}
+
 export function subscribeToAllSchools(
   onData: (schools: School[]) => void,
   onError?: (error: Error) => void
