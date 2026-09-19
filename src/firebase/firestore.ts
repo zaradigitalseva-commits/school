@@ -1011,6 +1011,41 @@ export async function deleteTeacher(
 
 
 /* =========================================================
+   TEACHER LOGIN INVITES
+========================================================= */
+
+export async function createTeacherInvite(data: { schoolId: string; teacherId: string; email: string; assignedClass: string; section?: string }): Promise<void> {
+  const schoolId = data.schoolId?.trim();
+  const email = data.email?.trim().toLowerCase();
+  const assignedClass = data.assignedClass?.trim();
+  if (!schoolId || !email || !assignedClass) throw new Error('School, teacher Google email and assigned class are required.');
+  const inviteId = schoolId + '_' + email;
+  await setDoc(doc(db, 'teacherInvites', inviteId), { schoolId, teacherId: data.teacherId, email, assignedClass, section: data.section?.trim() || '', status: 'PENDING', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function claimTeacherInvite(uid: string, email: string): Promise<void> {
+  if (!uid || !email) return;
+  const normalizedEmail = email.trim().toLowerCase();
+  const q = query(collection(db, 'teacherInvites'), where('email', '==', normalizedEmail), where('status', '==', 'PENDING'));
+  const snapshot = await getDocs(q);
+  for (const inviteDoc of snapshot.docs) {
+    const inviteRef = doc(db, 'teacherInvites', inviteDoc.id);
+    const invite = inviteDoc.data();
+    if (!invite.schoolId || !invite.assignedClass) continue;
+    const membershipId = uid + '_' + invite.schoolId;
+    const membershipRef = doc(db, 'schoolMemberships', membershipId);
+    await runTransaction(db, async (transaction) => {
+      const inviteSnap = await transaction.get(inviteRef);
+      if (!inviteSnap.exists()) return;
+      const current = inviteSnap.data();
+      if (current.status !== 'PENDING' || current.email !== normalizedEmail) return;
+      transaction.set(membershipRef, { id: membershipId, schoolId: current.schoolId, uid, email: normalizedEmail, role: 'teacher', status: 'ACTIVE', assignments: [current.section ? current.assignedClass + ' - ' + current.section : current.assignedClass], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+      transaction.update(inviteRef, { status: 'CLAIMED', uid, updatedAt: serverTimestamp() });
+    });
+  }
+}
+
+/* =========================================================
    ANNOUNCEMENTS / NOTICES
 ========================================================= */
 
