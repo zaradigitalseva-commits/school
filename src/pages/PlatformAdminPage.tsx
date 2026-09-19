@@ -1406,8 +1406,9 @@ export default function PlatformAdminPage() {
         ================================================== */}
 
         {rechargeSchool && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
-            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 px-4 py-6">
+            <div className="flex min-h-full items-start justify-center py-4 md:items-center md:py-8">
+              <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl md:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold text-purple-600">
@@ -1487,6 +1488,7 @@ export default function PlatformAdminPage() {
                   ? '⏳ Activating...'
                   : `💳 Activate ₹${rechargePackage.amount} / ${rechargePackage.days} Days`}
               </button>
+              </div>
             </div>
           </div>
         )}
