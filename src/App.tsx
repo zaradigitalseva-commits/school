@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from 'react-router-dom';
+
 import { AuthProvider } from '@/context/AuthContext';
 
 import PublicLayout from '@/components/layout/PublicLayout';
@@ -47,7 +53,6 @@ import AdvertisementAdminPage from '@/pages/admin/AdvertisementAdminPage';
 // =====================================================
 import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
 
-
 function App() {
   return (
     <BrowserRouter>
@@ -57,15 +62,16 @@ function App() {
           {/* =====================================================
               PUBLIC WEBSITE
           ===================================================== */}
+
           <Route element={<PublicLayout />}>
 
-            {/* Platform Home */}
+            {/* PLATFORM HOME */}
             <Route
               path="/"
               element={<HomePage />}
             />
 
-            {/* Main Pages */}
+            {/* MAIN PAGES */}
             <Route
               path="/about"
               element={<AboutPage />}
@@ -150,6 +156,7 @@ function App() {
               PAYMENT / RECHARGE
               School Admin + Platform Admin
           ===================================================== */}
+
           <Route
             path="/payment/recharge"
             element={
@@ -166,28 +173,13 @@ function App() {
 
 
           {/* =====================================================
-              PLATFORM / SUPER ADMIN
-              Platform Admin Only
-          ===================================================== */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute
-                allowedRoles={['platform_admin']}
-              >
-                <PlatformAdminPage />
-              </ProtectedRoute>
-            }
-          />
-
-
-          {/* =====================================================
               ADVERTISEMENT ADMIN
               Platform Admin Only
-              
-              URL:
-              /admin/advertisements
+
+              IMPORTANT:
+              This route is BEFORE /admin
           ===================================================== */}
+
           <Route
             path="/admin/advertisements"
             element={
@@ -201,9 +193,27 @@ function App() {
 
 
           {/* =====================================================
+              PLATFORM / SUPER ADMIN
+              Platform Admin Only
+          ===================================================== */}
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute
+                allowedRoles={['platform_admin']}
+              >
+                <PlatformAdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+
+          {/* =====================================================
               SUPER ADMIN - FULL SCHOOL DATA
               Platform Admin Only
           ===================================================== */}
+
           <Route
             path="/admin/school/:schoolId"
             element={
@@ -220,6 +230,7 @@ function App() {
               SCHOOL ADMIN
               School-specific dashboard
           ===================================================== */}
+
           <Route
             path="/school-admin"
             element={
@@ -236,6 +247,7 @@ function App() {
               UNKNOWN URL
               Redirect to Platform Home
           ===================================================== */}
+
           <Route
             path="*"
             element={
