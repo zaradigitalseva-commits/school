@@ -123,7 +123,8 @@ service cloud.firestore {
           && request.resource.data.schoolId == resource.data.schoolId
           && request.resource.data.uid == resource.data.uid
           && request.resource.data.role == resource.data.role
-          && request.resource.data.role == 'teacher');
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.role in ['teacher', 'school_admin']);
 
       allow delete: if isPlatformAdmin();
     }
