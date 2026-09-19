@@ -19,7 +19,11 @@ import {
   X,
 } from 'lucide-react';
 
-import { fetchPublicSchools } from '@/firebase/firestore';
+import {
+  fetchPublicSchools,
+  fetchActivePlatformAds,
+  type PlatformAd,
+} from '@/firebase/firestore';
 import type { School } from '@/firebase/types';
 
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +37,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [platformAds, setPlatformAds] = useState<PlatformAd[]>([]);
 
   /* =========================================================
      LOAD LIVE SCHOOLS
@@ -56,7 +61,17 @@ export default function HomePage() {
 
   useEffect(() => {
     loadSchools();
+    loadPlatformAds();
   }, []);
+
+  const loadPlatformAds = async () => {
+    try {
+      const ads = await fetchActivePlatformAds();
+      setPlatformAds(ads);
+    } catch (error) {
+      console.error('Failed to load platform advertisements:', error);
+    }
+  };
 
   /* =========================================================
      SEARCH
@@ -286,6 +301,63 @@ export default function HomePage() {
         </div>
 
       </header>
+
+      {/* PLATFORM ADVERTISEMENTS */}
+      {platformAds.some((ad) => ad.type === 'scrolling') && (
+        <div className="overflow-hidden border-b border-orange-200 bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 text-white shadow-md">
+          <div className="mx-auto flex max-w-7xl items-center">
+            <div className="z-10 shrink-0 bg-black/20 px-4 py-3 text-sm font-black">
+              📢 ADVERTISEMENT
+            </div>
+            <div className="relative min-w-0 flex-1 overflow-hidden py-3">
+              <div className="flex min-w-max animate-[marquee_24s_linear_infinite] gap-12 whitespace-nowrap font-black">
+                {platformAds
+                  .filter((ad) => ad.type === 'scrolling')
+                  .map((ad) => (
+                    <span key={ad.id}>{ad.text}</span>
+                  ))}
+                {platformAds
+                  .filter((ad) => ad.type === 'scrolling')
+                  .map((ad) => (
+                    <span key={ad.id + '-repeat'}>{ad.text}</span>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {platformAds.some((ad) => ad.type === 'slider') && (
+        <section className="bg-slate-100 px-4 py-4">
+          <div className="mx-auto max-w-7xl space-y-3">
+            {platformAds
+              .filter((ad) => ad.type === 'slider')
+              .slice(0, 5)
+              .map((ad) => {
+                const image = (
+                  <img
+                    src={ad.imageUrl}
+                    alt="Platform advertisement"
+                    className="h-40 w-full rounded-2xl object-cover shadow-xl sm:h-56"
+                  />
+                );
+
+                return ad.linkUrl ? (
+                  <a
+                    key={ad.id}
+                    href={ad.linkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {image}
+                  </a>
+                ) : (
+                  <div key={ad.id}>{image}</div>
+                );
+              })}
+          </div>
+        </section>
+      )
 
       {/* =====================================================
           MOBILE NAVIGATION
