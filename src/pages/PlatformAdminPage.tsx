@@ -614,9 +614,8 @@ export default function PlatformAdminPage() {
 
         <div className="mb-6">
 
-          <button
-            type="button"
-            onClick={() => navigate('/admin/advertisements')}
+          <a
+            href="/admin/advertisements"
             className="block w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-center text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:scale-[1.01] hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
           >
             📢 Advertisement Admin
@@ -624,7 +623,7 @@ export default function PlatformAdminPage() {
             <span className="mt-1 block text-sm font-bold text-white/80">
               Paid Slider + Scrolling Advertisement
             </span>
-          </button>
+          </a>
 
         </div>
 
