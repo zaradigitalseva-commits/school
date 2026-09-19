@@ -2844,12 +2844,8 @@ function TeachersSection({
   setTeacherRecords: React.Dispatch<React.SetStateAction<AnyRecord[]>>;
   teachers: SchoolMembership[];
   pendingTeachers: SchoolMembership[];
-  onActivate: (
-    member: SchoolMembership
-  ) => void;
-  onRevoke: (
-    member: SchoolMembership
-  ) => void;
+  onActivate: (member: SchoolMembership) => void;
+  onRevoke: (member: SchoolMembership) => void;
 }) {
   const [form, setForm] = useState<AnyRecord>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2873,22 +2869,33 @@ function TeachersSection({
       return;
     }
 
+    if (!String(field('email')).trim()) {
+      setTeacherMessage('Google Email is required.');
+      return;
+    }
+
+    if (!String(field('subject')).trim()) {
+      setTeacherMessage('Subject is required.');
+      return;
+    }
+
+    if (!String(field('assignedClass')).trim()) {
+      setTeacherMessage('Assigned Class is required.');
+      return;
+    }
+
     try {
       setSavingTeacher(true);
       setTeacherMessage('');
 
       const data = {
-        ...form,
         schoolId,
         name: String(field('name')).trim(),
         email: String(field('email')).trim().toLowerCase(),
-        phone: String(field('phone')).trim(),
         subject: String(field('subject')).trim(),
         assignedClass: String(field('assignedClass')).trim(),
         section: String(field('section')).trim(),
-        qualification: String(field('qualification')).trim(),
-        teacherId: String(field('teacherId')).trim(),
-        joiningDate: String(field('joiningDate')).trim(),
+        photoDataUrl: String(field('photoDataUrl') || ''),
       };
 
       if (editingId) {
@@ -2944,22 +2951,14 @@ function TeachersSection({
 
   return (
     <>
-      <h2 style={styles.pageHeading}>
-        👨‍🏫 Teachers
-      </h2>
+      <h2 style={styles.pageHeading}>👨‍🏫 Teachers</h2>
 
       <div style={styles.formCard}>
-        <h3>
-          {editingId
-            ? '✏️ Edit Teacher'
-            : '➕ Add Teacher'}
-        </h3>
+        <h3>{editingId ? '✏️ Edit Teacher' : '➕ Add Teacher'}</h3>
 
         <TeacherPhotoUpload
           value={field('photoDataUrl')}
-          onChange={(value) =>
-            setField('photoDataUrl', value)
-          }
+          onChange={(value) => setField('photoDataUrl', value)}
         />
 
         <Input
@@ -2969,27 +2968,20 @@ function TeachersSection({
         />
 
         <Input
-          label="Google Email"
+          label="Google Email *"
           type="email"
           value={field('email')}
           onChange={(value) => setField('email', value)}
         />
 
         <Input
-          label="Mobile / WhatsApp"
-          type="tel"
-          value={field('phone')}
-          onChange={(value) => setField('phone', value)}
-        />
-
-        <Input
-          label="Subject"
+          label="Subject *"
           value={field('subject')}
           onChange={(value) => setField('subject', value)}
         />
 
         <Input
-          label="Assigned Class"
+          label="Assigned Class *"
           options={[
             'Class 1',
             'Class 2',
@@ -3005,9 +2997,7 @@ function TeachersSection({
             'Class 12',
           ]}
           value={field('assignedClass')}
-          onChange={(value) =>
-            setField('assignedClass', value)
-          }
+          onChange={(value) => setField('assignedClass', value)}
         />
 
         <Input
@@ -3016,35 +3006,8 @@ function TeachersSection({
           onChange={(value) => setField('section', value)}
         />
 
-        <Input
-          label="Qualification"
-          value={field('qualification')}
-          onChange={(value) =>
-            setField('qualification', value)
-          }
-        />
-
-        <Input
-          label="Teacher ID"
-          value={field('teacherId')}
-          onChange={(value) =>
-            setField('teacherId', value)
-          }
-        />
-
-        <Input
-          label="Joining Date"
-          type="date"
-          value={field('joiningDate')}
-          onChange={(value) =>
-            setField('joiningDate', value)
-          }
-        />
-
         {teacherMessage && (
-          <div style={styles.message}>
-            {teacherMessage}
-          </div>
+          <div style={styles.message}>{teacherMessage}</div>
         )}
 
         <div style={styles.formButtons}>
@@ -3078,19 +3041,14 @@ function TeachersSection({
       <div style={styles.infoCard}>
         <div style={styles.listHeader}>
           <h3>Teacher Profiles</h3>
-          <span style={styles.countBadge}>
-            {teacherRecords.length}
-          </span>
+          <span style={styles.countBadge}>{teacherRecords.length}</span>
         </div>
 
         {teacherRecords.length === 0 ? (
           <EmptyState text="No teacher profiles added yet." />
         ) : (
           teacherRecords.map((teacher) => (
-            <div
-              key={teacher.id}
-              style={styles.memberRow}
-            >
+            <div key={teacher.id} style={styles.memberRow}>
               <div
                 style={{
                   display: 'flex',
@@ -3132,23 +3090,15 @@ function TeachersSection({
                 )}
 
                 <div style={{ minWidth: 0 }}>
-                  <strong>
-                    {teacher.name || 'Teacher'}
-                  </strong>
-
+                  <strong>{teacher.name || 'Teacher'}</strong>
                   <div style={styles.smallText}>
                     {teacher.subject || 'Subject not added'}
                     {' • '}
                     {teacher.assignedClass || 'Class not assigned'}
-                    {teacher.section
-                      ? ' - ' + teacher.section
-                      : ''}
+                    {teacher.section ? ' - ' + teacher.section : ''}
                   </div>
-
                   {teacher.email && (
-                    <div style={styles.smallText}>
-                      {teacher.email}
-                    </div>
+                    <div style={styles.smallText}>{teacher.email}</div>
                   )}
                 </div>
               </div>
@@ -3159,10 +3109,7 @@ function TeachersSection({
                   onClick={() => {
                     setEditingId(teacher.id || null);
                     setForm({ ...teacher });
-                    window.scrollTo({
-                      top: 0,
-                      behavior: 'smooth',
-                    });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 >
                   ✏️ Edit
@@ -3171,8 +3118,7 @@ function TeachersSection({
                 <button
                   style={styles.dangerButton}
                   onClick={() =>
-                    teacher.id &&
-                    removeTeacherRecord(teacher.id)
+                    teacher.id && removeTeacherRecord(teacher.id)
                   }
                 >
                   🗑️ Delete
@@ -3200,24 +3146,13 @@ function TeachersSection({
 
         {pendingTeachers.length > 0 && (
           <div style={{ marginTop: 18 }}>
-            <h4 style={{ marginBottom: 10 }}>
-              ⏳ Pending Teacher Access
-            </h4>
-
+            <h4 style={{ marginBottom: 10 }}>⏳ Pending Teacher Access</h4>
             {pendingTeachers.map((teacher) => (
-              <div
-                key={teacher.id}
-                style={styles.memberRow}
-              >
+              <div key={teacher.id} style={styles.memberRow}>
                 <div>
-                  <strong>
-                    {teacher.email || teacher.uid}
-                  </strong>
-                  <div style={styles.smallText}>
-                    Waiting for activation
-                  </div>
+                  <strong>{teacher.email || teacher.uid}</strong>
+                  <div style={styles.smallText}>Waiting for activation</div>
                 </div>
-
                 <button
                   style={styles.successButton}
                   onClick={() => onActivate(teacher)}
