@@ -9,6 +9,7 @@ import { AuthProvider } from '@/context/AuthContext';
 
 import PublicLayout from '@/components/layout/PublicLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardRedirect from '@/pages/DashboardRedirect';
 
 // =====================================================
 // PUBLIC PAGES
@@ -60,134 +61,38 @@ function App() {
       <AuthProvider>
         <Routes>
 
-          {/* =====================================================
-              PUBLIC WEBSITE
-          ===================================================== */}
-
           <Route element={<PublicLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/academics" element={<AcademicsPage />} />
+            <Route path="/teachers" element={<TeachersPage />} />
+            <Route path="/notices" element={<NoticesPage />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/contact" element={<ContactPage />} />
 
-            {/* PLATFORM HOME */}
-            <Route
-              path="/"
-              element={<HomePage />}
-            />
+            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms-conditions" element={<TermsConditionsPage />} />
+            <Route path="/refund-cancellation" element={<RefundCancellationPage />} />
 
-            {/* MAIN PAGES */}
-            <Route
-              path="/about"
-              element={<AboutPage />}
-            />
-
-            <Route
-              path="/academics"
-              element={<AcademicsPage />}
-            />
-
-            <Route
-              path="/teachers"
-              element={<TeachersPage />}
-            />
-
-            <Route
-              path="/notices"
-              element={<NoticesPage />}
-            />
-
-            <Route
-              path="/events"
-              element={<EventsPage />}
-            />
-
-            <Route
-              path="/contact"
-              element={<ContactPage />}
-            />
-
-            {/* =================================================
-                LEGAL / POLICY
-            ================================================== */}
-
-            <Route
-              path="/privacy-policy"
-              element={<PrivacyPolicyPage />}
-            />
-
-            <Route
-              path="/terms-conditions"
-              element={<TermsConditionsPage />}
-            />
-
-            <Route
-              path="/refund-cancellation"
-              element={<RefundCancellationPage />}
-            />
-
-            {/* =================================================
-                LOGIN / SCHOOL REGISTRATION
-            ================================================== */}
-
-            <Route
-              path="/login"
-              element={<LoginPage />}
-            />
-
-            <Route
-              path="/register-school"
-              element={<RegisterSchoolPage />}
-            />
-
-            {/* =================================================
-                SCHOOLS
-            ================================================== */}
-
-            <Route
-              path="/schools"
-              element={<SchoolsPage />}
-            />
-
-            <Route
-              path="/school/:slug"
-              element={<SchoolPublicPage />}
-            />
-
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register-school" element={<RegisterSchoolPage />} />
+            <Route path="/schools" element={<SchoolsPage />} />
+            <Route path="/school/:slug" element={<SchoolPublicPage />} />
           </Route>
-
-
-          {/* =====================================================
-              PAYMENT / RECHARGE
-              School Admin + Platform Admin
-          ===================================================== */}
 
           <Route
             path="/payment/recharge"
             element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'user',
-                  'school_admin',
-                  'platform_admin',
-                ]}
-              >
+              <ProtectedRoute allowedRoles={['user', 'school_admin', 'platform_admin']}>
                 <PaymentRechargePage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =====================================================
-              ADVERTISEMENT ADMIN
-              Platform Admin Only
-
-              IMPORTANT:
-              This route is BEFORE /admin
-          ===================================================== */}
-
           <Route
             path="/ad"
             element={
-              <ProtectedRoute
-                allowedRoles={['platform_admin']}
-              >
+              <ProtectedRoute allowedRoles={['platform_admin']}>
                 <AdvertisementManagerPage />
               </ProtectedRoute>
             }
@@ -196,97 +101,64 @@ function App() {
           <Route
             path="/admin/advertisements"
             element={
-              <ProtectedRoute
-                allowedRoles={['platform_admin']}
-              >
+              <ProtectedRoute allowedRoles={['platform_admin']}>
                 <AdvertisementManagerPage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =====================================================
-              PLATFORM / SUPER ADMIN
-              Platform Admin Only
-          ===================================================== */}
-
           <Route
             path="/admin"
             element={
-              <ProtectedRoute
-                allowedRoles={['platform_admin']}
-              >
+              <ProtectedRoute allowedRoles={['platform_admin']}>
                 <PlatformAdminPage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =====================================================
-              SUPER ADMIN - FULL SCHOOL DATA
-              Platform Admin Only
-          ===================================================== */}
-
           <Route
             path="/admin/school/:schoolId"
             element={
-              <ProtectedRoute
-                allowedRoles={['platform_admin']}
-              >
+              <ProtectedRoute allowedRoles={['platform_admin']}>
                 <SchoolSuperAdminViewPage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =====================================================
-              TEACHER
-              School-scoped teacher dashboard
-          ===================================================== */}
-
+          {/* UNIVERSAL DASHBOARD ENTRY
+              /dashboard now works for every authorized role.
+              It sends each role to its correct dashboard. */}
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute
-                allowedRoles={['teacher']}
+                allowedRoles={['platform_admin', 'school_admin', 'teacher']}
               >
+                <DashboardRedirect />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Teacher's actual dashboard */}
+          <Route
+            path="/dashboard/teacher"
+            element={
+              <ProtectedRoute allowedRoles={['teacher']}>
                 <TeacherDashboardPage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =====================================================
-              SCHOOL ADMIN
-              School-specific dashboard
-          ===================================================== */}
-
           <Route
             path="/school-admin"
             element={
-              <ProtectedRoute
-                allowedRoles={['school_admin']}
-              >
+              <ProtectedRoute allowedRoles={['school_admin']}>
                 <SchoolAdminPage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =====================================================
-              UNKNOWN URL
-              Redirect to Platform Home
-          ===================================================== */}
-
-          <Route
-            path="*"
-            element={
-              <Navigate
-                to="/"
-                replace
-              />
-            }
-          />
+          <Route path="*" element={<Navigate to="/" replace />} />
 
         </Routes>
       </AuthProvider>
