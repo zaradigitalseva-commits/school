@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { isPlatformAdminEmail } from '@/firebase/firestore';
 import type { UserRole } from '@/firebase/types';
 
 interface ProtectedRouteProps {
@@ -26,21 +27,26 @@ export default function ProtectedRoute({
     );
   }
 
-  // Login नहीं है
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // New multi-school role system
-  // adminOnly पुरानी compatibility के लिए रखा गया है
   const allowed =
     allowedRoles ??
     (adminOnly
       ? ['platform_admin']
       : ['platform_admin', 'school_admin', 'teacher']);
 
-  // Role की अनुमति नहीं है
-  if (!allowed.includes(role)) {
+  // Platform admin is identified by the exact admin email.
+  // This prevents a temporary role lookup failure from
+  // redirecting the real platform admin away from admin pages.
+  const isExactPlatformAdmin =
+    isPlatformAdminEmail(user.email);
+
+  if (
+    !allowed.includes(role) &&
+    !(isExactPlatformAdmin && allowed.includes('platform_admin'))
+  ) {
     return <Navigate to="/" replace />;
   }
 
