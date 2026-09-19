@@ -721,30 +721,97 @@ export default function PlatformAdminPage() {
                         इस category में कोई school नहीं है।
                       </div>
                     ) : (
-                      (statsView === 'all' ? schools : statsView === 'live' ? liveSchools : pendingSchools).map((school) => (
-                        <div key={school.id} className="rounded-2xl border-2 border-gray-100 bg-gray-50 p-4">
-                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-black text-gray-900">{school.name}</h3>
-                                <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-black">{school.status}</span>
+                      (statsView === 'all' ? schools : statsView === 'live' ? liveSchools : pendingSchools).map((school) => {
+                        const modalWhatsappState = getSchoolSubscriptionState(school);
+                        const modalBusy = processingSchool === school.id;
+
+                        return (
+                          <div key={school.id} className="rounded-2xl border-2 border-gray-100 bg-gray-50 p-4">
+                            <div className="flex flex-col gap-4">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="text-lg font-black text-gray-900">{school.name}</h3>
+                                  <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-black">{school.status}</span>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-500">/school/{school.slug}</p>
+                                <p className="mt-1 text-sm font-bold text-gray-700">
+                                  Subscription: {getSubscriptionLabel(school)}
+                                </p>
                               </div>
-                              <p className="mt-1 text-sm text-gray-500">/school/{school.slug}</p>
-                              <p className="mt-1 text-sm font-bold text-gray-700">Subscription: {getSubscriptionLabel(school)}</p>
+
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setStatsView(null);
+                                    navigate(`/admin/school/${school.id}`);
+                                  }}
+                                  className="rounded-xl bg-blue-600 px-3 py-3 text-sm font-black text-white shadow-[0_4px_0_rgb(30,64,175)] active:translate-y-1 active:shadow-none"
+                                >
+                                  👁️ पूरा Data
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setStatsView(null);
+                                    setRechargeSchool(school);
+                                    setRechargePackage(BILLING_PACKAGES[1]);
+                                    setError('');
+                                    setMessage('');
+                                  }}
+                                  className="rounded-xl bg-green-600 px-3 py-3 text-sm font-black text-white shadow-[0_4px_0_rgb(21,128,61)] active:translate-y-1 active:shadow-none"
+                                >
+                                  💳 Recharge
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openSchoolWhatsApp(school)}
+                                  className="rounded-xl bg-emerald-500 px-3 py-3 text-sm font-black text-white shadow-[0_4px_0_rgb(5,150,105)] active:translate-y-1 active:shadow-none"
+                                >
+                                  📲 WhatsApp
+                                </button>
+
+                                {school.status === 'LIVE' ? (
+                                  <button
+                                    type="button"
+                                    disabled={modalBusy}
+                                    onClick={() => void handleSchoolStatus(school.id, 'SUSPENDED')}
+                                    className="rounded-xl bg-red-600 px-3 py-3 text-sm font-black text-white shadow-[0_4px_0_rgb(185,28,28)] disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                                  >
+                                    ⛔ Suspend
+                                  </button>
+                                ) : school.status === 'SUSPENDED' ? (
+                                  <button
+                                    type="button"
+                                    disabled={modalBusy}
+                                    onClick={() => void handleSchoolStatus(school.id, 'LIVE')}
+                                    className="rounded-xl bg-green-600 px-3 py-3 text-sm font-black text-white shadow-[0_4px_0_rgb(21,128,61)] disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                                  >
+                                    🟢 Restore
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={modalBusy}
+                                    onClick={() => {
+                                      setStatsView(null);
+                                      setRechargeSchool(school);
+                                      setRechargePackage(BILLING_PACKAGES[1]);
+                                      setError('');
+                                      setMessage('');
+                                    }}
+                                    className="rounded-xl bg-orange-500 px-3 py-3 text-sm font-black text-white shadow-[0_4px_0_rgb(194,65,12)] disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                                  >
+                                    🟢 Activate
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setStatsView(null);
-                                navigate(`/admin/school/${school.id}`);
-                              }}
-                              className="rounded-xl bg-blue-600 px-5 py-3 font-black text-white shadow-[0_4px_0_rgb(30,64,175)] active:translate-y-1 active:shadow-none"
-                            >
-                              👁️ पूरा Data
-                            </button>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 ) : (
