@@ -71,7 +71,7 @@ import type {
 
 import type { CSSProperties } from 'react';
 
-import { fetchSchoolRechargeHistory } from '@/firebase/payment';
+import { fetchSchoolRechargeHistory, subscribeToSchoolRechargeHistory } from '@/firebase/payment';
 
 
 type AnyRecord = {
@@ -2164,14 +2164,14 @@ function SubscriptionSection({
   const [historyError, setHistoryError] = useState('');
 
   useEffect(() => {
-    let cancelled = false;
     setLoadingHistory(true);
     setHistoryError('');
-    fetchSchoolRechargeHistory(schoolId)
-      .then((items) => { if (!cancelled) setHistory(items); })
-      .catch((error) => { if (!cancelled) setHistoryError(error instanceof Error ? error.message : 'Recharge history load नहीं हुई।'); })
-      .finally(() => { if (!cancelled) setLoadingHistory(false); });
-    return () => { cancelled = true; };
+    const unsubscribe = subscribeToSchoolRechargeHistory(
+      schoolId,
+      (items) => { setHistory(items); setLoadingHistory(false); },
+      (error) => { setHistoryError(error.message); setLoadingHistory(false); }
+    );
+    return unsubscribe;
   }, [schoolId]);
 
   const remainingDays = getRemainingSubscriptionDays(school);
