@@ -183,6 +183,10 @@ export default function PlatformAdminPage() {
   const [rechargePackage, setRechargePackage] =
     useState(BILLING_PACKAGES[1]);
 
+  const [statsView, setStatsView] = useState<
+    'all' | 'live' | 'pending' | 'requests' | null
+  >(null);
+
   /*
    * =======================================================
    * LOAD DATA
@@ -643,78 +647,132 @@ export default function PlatformAdminPage() {
 
           <button
             type="button"
-            onClick={() => document.getElementById('all-schools')?.scrollIntoView({ behavior: 'smooth' })}
-            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+            onClick={() => setStatsView('all')}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-xl active:translate-y-1"
           >
-            <div className="text-4xl">
-              🏫
-            </div>
-
-            <p className="mt-3 text-sm font-bold text-gray-500">
-              Total Schools
-
-            </p>
-
-            <p className="text-3xl font-black text-gray-900">
-              {schools.length}
-            </p>
+            <div className="text-4xl">🏫</div>
+            <p className="mt-3 text-sm font-bold text-gray-500">Total Schools</p>
+            <p className="text-3xl font-black text-gray-900">{schools.length}</p>
+            <p className="mt-2 text-xs font-black text-blue-600">CLICK TO OPEN</p>
           </button>
 
           <button
             type="button"
-            onClick={() => document.getElementById('live-schools')?.scrollIntoView({ behavior: 'smooth' })}
-            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+            onClick={() => setStatsView('live')}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-xl active:translate-y-1"
           >
-            <div className="text-4xl">
-              🟢
-            </div>
-
-            <p className="mt-3 text-sm font-bold text-gray-500">
-              Live Schools
-            </p>
-
-            <p className="text-3xl font-black text-green-600">
-              {liveSchools.length}
-            </p>
+            <div className="text-4xl">🟢</div>
+            <p className="mt-3 text-sm font-bold text-gray-500">Live Schools</p>
+            <p className="text-3xl font-black text-green-600">{liveSchools.length}</p>
+            <p className="mt-2 text-xs font-black text-green-600">CLICK TO OPEN</p>
           </button>
 
           <button
             type="button"
-            onClick={() => document.getElementById('pending-schools')?.scrollIntoView({ behavior: 'smooth' })}
-            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+            onClick={() => setStatsView('pending')}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-xl active:translate-y-1"
           >
-            <div className="text-4xl">
-              ⏳
-            </div>
-
-            <p className="mt-3 text-sm font-bold text-yellow-600">
-              Pending Payment
-            </p>
-
-            <p className="text-3xl font-black text-yellow-600">
-              {pendingSchools.length}
-            </p>
+            <div className="text-4xl">⏳</div>
+            <p className="mt-3 text-sm font-bold text-yellow-600">Pending Payment</p>
+            <p className="text-3xl font-black text-yellow-600">{pendingSchools.length}</p>
+            <p className="mt-2 text-xs font-black text-yellow-600">CLICK TO OPEN</p>
           </button>
 
           <button
             type="button"
-            onClick={() => document.getElementById('pending-requests')?.scrollIntoView({ behavior: 'smooth' })}
-            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-3xl active:translate-y-0"
+            onClick={() => setStatsView('requests')}
+            className="rounded-3xl bg-white p-6 text-left shadow-2xl transition hover:-translate-y-1 hover:shadow-xl active:translate-y-1"
           >
-            <div className="text-4xl">
-              💳
-            </div>
-
-            <p className="mt-3 text-sm font-bold text-gray-500">
-              Pending Requests
-            </p>
-
-            <p className="text-3xl font-black text-blue-600">
-              {requests.length}
-            </p>
-          </div>
+            <div className="text-4xl">💳</div>
+            <p className="mt-3 text-sm font-bold text-gray-500">Pending Requests</p>
+            <p className="text-3xl font-black text-blue-600">{requests.length}</p>
+            <p className="mt-2 text-xs font-black text-blue-600">CLICK TO OPEN</p>
+          </button>
 
         </div>
+
+        {statsView && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 px-4 py-6">
+            <div className="flex min-h-full items-start justify-center py-4 md:items-center md:py-8">
+              <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl md:p-8">
+                <div className="flex items-center justify-between gap-4 border-b pb-4">
+                  <div>
+                    <p className="text-sm font-black text-purple-600">PLATFORM ADMIN</p>
+                    <h2 className="mt-1 text-2xl font-black text-gray-900">
+                      {statsView === 'all' && '🏫 All Schools'}
+                      {statsView === 'live' && '🟢 Live Schools'}
+                      {statsView === 'pending' && '⏳ Pending Payment Schools'}
+                      {statsView === 'requests' && '💳 Pending Payment Requests'}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStatsView(null)}
+                    className="rounded-xl bg-gray-100 px-4 py-2 text-xl font-black text-gray-700 hover:bg-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {statsView !== 'requests' ? (
+                  <div className="mt-5 space-y-3">
+                    {(statsView === 'all' ? schools : statsView === 'live' ? liveSchools : pendingSchools).length === 0 ? (
+                      <div className="rounded-2xl bg-gray-50 p-8 text-center font-bold text-gray-500">
+                        इस category में कोई school नहीं है।
+                      </div>
+                    ) : (
+                      (statsView === 'all' ? schools : statsView === 'live' ? liveSchools : pendingSchools).map((school) => (
+                        <div key={school.id} className="rounded-2xl border-2 border-gray-100 bg-gray-50 p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-black text-gray-900">{school.name}</h3>
+                                <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-black">{school.status}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-gray-500">/school/{school.slug}</p>
+                              <p className="mt-1 text-sm font-bold text-gray-700">Subscription: {getSubscriptionLabel(school)}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStatsView(null);
+                                navigate(`/admin/school/${school.id}`);
+                              }}
+                              className="rounded-xl bg-blue-600 px-5 py-3 font-black text-white shadow-[0_4px_0_rgb(30,64,175)] active:translate-y-1 active:shadow-none"
+                            >
+                              👁️ पूरा Data
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-4">
+                    {requests.length === 0 ? (
+                      <div className="rounded-2xl bg-gray-50 p-8 text-center font-bold text-gray-500">No pending payment requests.</div>
+                    ) : (
+                      requests.map((request) => {
+                        const school = getSchoolById(request.schoolId);
+                        const busy = processingSchool === request.id;
+                        return (
+                          <div key={request.id} className="rounded-2xl border-2 border-blue-100 bg-blue-50 p-5">
+                            <h3 className="text-lg font-black text-gray-900">{school?.name || request.schoolId}</h3>
+                            <p className="mt-1 text-sm font-bold text-gray-600">Amount: ₹{request.amount} • Days: {request.days}</p>
+                            <div className="mt-4 flex flex-wrap gap-3">
+                              <button type="button" disabled={busy} onClick={() => void handleApprove(request.id)} className="rounded-xl bg-green-600 px-4 py-3 font-black text-white disabled:opacity-50">✅ Approve</button>
+                              <button type="button" disabled={busy} onClick={() => void handleReject(request.id)} className="rounded-xl bg-red-600 px-4 py-3 font-black text-white disabled:opacity-50">❌ Reject</button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =================================================
             PAYMENT SETTINGS
