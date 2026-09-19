@@ -68,11 +68,17 @@ service cloud.firestore {
         || (signedIn() && resource.data.ownerUid == request.auth.uid)
         || resource.data.status == 'LIVE';
 
+      // Registration must create the deterministic owner-registration record
+      // in the same transaction. This enforces one Google account = one school
+      // even if someone tries to bypass the UI and write directly to Firestore.
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status == 'PENDING_PAYMENT'
         && request.resource.data.paymentStatus == 'PENDING'
-        && request.resource.data.subscriptionStatus == 'PENDING';
+        && request.resource.data.subscriptionStatus == 'PENDING'
+        && !exists(/databases/$(database)/documents/schoolOwnerRegistrations/$(request.auth.uid))
+        && getAfter(/databases/$(database)/documents/schoolOwnerRegistrations/$(request.auth.uid)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/schoolOwnerRegistrations/$(request.auth.uid)).data.schoolId == schoolId;
 
       allow update: if isPlatformAdmin()
         || (signedIn() && resource.data.ownerUid == request.auth.uid
