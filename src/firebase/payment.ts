@@ -909,6 +909,28 @@ export async function approveRecharge(
           existingSubscription.expiresAt
         );
 
+      const oldTotalAmount =
+        Number(
+          existingSubscription.totalRechargeAmount ??
+            existingSubscription.planAmount ??
+            school.paymentAmount ??
+            0
+        );
+
+      const oldTotalDays =
+        Number(
+          existingSubscription.totalRechargeDays ??
+            existingSubscription.planDays ??
+            school.subscriptionDays ??
+            0
+        );
+
+      const totalRechargeAmount =
+        oldTotalAmount + amount;
+
+      const totalRechargeDays =
+        oldTotalDays + days;
+
       /*
        * अगर पुरानी subscription अभी active है
        * तो नई validity old expiry के बाद लगेगी.
@@ -950,6 +972,10 @@ export async function approveRecharge(
 
           planDays:
             days,
+
+          totalRechargeAmount,
+
+          totalRechargeDays,
 
           /*
            * इस recharge period का start
@@ -1003,13 +1029,15 @@ export async function approveRecharge(
             newExpiry.toISOString(),
 
           subscriptionDays:
-            days,
+            totalRechargeDays,
+
+          totalRechargeAmount,
 
           paymentApprovalType:
             'PAID',
 
           paymentAmount:
-            amount,
+            totalRechargeAmount,
 
           paymentId:
             rechargeId,
@@ -1145,6 +1173,27 @@ export async function adminRechargeSchool(
       : {};
 
     const oldExpiry = timestampToMillis(existingSubscription.expiresAt);
+
+    const oldTotalAmount = Number(
+      existingSubscription.totalRechargeAmount ??
+        existingSubscription.planAmount ??
+        school.paymentAmount ??
+        0
+    );
+
+    const oldTotalDays = Number(
+      existingSubscription.totalRechargeDays ??
+        existingSubscription.planDays ??
+        school.subscriptionDays ??
+        0
+    );
+
+    const totalRechargeAmount =
+      oldTotalAmount + selectedPackage.amount;
+
+    const totalRechargeDays =
+      oldTotalDays + selectedPackage.days;
+
     const baseTime = Math.max(Date.now(), oldExpiry);
 
     const newExpiry = new Date(
@@ -1187,6 +1236,8 @@ export async function adminRechargeSchool(
         status: 'ACTIVE',
         planAmount: selectedPackage.amount,
         planDays: selectedPackage.days,
+        totalRechargeAmount,
+        totalRechargeDays,
         startedAt: new Date(baseTime),
         expiresAt: newExpiry,
         lastRechargeId: walletTransactionRef.id,
@@ -1201,9 +1252,10 @@ export async function adminRechargeSchool(
       subscriptionStatus: 'ACTIVE',
       subscriptionStartDate: new Date(baseTime).toISOString(),
       subscriptionExpiryDate: newExpiry.toISOString(),
-      subscriptionDays: selectedPackage.days,
+      subscriptionDays: totalRechargeDays,
+      totalRechargeAmount,
       paymentApprovalType: 'ADMIN_RECHARGE',
-      paymentAmount: selectedPackage.amount,
+      paymentAmount: totalRechargeAmount,
       paymentId: walletTransactionRef.id,
       paymentDate: new Date().toISOString(),
       approvedAt: new Date().toISOString(),
