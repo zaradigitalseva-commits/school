@@ -73,6 +73,7 @@ export default function PaymentRechargePage() {
 
   const [schoolId, setSchoolId] = useState('');
   const [schoolName, setSchoolName] = useState('');
+  const [ownedSchools, setOwnedSchools] = useState<Array<{ id: string; name: string }>>([]);
 
   const [selectedPackage, setSelectedPackage] = useState(
     BILLING_PACKAGES[1]
@@ -114,71 +115,53 @@ export default function PaymentRechargePage() {
         let currentSchoolId = requestedSchoolId;
         let currentSchoolName = '';
 
+        const schoolRef = collection(db, 'schools');
+
         /*
-         * If schoolId is available in URL, load that school.
-         * Otherwise find school owned by logged-in user.
+         * Load every school owned by this Google account.
+         * Never silently choose the first school when an owner
+         * has multiple schools.
          */
+        const ownedQuery = query(
+          schoolRef,
+          where('ownerUid', '==', user.uid)
+        );
+
+        const ownedSnapshot = await getDocs(ownedQuery);
+
+        const schools = ownedSnapshot.docs.map((schoolDoc) => {
+          const data = schoolDoc.data();
+          return {
+            id: schoolDoc.id,
+            name: String(
+              data.name ||
+                data.schoolName ||
+                'Unnamed School'
+            ).trim(),
+          };
+        });
+
+        setOwnedSchools(schools);
+
         if (currentSchoolId) {
-          const schoolRef = collection(db, 'schools');
-
-          const q = query(
-            schoolRef,
-            where('id', '==', currentSchoolId)
+          const selected = schools.find(
+            (item) => item.id === currentSchoolId
           );
 
-          const snapshot = await getDocs(q);
-
-          if (!snapshot.empty) {
-            const schoolData = snapshot.docs[0].data();
-
-            if (
-              String(schoolData.ownerUid || '') !== user.uid
-            ) {
-              throw new Error(
-                'You are not authorized to access this school payment page.'
-              );
-            }
-
-            currentSchoolName = String(
-              schoolData.name ||
-                schoolData.schoolName ||
-                ''
-            ).trim();
-          }
-        }
-
-        /*
-         * Fallback:
-         * Find school using ownerUid.
-         */
-        if (!currentSchoolId || !currentSchoolName) {
-          const schoolRef = collection(db, 'schools');
-
-          const q = query(
-            schoolRef,
-            where('ownerUid', '==', user.uid)
-          );
-
-          const snapshot = await getDocs(q);
-
-          if (snapshot.empty) {
+          if (!selected) {
             throw new Error(
-              'आपके account से कोई school नहीं मिला।'
+              'You are not authorized to access this school payment page.'
             );
           }
 
-          const schoolDoc = snapshot.docs[0];
-          const schoolData = schoolDoc.data();
-
-          currentSchoolId = String(
-            schoolData.id || schoolDoc.id
+          currentSchoolName = selected.name;
+        } else if (schools.length === 1) {
+          currentSchoolId = schools[0].id;
+          currentSchoolName = schools[0].name;
+        } else if (schools.length === 0) {
+          throw new Error(
+            'आपके account से कोई school नहीं मिला।'
           );
-
-          currentSchoolName = String(
-            schoolData.name ||
-              schoolData.schoolName ||
-              ''
-          ).trim();
         }
 
         if (!currentSchoolId) {
