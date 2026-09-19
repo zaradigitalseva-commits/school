@@ -73,6 +73,8 @@ export interface School {
   subscriptionStartDate?: string;
   subscriptionExpiryDate?: string;
   subscriptionDays?: number;
+  totalRechargeAmount?: number;
+  totalRechargeDays?: number;
 
   paymentStatus?: string;
   paymentId?: string;
