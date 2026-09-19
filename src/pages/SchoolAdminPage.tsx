@@ -62,6 +62,7 @@ import {
   addTeacher,
   updateTeacher,
   deleteTeacher,
+  createTeacherInvite,
 } from '@/firebase/firestore';
 
 import type {
@@ -3120,8 +3121,10 @@ function TeachersSection({
 
       if (editingId) {
         await updateTeacher(editingId, data);
+        await createTeacherInvite({ schoolId, teacherId: editingId, email: data.email, assignedClass: data.assignedClass, section: data.section });
       } else {
-        await addTeacher(data);
+        const teacherId = await addTeacher(data);
+        await createTeacherInvite({ schoolId, teacherId, email: data.email, assignedClass: data.assignedClass, section: data.section });
       }
 
       const refreshed = await fetchTeachers(schoolId);
