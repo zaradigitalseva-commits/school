@@ -310,6 +310,19 @@ function SummaryCards({
 
 
 
+function getSubscriptionExpiry(
+  schoolData: SchoolData,
+  schoolInfo: AnyRecord | null
+) {
+  return (
+    schoolData.subscriptionExpiryDate ??
+    schoolData.subscriptionExpiry ??
+    schoolInfo?.subscriptionExpiryDate ??
+    schoolInfo?.subscriptionExpiry ??
+    null
+  );
+}
+
 function InfoSection({
   schoolData,
   schoolInfo,
@@ -318,19 +331,32 @@ function InfoSection({
   schoolInfo: AnyRecord | null;
 }) {
   const info = schoolInfo || schoolData;
+  const subscriptionExpiry = getSubscriptionExpiry(
+    schoolData,
+    schoolInfo
+  );
 
   const fields = [
     ['School Name', info.name],
     ['Slug', info.slug],
-    ['Email', info.email],
+    ['Owner Email', info.ownerEmail],
+    ['School Email', info.email],
     ['Phone', info.phone],
+    ['WhatsApp', info.whatsappNumber],
     ['Address', info.address],
     ['City', info.city],
     ['State', info.state],
     ['Status', info.status],
     ['Payment Status', info.paymentStatus],
     ['Subscription Status', info.subscriptionStatus],
-    ['Subscription Expiry', info.subscriptionExpiry],
+    ['Subscription Plan', info.subscriptionPlan],
+    ['Subscription Days', info.subscriptionDays],
+    ['Subscription Start', info.subscriptionStartDate],
+    ['Subscription Expiry', subscriptionExpiry],
+    ['Payment Amount', info.paymentAmount !== undefined ? `₹${info.paymentAmount}` : undefined],
+    ['Payment ID / UTR', info.paymentId],
+    ['Payment Date', info.paymentDate],
+    ['Approval Type', info.paymentApprovalType],
   ];
 
   return (
@@ -665,38 +691,42 @@ function SubscriptionSection({
 }: {
   schoolData: SchoolData;
 }) {
+  const expiry = getSubscriptionExpiry(
+    schoolData,
+    null
+  );
+
   return (
     <section className="space-y-5">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">
-          Subscription
+          Subscription & Payment
         </h2>
 
         <p className="mt-1 text-sm text-slate-500">
-          Current school subscription information.
+          Current plan, payment and validity information.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <DataBox label="School Status" value={schoolData.status} />
+        <DataBox label="Payment Status" value={schoolData.paymentStatus} />
+        <DataBox label="Subscription Status" value={schoolData.subscriptionStatus} />
+        <DataBox label="Subscription Plan" value={schoolData.subscriptionPlan} />
         <DataBox
-          label="School Status"
-          value={schoolData.status}
+          label="Subscription Days"
+          value={schoolData.subscriptionDays ? `${schoolData.subscriptionDays} days` : undefined}
         />
-
+        <DataBox label="Subscription Start" value={schoolData.subscriptionStartDate} />
+        <DataBox label="Subscription Expiry" value={expiry} />
         <DataBox
-          label="Payment Status"
-          value={schoolData.paymentStatus}
+          label="Payment Amount"
+          value={schoolData.paymentAmount !== undefined ? `₹${schoolData.paymentAmount}` : undefined}
         />
-
-        <DataBox
-          label="Subscription Status"
-          value={schoolData.subscriptionStatus}
-        />
-
-        <DataBox
-          label="Subscription Expiry"
-          value={schoolData.subscriptionExpiry}
-        />
+        <DataBox label="Payment ID / UTR" value={schoolData.paymentId} />
+        <DataBox label="Payment Date" value={schoolData.paymentDate} />
+        <DataBox label="Approval Type" value={schoolData.paymentApprovalType} />
+        <DataBox label="Approved At" value={schoolData.approvedAt} />
       </div>
     </section>
   );
@@ -1219,9 +1249,14 @@ export default function SchoolSuperAdminViewPage() {
               </h2>
 
               {schoolData.slug && (
-                <p className="mt-2 text-sm text-slate-300">
-                  /{schoolData.slug}
-                </p>
+                <a
+                  href={`/school/${schoolData.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex rounded-lg bg-white/10 px-3 py-1.5 text-sm font-semibold text-slate-200 hover:bg-white/20 hover:text-white"
+                >
+                  🔗 /school/{schoolData.slug}
+                </a>
               )}
             </div>
 
