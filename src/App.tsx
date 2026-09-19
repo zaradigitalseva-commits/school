@@ -1,4 +1,4 @@
-```tsx
+
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 
@@ -33,29 +33,66 @@ import SchoolAdminPage from '@/pages/SchoolAdminPage';
 // Super Admin school data viewer
 import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
 
-function App() {
+/**
+ * Main application component.
+ *
+ * IMPORTANT:
+ * This is a named export because src/main.tsx imports:
+ *
+ * import { App } from './App.tsx';
+ */
+export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
 
-          {/* =========================
+          {/* =====================================================
               PUBLIC WEBSITE
-          ========================== */}
+          ====================================================== */}
           <Route element={<PublicLayout />}>
 
-            {/* Home */}
-            <Route path="/" element={<HomePage />} />
+            {/* Platform Home */}
+            <Route
+              path="/"
+              element={<HomePage />}
+            />
 
             {/* Main Pages */}
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/academics" element={<AcademicsPage />} />
-            <Route path="/teachers" element={<TeachersPage />} />
-            <Route path="/notices" element={<NoticesPage />} />
-            <Route path="/events" element={<EventsPage />} />
-            <Route path="/contact" element={<ContactPage />} />
+            <Route
+              path="/about"
+              element={<AboutPage />}
+            />
 
-            {/* Legal / Policy Pages */}
+            <Route
+              path="/academics"
+              element={<AcademicsPage />}
+            />
+
+            <Route
+              path="/teachers"
+              element={<TeachersPage />}
+            />
+
+            <Route
+              path="/notices"
+              element={<NoticesPage />}
+            />
+
+            <Route
+              path="/events"
+              element={<EventsPage />}
+            />
+
+            <Route
+              path="/contact"
+              element={<ContactPage />}
+            />
+
+            {/* =================================================
+                LEGAL / POLICY PAGES
+            ================================================== */}
+
             <Route
               path="/privacy-policy"
               element={<PrivacyPolicyPage />}
@@ -71,16 +108,28 @@ function App() {
               element={<RefundCancellationPage />}
             />
 
-            {/* Login / Registration */}
-            <Route path="/login" element={<LoginPage />} />
+            {/* =================================================
+                LOGIN / SCHOOL REGISTRATION
+            ================================================== */}
+
+            <Route
+              path="/login"
+              element={<LoginPage />}
+            />
 
             <Route
               path="/register-school"
               element={<RegisterSchoolPage />}
             />
 
-            {/* Schools */}
-            <Route path="/schools" element={<SchoolsPage />} />
+            {/* =================================================
+                SCHOOLS
+            ================================================== */}
+
+            <Route
+              path="/schools"
+              element={<SchoolsPage />}
+            />
 
             <Route
               path="/school/:slug"
@@ -89,26 +138,27 @@ function App() {
 
           </Route>
 
-
-          {/* =========================
-              SCHOOL / PLATFORM PAYMENT
-              Existing system kept
-          ========================== */}
+          {/* =====================================================
+              PAYMENT / RECHARGE
+              School Admin + Platform Admin
+          ====================================================== */}
           <Route
             path="/payment/recharge"
             element={
               <ProtectedRoute
-                allowedRoles={['school_admin', 'platform_admin']}
+                allowedRoles={[
+                  'school_admin',
+                  'platform_admin',
+                ]}
               >
                 <PaymentRechargePage />
               </ProtectedRoute>
             }
           />
 
-
-          {/* =========================
+          {/* =====================================================
               PLATFORM ADMIN
-          ========================== */}
+          ====================================================== */}
           <Route
             path="/admin"
             element={
@@ -120,11 +170,10 @@ function App() {
             }
           />
 
-
-          {/* =========================
+          {/* =====================================================
               SUPER ADMIN - FULL SCHOOL DATA
-              Platform admin only
-          ========================== */}
+              Platform Admin Only
+          ====================================================== */}
           <Route
             path="/admin/school/:schoolId"
             element={
@@ -136,10 +185,10 @@ function App() {
             }
           />
 
-
-          {/* =========================
+          {/* =====================================================
               SCHOOL ADMIN
-          ========================== */}
+              School-specific dashboard
+          ====================================================== */}
           <Route
             path="/school-admin"
             element={
@@ -151,14 +200,18 @@ function App() {
             }
           />
 
-
-          {/* =========================
-              INVALID URL
-              Redirect to Home
-          ========================== */}
+          {/* =====================================================
+              INVALID / UNKNOWN URL
+              Redirect to Platform Home
+          ====================================================== */}
           <Route
             path="*"
-            element={<Navigate to="/" replace />}
+            element={
+              <Navigate
+                to="/"
+                replace
+              />
+            }
           />
 
         </Routes>
@@ -167,5 +220,3 @@ function App() {
   );
 }
 
-export default App;
-```
