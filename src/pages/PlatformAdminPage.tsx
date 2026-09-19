@@ -7,6 +7,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 import {
+  BILLING_PACKAGES,
+  adminRechargeSchool,
   approveRecharge,
   fetchPendingRecharges,
   fetchPaymentSettings,
@@ -139,33 +141,6 @@ function openSchoolWhatsApp(school: School) {
 
 /*
  * =========================================================
- * WHATSAPP RECHARGE MESSAGE
- * =========================================================
- */
-
-function openSchoolRechargeWhatsApp(
-  school: School
-) {
-  const message =
-    `नमस्कार,\n\n` +
-    `🏫 School: ${school.name}\n\n` +
-    `💳 School website subscription recharge करना है।\n\n` +
-    `कृपया recharge/payment details भेजें।\n\n` +
-    `धन्यवाद।`;
-
-  const whatsappUrl =
-    `https://wa.me/${ADMIN_WHATSAPP_NUMBER}` +
-    `?text=${encodeURIComponent(message)}`;
-
-  window.open(
-    whatsappUrl,
-    '_blank',
-    'noopener,noreferrer'
-  );
-}
-
-/*
- * =========================================================
  * PLATFORM ADMIN PAGE
  * =========================================================
  */
@@ -201,6 +176,12 @@ export default function PlatformAdminPage() {
 
   const [error, setError] =
     useState('');
+
+  const [rechargeSchool, setRechargeSchool] =
+    useState<School | null>(null);
+
+  const [rechargePackage, setRechargePackage] =
+    useState(BILLING_PACKAGES[1]);
 
   /*
    * =======================================================
@@ -371,6 +352,57 @@ export default function PlatformAdminPage() {
         err instanceof Error
           ? err.message
           : 'Unable to reject payment.'
+      );
+    } finally {
+      setProcessingSchool(null);
+    }
+  }
+
+  /*
+   * =======================================================
+   * DIRECT ADMIN RECHARGE
+   * =======================================================
+   */
+
+  async function handleAdminRecharge() {
+    if (!rechargeSchool) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Direct recharge करें?\\n\\nSchool: ${rechargeSchool.name}\\nPackage: ₹${rechargePackage.amount} / ${rechargePackage.days} days`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError('');
+      setMessage('');
+      setProcessingSchool(rechargeSchool.id);
+
+      await adminRechargeSchool(
+        rechargeSchool.id,
+        rechargePackage.amount,
+        rechargePackage.days
+      );
+
+      const schoolName = rechargeSchool.name;
+      setRechargeSchool(null);
+
+      setMessage(
+        `✅ ${schoolName} में ₹${rechargePackage.amount} का ${rechargePackage.days} days direct recharge activate हो गया।`
+      );
+
+      await loadData();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Direct recharge नहीं हो सका।'
       );
     } finally {
       setProcessingSchool(null);
@@ -1233,11 +1265,12 @@ export default function PlatformAdminPage() {
 
                         <button
                           type="button"
-                          onClick={() =>
-                            openSchoolRechargeWhatsApp(
-                              school
-                            )
-                          }
+                          onClick={() => {
+                            setRechargeSchool(school);
+                            setRechargePackage(BILLING_PACKAGES[1]);
+                            setError('');
+                            setMessage('');
+                          }}
                           className="rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(126,34,206)] active:translate-y-1 active:shadow-none"
                         >
                           💳 Recharge
@@ -1367,6 +1400,96 @@ export default function PlatformAdminPage() {
           </div>
 
         </section>
+
+        {/* =================================================
+            DIRECT RECHARGE MODAL
+        ================================================== */}
+
+        {rechargeSchool && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-purple-600">
+                    PLATFORM ADMIN
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-gray-900">
+                    💳 Direct Recharge
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setRechargeSchool(null)}
+                  className="rounded-xl bg-gray-100 px-3 py-2 text-xl font-black text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-purple-50 p-4">
+                <p className="text-xs font-bold text-purple-600">
+                  SCHOOL
+                </p>
+                <p className="mt-1 text-xl font-black text-purple-950">
+                  {rechargeSchool.name}
+                </p>
+              </div>
+
+              <p className="mt-5 font-black text-gray-800">
+                Package Select करें
+              </p>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {BILLING_PACKAGES.map((item) => {
+                  const selected =
+                    rechargePackage.amount === item.amount &&
+                    rechargePackage.days === item.days;
+
+                  return (
+                    <button
+                      key={`${item.amount}-${item.days}`}
+                      type="button"
+                      onClick={() => setRechargePackage(item)}
+                      className={`rounded-2xl border-2 p-4 text-left font-black transition ${
+                        selected
+                          ? 'border-purple-600 bg-purple-50 shadow-[0_5px_0_rgb(126,34,206)]'
+                          : 'border-gray-200 bg-white shadow-[0_4px_0_rgb(203,213,225)]'
+                      }`}
+                    >
+                      <div className="text-2xl text-gray-900">
+                        ₹{item.amount}
+                      </div>
+                      <div className="mt-1 text-gray-600">
+                        {item.days} Days
+                      </div>
+                      {selected && (
+                        <div className="mt-1 text-sm text-purple-700">
+                          ✓ Selected
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-gray-50 p-4 text-sm font-bold text-gray-600">
+                यह Platform Admin द्वारा direct recharge है। किसी UTR या WhatsApp की आवश्यकता नहीं है।
+              </div>
+
+              <button
+                type="button"
+                disabled={processingSchool === rechargeSchool.id}
+                onClick={() => void handleAdminRecharge()}
+                className="mt-5 w-full rounded-2xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-6 py-4 text-lg font-black text-white shadow-[0_7px_0_rgb(126,34,206)] disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-1 active:shadow-none"
+              >
+                {processingSchool === rechargeSchool.id
+                  ? '⏳ Activating...'
+                  : `💳 Activate ₹${rechargePackage.amount} / ${rechargePackage.days} Days`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* =================================================
             SUSPENDED SUMMARY
