@@ -79,6 +79,9 @@ export default function SchoolAdminPage() {
   const [myMemberships, setMyMemberships] =
     useState<SchoolMembership[]>([]);
 
+  const [mySchoolOptions, setMySchoolOptions] =
+    useState<Array<{ id: string; name: string }>>([]);
+
   const [school, setSchool] =
     useState<School | null>(null);
 
@@ -134,6 +137,30 @@ export default function SchoolAdminPage() {
 
       setMyMemberships(
         activeAdminMemberships
+      );
+
+      const schoolOptions = (
+        await Promise.all(
+          activeAdminMemberships.map(
+            async (membership) => {
+              const data =
+                await fetchSchoolById(
+                  membership.schoolId
+                );
+
+              return {
+                id: membership.schoolId,
+                name:
+                  data?.name ||
+                  membership.schoolId,
+              };
+            }
+          )
+        )
+      );
+
+      setMySchoolOptions(
+        schoolOptions
       );
 
       const requestedSchoolId =
@@ -1025,7 +1052,7 @@ export default function SchoolAdminPage() {
                 key={membership.id}
                 value={membership.schoolId}
               >
-                School: {membership.schoolId}
+                {mySchoolOptions.find((schoolOption) => schoolOption.id === membership.schoolId)?.name || membership.schoolId}
               </option>
             ))}
           </select>
