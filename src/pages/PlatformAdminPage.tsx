@@ -4,7 +4,9 @@ import {
   type FormEvent,
 } from 'react';
 
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+
+import AdvertisementManagerPage from '@/pages/admin/AdvertisementManagerPage';
 
 import {
   BILLING_PACKAGES,
@@ -179,6 +181,9 @@ export default function PlatformAdminPage() {
 
   const [rechargeSchool, setRechargeSchool] =
     useState<School | null>(null);
+
+  const [showAdvertisementManager, setShowAdvertisementManager] =
+    useState(false);
 
   const [rechargePackage, setRechargePackage] =
     useState(BILLING_PACKAGES[1]);
@@ -614,8 +619,9 @@ export default function PlatformAdminPage() {
 
         <div className="mb-6">
 
-          <Link
-            to="/admin/advertisements"
+          <button
+            type="button"
+            onClick={() => setShowAdvertisementManager(true)}
             className="block w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-center text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:scale-[1.01] hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
           >
             📢 Advertisement Admin
@@ -623,7 +629,7 @@ export default function PlatformAdminPage() {
             <span className="mt-1 block text-sm font-bold text-white/80">
               Paid Slider + Scrolling Advertisement
             </span>
-          </Link>
+          </button>
 
         </div>
 
@@ -1400,6 +1406,27 @@ export default function PlatformAdminPage() {
           </div>
 
         </section>
+
+        {/* =================================================
+            ADVERTISEMENT MANAGER MODAL
+        ================================================== */}
+
+        {showAdvertisementManager && (
+          <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-2 sm:p-4">
+            <div className="min-h-full">
+              <div className="relative mx-auto min-h-[calc(100vh-1rem)] max-w-7xl overflow-hidden rounded-3xl bg-slate-950 shadow-2xl sm:min-h-[calc(100vh-2rem)]">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvertisementManager(false)}
+                  className="fixed right-4 top-4 z-[110] rounded-full bg-red-600 px-4 py-3 text-lg font-black text-white shadow-lg hover:bg-red-700"
+                >
+                  ✕ Close
+                </button>
+                <AdvertisementManagerPage />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =================================================
             DIRECT RECHARGE MODAL
