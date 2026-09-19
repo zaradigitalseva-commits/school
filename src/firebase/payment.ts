@@ -1415,3 +1415,25 @@ export function subscribeToSchoolRechargeHistory(
     (error) => onError?.(error)
   );
 }
+
+
+export function subscribeToMyRechargeRequests(
+  uid: string,
+  onData: (requests: RechargeRequest[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!uid) return () => {};
+  const q = query(
+    collection(db, 'rechargeRequests'),
+    where('uid', '==', uid)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as RechargeRequest));
+      items.sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
+      onData(items);
+    },
+    (error) => onError?.(error)
+  );
+}
