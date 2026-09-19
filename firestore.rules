@@ -99,8 +99,7 @@ service cloud.firestore {
           && request.resource.data.role == 'school_admin'
           && request.resource.data.status == 'PENDING'
           && request.resource.data.schoolId is string
-          && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
-          && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid);
+          && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid);
 
       // A school admin may manage membership records in only their own school,
       // but cannot change the school/uid of an existing membership.
@@ -120,8 +119,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.schoolId is string
-        && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
-        && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
+        && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
       allow update, delete: if isPlatformAdmin();
     }
 
