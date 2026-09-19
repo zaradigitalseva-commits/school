@@ -78,7 +78,7 @@ export interface School {
   paymentAmount?: number;
   paymentDate?: string;
 
-  paymentApprovalType?: 'PAID' | 'WAIVED';
+  paymentApprovalType?: 'PAID' | 'WAIVED' | 'ADMIN_RECHARGE';
 
   // ============================================================
   // PLATFORM / ADMIN
