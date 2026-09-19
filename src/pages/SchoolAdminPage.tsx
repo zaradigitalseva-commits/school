@@ -40,6 +40,10 @@ import {
   deleteAnnouncement,
 
   fetchEvents,
+  subscribeToSchool,
+  subscribeToSchoolCollection,
+  subscribeToSchoolMemberships,
+  subscribeToTeachers,
   addEvent,
   updateEvent,
   deleteEvent,
@@ -320,8 +324,65 @@ export default function SchoolAdminPage() {
 
 
   useEffect(() => {
-    loadSchool();
+    void loadSchool();
   }, []);
+
+  /* =========================================================
+     REALTIME SCHOOL ADMIN SYNC
+  ========================================================= */
+  useEffect(() => {
+    if (!schoolId) return;
+
+    const handleError = (error: Error) => {
+      console.error('School Admin realtime listener error:', error);
+    };
+
+    const unsubSchool = subscribeToSchool(schoolId, (data) => {
+      if (data) setSchool(data);
+    }, handleError);
+
+    const unsubMembers = subscribeToSchoolMemberships(schoolId, (data) => {
+      setMemberships(data);
+    }, handleError);
+
+    const unsubTeachers = subscribeToTeachers(schoolId, (data) => {
+      setTeacherRecords(data as AnyRecord[]);
+    }, handleError);
+
+    return () => {
+      unsubSchool();
+      unsubMembers();
+      unsubTeachers();
+    };
+  }, [schoolId]);
+
+  useEffect(() => {
+    if (!schoolId) return;
+
+    const collectionMap: Record<string, string> = {
+      students: 'students',
+      classes: 'classes',
+      results: 'results',
+      homework: 'homework',
+      attendance: 'attendance',
+      notices: 'announcements',
+      events: 'events',
+      gallery: 'gallery',
+      documents: 'documents',
+    };
+
+    const collectionName = collectionMap[activeSection];
+    if (!collectionName) return;
+
+    const unsubscribe = subscribeToSchoolCollection(
+      schoolId,
+      collectionName,
+      (data) => setItems(data),
+      (error) => console.error('Realtime section listener error:', error)
+    );
+
+    return unsubscribe;
+  }, [schoolId, activeSection]);
 
 
   /* =========================================================
