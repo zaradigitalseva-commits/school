@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
-  fetchMyMembership,
-  fetchSchoolById,
+  subscribeToMyMembership,
+  subscribeToSchool,
 } from '@/firebase/firestore';
 import type { School, SchoolMembership } from '@/firebase/types';
 
@@ -15,47 +15,55 @@ export default function TeacherDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    if (!user?.uid) {
+      navigate('/login', { replace: true });
+      return;
+    }
 
-    async function load() {
-      if (!user?.uid) {
-        navigate('/login', { replace: true });
-        return;
-      }
+    setLoading(true);
 
-      try {
-        const current = await fetchMyMembership();
+    let unsubscribeSchool = () => {};
 
-        if (!mounted) return;
-
-        if (
-          !current ||
-          current.status !== 'ACTIVE' ||
-          current.role !== 'teacher'
-        ) {
+    const unsubscribeMembership = subscribeToMyMembership(
+      user.uid,
+      (current) => {
+        if (!current || current.status !== 'ACTIVE' || current.role !== 'teacher') {
+          setMembership(null);
+          setSchool(null);
+          setLoading(false);
+          unsubscribeSchool();
           navigate('/', { replace: true });
           return;
         }
 
         setMembership(current);
-
-        const schoolData = await fetchSchoolById(current.schoolId);
-
-        if (mounted) {
-          setSchool(schoolData);
-        }
-      } catch (error) {
-        console.error('Teacher dashboard load failed:', error);
-        if (mounted) navigate('/', { replace: true });
-      } finally {
-        if (mounted) setLoading(false);
+        unsubscribeSchool = subscribeToSchool(
+          current.schoolId,
+          (schoolData) => {
+            if (!schoolData || schoolData.status !== 'LIVE') {
+              setSchool(null);
+              setLoading(false);
+              navigate('/', { replace: true });
+              return;
+            }
+            setSchool(schoolData);
+            setLoading(false);
+          },
+          (error) => {
+            console.error('Live teacher school error:', error);
+            setLoading(false);
+          }
+        );
+      },
+      (error) => {
+        console.error('Live teacher membership error:', error);
+        setLoading(false);
       }
-    }
-
-    load();
+    );
 
     return () => {
-      mounted = false;
+      unsubscribeMembership();
+      unsubscribeSchool();
     };
   }, [navigate, user?.uid]);
 
