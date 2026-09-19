@@ -57,8 +57,6 @@ export interface School {
   foundedYear?: string;
   principalImageUrl?: string;
 
-  foundedYear?: string;
-
   totalStudents?: number;
   totalTeachers?: number;
 
