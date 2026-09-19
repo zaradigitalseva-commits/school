@@ -1447,6 +1447,31 @@ export async function deleteClass(
    RESULTS
 ========================================================= */
 
+export async function fetchPublicResults(
+  schoolId: string,
+  rollNumber: string
+): Promise<any[]> {
+  if (!schoolId || !rollNumber?.trim()) {
+    return [];
+  }
+
+  const resultsQuery = query(
+    collection(db, 'results'),
+    where('schoolId', '==', schoolId),
+    where('rollNumber', '==', rollNumber.trim())
+  );
+
+  const snapshot = await getDocs(resultsQuery);
+
+  return snapshot.docs.map(
+    (resultDoc) => ({
+      id: resultDoc.id,
+      ...resultDoc.data(),
+    })
+  );
+}
+
+
 export async function fetchResults(
   schoolId: string
 ): Promise<any[]> {
