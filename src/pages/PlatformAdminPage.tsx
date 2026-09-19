@@ -13,12 +13,15 @@ import {
   fetchPendingRecharges,
   fetchSchoolRechargeHistory,
   fetchPaymentSettings,
+  subscribeToPaymentSettings,
+  subscribeToPendingRecharges,
   rejectRecharge,
   savePaymentSettings,
 } from '@/firebase/payment';
 
 import {
   fetchAllSchools,
+  subscribeToAllSchools,
   updateSchoolStatus,
 } from '@/firebase/firestore';
 
@@ -257,7 +260,42 @@ export default function PlatformAdminPage() {
   }
 
   useEffect(() => {
-    void loadData();
+    let readySchools = false;
+    let readyRequests = false;
+    let readySettings = false;
+    const finishLoading = () => {
+      if (readySchools && readyRequests && readySettings) setLoading(false);
+    };
+    setLoading(true);
+    setError('');
+
+    const unsubSchools = subscribeToAllSchools(
+      (data) => { setSchools(data); readySchools = true; finishLoading(); },
+      (error) => { console.error(error); setError(error.message); readySchools = true; finishLoading(); }
+    );
+    const unsubRequests = subscribeToPendingRecharges(
+      (data) => { setRequests(data); readyRequests = true; finishLoading(); },
+      (error) => { console.error(error); setError(error.message); readyRequests = true; finishLoading(); }
+    );
+    const unsubSettings = subscribeToPaymentSettings(
+      (data) => {
+        setSettings({
+          upiId: data?.upiId || '',
+          qrImageUrl: data?.qrImageUrl || '',
+          supportPhone: data?.supportPhone || '',
+          instructions: data?.instructions || '',
+        });
+        readySettings = true;
+        finishLoading();
+      },
+      (error) => { console.error(error); setError(error.message); readySettings = true; finishLoading(); }
+    );
+
+    return () => {
+      unsubSchools();
+      unsubRequests();
+      unsubSettings();
+    };
   }, []);
 
   /*
