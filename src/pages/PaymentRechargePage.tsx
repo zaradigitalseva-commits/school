@@ -80,7 +80,6 @@ export default function PaymentRechargePage() {
   );
 
   const [utr, setUtr] = useState('');
-  const [showUtrForm, setShowUtrForm] = useState(false);
 
   const [paymentSettings, setPaymentSettings] =
     useState<PaymentSettings | null>(null);
@@ -195,8 +194,7 @@ export default function PaymentRechargePage() {
         try {
           setShowUtrForm(sessionStorage.getItem('school-payment-started-' + currentSchoolId) === '1');
         } catch {
-          setShowUtrForm(false);
-        }
+            }
 
         /*
          * Payment settings/history are independent of the school
@@ -381,7 +379,7 @@ export default function PaymentRechargePage() {
       });
 
       setMessage(
-        '✅ Payment request submitted successfully! Admin approval का इंतजार करें।'
+        '✅ UTR successfully saved! अब Admin WhatsApp पर payment details भेजी जा रही हैं।'
       );
 
       setUtr('');
