@@ -2213,6 +2213,16 @@ export async function registerSchool(
     '_' +
     schoolId;
 
+  // One Google account/email can register only ONE school.
+  // This deterministic owner record prevents a second registration
+  // even if the user changes the school name/slug.
+  const ownerRegistrationRef =
+    doc(
+      db,
+      'schoolOwnerRegistrations',
+      ownerUid
+    );
+
   const membershipRef =
     doc(
       db,
@@ -2260,12 +2270,23 @@ export async function registerSchool(
   };
 
   await runTransaction(db, async (transaction) => {
-    // We only read the slug reservation here. The membership document is
-    // intentionally NOT read before creation because a new membership does
-    // not exist yet, and Firestore rules correctly deny reads of another
-    // user's/non-existent membership documents. The slug reservation is the
-    // uniqueness check for the public school URL.
-    const slugSnapshot = await transaction.get(slugRef);
+    // Read only the deterministic record for the currently logged-in owner.
+    // This lets us show a clear message if this Google account already
+    // registered a school, while the Firestore rule also enforces the
+    // one-email/one-school restriction atomically.
+    const ownerSnapshot =
+      await transaction.get(ownerRegistrationRef);
+
+    if (ownerSnapshot.exists()) {
+      throw new Error(
+        'This Google account/email has already registered a school. One email can register only one school.'
+      );
+    }
+
+    // The slug is globally unique. We read it here because slugReservations
+    // is the public URL uniqueness check.
+    const slugSnapshot =
+      await transaction.get(slugRef);
 
     if (slugSnapshot.exists()) {
       throw new Error(
@@ -2273,7 +2294,10 @@ export async function registerSchool(
       );
     }
 
-    transaction.set(schoolRef, school);
+    transaction.set(
+      schoolRef,
+      school
+    );
 
     transaction.set(
       membershipRef,
@@ -2287,6 +2311,17 @@ export async function registerSchool(
         schoolId,
         schoolName: cleanName,
         ownerUid,
+        createdAt: serverTimestamp(),
+      }
+    );
+
+    transaction.set(
+      ownerRegistrationRef,
+      {
+        ownerUid,
+        ownerEmail: cleanEmail,
+        schoolId,
+        schoolName: cleanName,
         createdAt: serverTimestamp(),
       }
     );
