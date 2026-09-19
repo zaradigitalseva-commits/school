@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu,
   X,
@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isPlatformAdminEmail } from '@/firebase/firestore';
 
 const navLinks = [
   { to: '/', label: 'Home', icon: Home },
@@ -30,7 +31,8 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-  const { user, isAdmin, isFaculty } = useAuth();
+  const navigate = useNavigate();
+  const { user, role, isAdmin, isFaculty } = useAuth();
 
   useEffect(() => {
     setOpen(false);
@@ -42,7 +44,36 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
-  const showDashboardLink = isAdmin || isFaculty;
+  const showDashboardLink = Boolean(user) && (
+    isAdmin ||
+    isFaculty ||
+    isPlatformAdminEmail(user?.email)
+  );
+
+  const openDashboard = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    // The platform owner must always go to the Platform Admin board.
+    if (isPlatformAdminEmail(user.email) || role === 'platform_admin') {
+      navigate('/admin');
+      return;
+    }
+
+    if (role === 'school_admin') {
+      navigate('/school-admin');
+      return;
+    }
+
+    if (role === 'teacher') {
+      navigate('/dashboard');
+      return;
+    }
+
+    navigate('/');
+  };
 
   return (
     <header
@@ -89,14 +120,16 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           {showDashboardLink && (
-            <Link
-              to="/dashboard"
+            <button
+              type="button"
+              onClick={openDashboard}
               className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold btn-3d hover:bg-blue-700"
             >
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
-            </Link>
+            </button>
           )}
+
           {user ? (
             <img
               src={user.photoURL ?? ''}
@@ -112,6 +145,7 @@ export default function Navbar() {
               Sign In
             </Link>
           )}
+
           <button
             onClick={() => setOpen(!open)}
             className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
@@ -141,15 +175,18 @@ export default function Navbar() {
                 </Link>
               );
             })}
+
             {showDashboardLink && (
-              <Link
-                to="/dashboard"
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-700 bg-blue-50"
+              <button
+                type="button"
+                onClick={openDashboard}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 text-left"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 Dashboard
-              </Link>
+              </button>
             )}
+
             {!user && (
               <Link
                 to="/login"
