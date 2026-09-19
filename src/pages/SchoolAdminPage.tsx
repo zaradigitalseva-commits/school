@@ -1,11 +1,57 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import {
   fetchSchoolById,
   fetchMyMembership,
   fetchSchoolMemberships,
   updateSchoolMembership,
+  saveSchoolInfo,
+
+  fetchStudents,
+  addStudent,
+  updateStudent,
+  deleteStudent,
+
+  fetchClasses,
+  addClass,
+  updateClass,
+  deleteClass,
+
+  fetchResults,
+  addResult,
+  updateResult,
+  deleteResult,
+
+  fetchHomework,
+  addHomework,
+  updateHomework,
+  deleteHomework,
+
+  fetchAttendance,
+  addAttendance,
+  updateAttendance,
+  deleteAttendance,
+
+  fetchAnnouncements,
+  addAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+
+  fetchEvents,
+  addEvent,
+  updateEvent,
+  deleteEvent,
+
+  fetchGallery,
+  addGalleryItem,
+  updateGalleryItem,
+  deleteGalleryItem,
+
+  fetchDocuments,
+  addDocument,
+  updateDocument,
+  deleteDocument,
 } from '@/firebase/firestore';
 
 import type {
@@ -13,35 +59,66 @@ import type {
   SchoolMembership,
 } from '@/firebase/types';
 
+import type { CSSProperties } from 'react';
+
+
+type AnyRecord = {
+  id?: string;
+  [key: string]: any;
+};
+
+
 export default function SchoolAdminPage() {
   const navigate = useNavigate();
 
-  const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [school, setSchool] = useState<School | null>(null);
-  const [memberships, setMemberships] = useState<SchoolMembership[]>([]);
+  const [schoolId, setSchoolId] =
+    useState<string | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [school, setSchool] =
+    useState<School | null>(null);
 
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [memberships, setMemberships] =
+    useState<SchoolMembership[]>([]);
 
-  /*
-   * IMPORTANT:
-   * School Admin का schoolId URL से नहीं लिया जाएगा।
-   *
-   * Current logged-in user की ACTIVE membership से
-   * schoolId automatically मिलेगा।
-   */
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [activeSection, setActiveSection] =
+    useState('dashboard');
+
+  const [sectionLoading, setSectionLoading] =
+    useState(false);
+
+  const [items, setItems] =
+    useState<AnyRecord[]>([]);
+
+  const [editingId, setEditingId] =
+    useState<string | null>(null);
+
+  const [form, setForm] =
+    useState<AnyRecord>({});
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState('');
+
+
+  /* =========================================================
+     LOAD SCHOOL
+  ========================================================= */
 
   const loadSchool = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // ------------------------------------------
-      // 1. Current logged-in School Admin की membership
-      // ------------------------------------------
-      const myMembership = await fetchMyMembership();
+      const myMembership =
+        await fetchMyMembership();
 
       if (!myMembership) {
         setError(
@@ -50,17 +127,20 @@ export default function SchoolAdminPage() {
         return;
       }
 
-      // ------------------------------------------
-      // 2. Security check
-      // ------------------------------------------
-      if (myMembership.role !== 'school_admin') {
+      if (
+        myMembership.role !==
+        'school_admin'
+      ) {
         setError(
           'You do not have School Admin access.'
         );
         return;
       }
 
-      if (myMembership.status !== 'ACTIVE') {
+      if (
+        myMembership.status !==
+        'ACTIVE'
+      ) {
         setError(
           'Your School Admin access is ' +
             myMembership.status +
@@ -69,10 +149,8 @@ export default function SchoolAdminPage() {
         return;
       }
 
-      // ------------------------------------------
-      // 3. Get schoolId from membership
-      // ------------------------------------------
-      const currentSchoolId = myMembership.schoolId;
+      const currentSchoolId =
+        myMembership.schoolId;
 
       if (!currentSchoolId) {
         setError(
@@ -83,39 +161,28 @@ export default function SchoolAdminPage() {
 
       setSchoolId(currentSchoolId);
 
-      // ------------------------------------------
-      // 4. Load ONLY this school
-      // ------------------------------------------
       const schoolData =
-        await fetchSchoolById(currentSchoolId);
+        await fetchSchoolById(
+          currentSchoolId
+        );
 
       if (!schoolData) {
-        setError('Your school could not be found.');
-        return;
-      }
-
-      // ------------------------------------------
-      // 5. Verify ownership
-      // ------------------------------------------
-      if (
-        schoolData.id &&
-        schoolData.id !== currentSchoolId
-      ) {
         setError(
-          'School verification failed.'
+          'Your school could not be found.'
         );
         return;
       }
 
       setSchool(schoolData);
 
-      // ------------------------------------------
-      // 6. Load memberships ONLY for this school
-      // ------------------------------------------
       const membershipData =
-        await fetchSchoolMemberships(currentSchoolId);
+        await fetchSchoolMemberships(
+          currentSchoolId
+        );
 
-      setMemberships(membershipData);
+      setMemberships(
+        membershipData
+      );
 
     } catch (err) {
       console.error(
@@ -133,112 +200,615 @@ export default function SchoolAdminPage() {
     }
   };
 
+
   useEffect(() => {
     loadSchool();
   }, []);
 
-  // ------------------------------------------
-  // ACTIVE / PENDING STAFF
-  // ------------------------------------------
 
-  const schoolAdmins = memberships.filter(
-    (item) =>
-      item.role === 'school_admin' &&
-      item.status === 'ACTIVE'
-  );
+  /* =========================================================
+     LOAD SECTION DATA
+  ========================================================= */
 
-  const teachers = memberships.filter(
-    (item) =>
-      item.role === 'teacher' &&
-      item.status === 'ACTIVE'
-  );
-
-  const pendingTeachers = memberships.filter(
-    (item) =>
-      item.role === 'teacher' &&
-      item.status === 'PENDING'
-  );
-
-  const pendingAdmins = memberships.filter(
-    (item) =>
-      item.role === 'school_admin' &&
-      item.status === 'PENDING'
-  );
-
-  // ------------------------------------------
-  // ACTIVATE MEMBERSHIP
-  // ------------------------------------------
-
-  const activateMembership = async (
-    membership: SchoolMembership
+  const loadSection = async (
+    section: string
   ) => {
-    try {
-      await updateSchoolMembership(
-        membership.id,
-        {
-          status: 'ACTIVE',
-        }
-      );
+    if (!schoolId) return;
 
-      await loadSchool();
+    try {
+      setSectionLoading(true);
+      setMessage('');
+      setItems([]);
+
+      if (section === 'students') {
+        setItems(
+          await fetchStudents(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'classes') {
+        setItems(
+          await fetchClasses(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'results') {
+        setItems(
+          await fetchResults(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'homework') {
+        setItems(
+          await fetchHomework(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'attendance') {
+        setItems(
+          await fetchAttendance(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'notices') {
+        setItems(
+          await fetchAnnouncements(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'events') {
+        setItems(
+          await fetchEvents(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'gallery') {
+        setItems(
+          await fetchGallery(
+            schoolId
+          )
+        );
+      }
+
+      if (section === 'documents') {
+        setItems(
+          await fetchDocuments(
+            schoolId
+          )
+        );
+      }
 
     } catch (err) {
       console.error(err);
 
-      alert(
+      setMessage(
         err instanceof Error
           ? err.message
-          : 'Unable to update membership.'
+          : 'Unable to load data.'
       );
+    } finally {
+      setSectionLoading(false);
     }
   };
 
-  // ------------------------------------------
-  // REVOKE MEMBERSHIP
-  // ------------------------------------------
 
-  const revokeMembership = async (
-    membership: SchoolMembership
+  useEffect(() => {
+    if (
+      schoolId &&
+      activeSection !== 'dashboard' &&
+      activeSection !== 'school' &&
+      activeSection !== 'teachers' &&
+      activeSection !== 'members' &&
+      activeSection !== 'subscription'
+    ) {
+      loadSection(
+        activeSection
+      );
+    }
+  }, [
+    activeSection,
+    schoolId,
+  ]);
+
+
+  /* =========================================================
+     MENU CHANGE
+  ========================================================= */
+
+  const changeSection = (
+    section: string
   ) => {
-    const ok = window.confirm(
-      'Are you sure you want to revoke access for ' +
-        (membership.invitedByEmail ||
-          membership.uid) +
-        '?'
+    setActiveSection(section);
+    setEditingId(null);
+    setForm({});
+    setMessage('');
+  };
+
+
+  /* =========================================================
+     STAFF
+  ========================================================= */
+
+  const schoolAdmins =
+    memberships.filter(
+      (item) =>
+        item.role ===
+          'school_admin' &&
+        item.status ===
+          'ACTIVE'
     );
+
+  const teachers =
+    memberships.filter(
+      (item) =>
+        item.role === 'teacher' &&
+        item.status === 'ACTIVE'
+    );
+
+  const pendingTeachers =
+    memberships.filter(
+      (item) =>
+        item.role === 'teacher' &&
+        item.status === 'PENDING'
+    );
+
+  const pendingAdmins =
+    memberships.filter(
+      (item) =>
+        item.role ===
+          'school_admin' &&
+        item.status === 'PENDING'
+    );
+
+
+  const activateMembership =
+    async (
+      membership: SchoolMembership
+    ) => {
+      try {
+        await updateSchoolMembership(
+          membership.id,
+          {
+            status: 'ACTIVE',
+          }
+        );
+
+        await loadSchool();
+
+      } catch (err) {
+        alert(
+          err instanceof Error
+            ? err.message
+            : 'Unable to update membership.'
+        );
+      }
+    };
+
+
+  const revokeMembership =
+    async (
+      membership: SchoolMembership
+    ) => {
+      const ok =
+        window.confirm(
+          'Are you sure you want to revoke access for ' +
+            (membership.invitedByEmail ||
+              membership.uid) +
+            '?'
+        );
+
+      if (!ok) return;
+
+      try {
+        await updateSchoolMembership(
+          membership.id,
+          {
+            status: 'REVOKED',
+          }
+        );
+
+        await loadSchool();
+
+      } catch (err) {
+        alert(
+          err instanceof Error
+            ? err.message
+            : 'Unable to revoke membership.'
+        );
+      }
+    };
+
+
+  /* =========================================================
+     SAVE CURRENT MODULE
+  ========================================================= */
+
+  const saveItem = async () => {
+    if (!schoolId) return;
+
+    try {
+      setSaving(true);
+      setMessage('');
+
+      let savedId =
+        editingId;
+
+      if (activeSection === 'students') {
+        if (editingId) {
+          await updateStudent(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addStudent(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      if (activeSection === 'classes') {
+        if (editingId) {
+          await updateClass(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addClass(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      if (activeSection === 'results') {
+        if (editingId) {
+          await updateResult(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addResult(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      if (activeSection === 'homework') {
+        if (editingId) {
+          await updateHomework(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addHomework(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      if (activeSection === 'attendance') {
+        if (editingId) {
+          await updateAttendance(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addAttendance(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      if (activeSection === 'notices') {
+        const noticeData = {
+          ...form,
+          schoolId,
+        };
+
+        if (editingId) {
+          await updateAnnouncement(
+            editingId,
+            noticeData
+          );
+        } else {
+          savedId =
+            await addAnnouncement(
+              noticeData
+            );
+        }
+      }
+
+      if (activeSection === 'events') {
+        const eventData = {
+          ...form,
+          schoolId,
+        };
+
+        if (editingId) {
+          await updateEvent(
+            editingId,
+            eventData
+          );
+        } else {
+          savedId =
+            await addEvent(
+              eventData
+            );
+        }
+      }
+
+      if (activeSection === 'gallery') {
+        if (editingId) {
+          await updateGalleryItem(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addGalleryItem(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      if (activeSection === 'documents') {
+        if (editingId) {
+          await updateDocument(
+            schoolId,
+            editingId,
+            form
+          );
+        } else {
+          savedId =
+            await addDocument(
+              schoolId,
+              form
+            );
+        }
+      }
+
+      console.log(
+        'Saved:',
+        savedId
+      );
+
+      setMessage(
+        editingId
+          ? '✅ Data updated successfully.'
+          : '✅ Data added successfully.'
+      );
+
+      setEditingId(null);
+      setForm({});
+
+      await loadSection(
+        activeSection
+      );
+
+    } catch (err) {
+      console.error(err);
+
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : 'Unable to save data.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  /* =========================================================
+     DELETE CURRENT MODULE ITEM
+  ========================================================= */
+
+  const deleteItem = async (
+    id: string
+  ) => {
+    if (!schoolId) return;
+
+    const ok =
+      window.confirm(
+        'Are you sure you want to delete this record?'
+      );
 
     if (!ok) return;
 
     try {
-      await updateSchoolMembership(
-        membership.id,
-        {
-          status: 'REVOKED',
-        }
+      setSaving(true);
+
+      if (
+        activeSection ===
+        'students'
+      ) {
+        await deleteStudent(
+          schoolId,
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'classes'
+      ) {
+        await deleteClass(
+          schoolId,
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'results'
+      ) {
+        await deleteResult(
+          schoolId,
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'homework'
+      ) {
+        await deleteHomework(
+          schoolId,
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'attendance'
+      ) {
+        await deleteAttendance(
+          schoolId,
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'notices'
+      ) {
+        await deleteAnnouncement(
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'events'
+      ) {
+        await deleteEvent(
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'gallery'
+      ) {
+        await deleteGalleryItem(
+          schoolId,
+          id
+        );
+      }
+
+      if (
+        activeSection ===
+        'documents'
+      ) {
+        await deleteDocument(
+          schoolId,
+          id
+        );
+      }
+
+      await loadSection(
+        activeSection
       );
 
-      await loadSchool();
+      setMessage(
+        '✅ Record deleted successfully.'
+      );
 
     } catch (err) {
       console.error(err);
 
-      alert(
+      setMessage(
         err instanceof Error
           ? err.message
-          : 'Unable to revoke membership.'
+          : 'Unable to delete record.'
       );
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ------------------------------------------
-  // LOADING
-  // ------------------------------------------
+
+  /* =========================================================
+     SCHOOL INFO SAVE
+  ========================================================= */
+
+  const saveSchool = async () => {
+    if (!school || !schoolId) return;
+
+    try {
+      setSaving(true);
+
+      await saveSchoolInfo({
+        ...school,
+        schoolId,
+      });
+
+      const refreshed =
+        await fetchSchoolById(
+          schoolId
+        );
+
+      setSchool(
+        refreshed
+      );
+
+      setMessage(
+        '✅ School information updated.'
+      );
+
+    } catch (err) {
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : 'Unable to save school information.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  /* =========================================================
+     LOADING
+  ========================================================= */
 
   if (loading) {
     return (
       <div style={styles.fullPage}>
         <div style={styles.loadingCard}>
-          <div style={styles.spinner}>⏳</div>
+          <div style={styles.spinner}>
+            ⏳
+          </div>
 
           <h2>
             Loading School Admin Panel...
@@ -252,11 +822,16 @@ export default function SchoolAdminPage() {
     );
   }
 
-  // ------------------------------------------
-  // ERROR
-  // ------------------------------------------
 
-  if (error || !school || !schoolId) {
+  /* =========================================================
+     ERROR
+  ========================================================= */
+
+  if (
+    error ||
+    !school ||
+    !schoolId
+  ) {
     return (
       <div style={styles.fullPage}>
         <div style={styles.errorCard}>
@@ -270,28 +845,38 @@ export default function SchoolAdminPage() {
           </h2>
 
           <p>
-            {error || 'School not found.'}
+            {error ||
+              'School not found.'}
           </p>
 
           <div
             style={{
               display: 'flex',
               gap: 12,
-              justifyContent: 'center',
+              justifyContent:
+                'center',
               flexWrap: 'wrap',
               marginTop: 20,
             }}
           >
             <button
-              style={styles.primaryButton}
-              onClick={() => loadSchool()}
+              style={
+                styles.primaryButton
+              }
+              onClick={
+                loadSchool
+              }
             >
               🔄 Try Again
             </button>
 
             <button
-              style={styles.secondaryButton}
-              onClick={() => navigate('/')}
+              style={
+                styles.secondaryButton
+              }
+              onClick={() =>
+                navigate('/')
+              }
             >
               🏠 Home
             </button>
@@ -302,726 +887,1981 @@ export default function SchoolAdminPage() {
     );
   }
 
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
     <div style={styles.page}>
 
-      {/* =========================================
-          HEADER
-      ========================================== */}
+      {/* HEADER */}
 
       <header style={styles.header}>
 
-        <div style={styles.headerLeft}>
+        <div
+          style={
+            styles.headerLeft
+          }
+        >
 
-          <div style={styles.logoBox}>
+          <div
+            style={
+              styles.logoBox
+            }
+          >
             {school.logoUrl ? (
               <img
-                src={school.logoUrl}
-                alt={school.name}
-                style={styles.logo}
+                src={
+                  school.logoUrl
+                }
+                alt={
+                  school.name
+                }
+                style={
+                  styles.logo
+                }
               />
             ) : (
-              <span style={styles.logoText}>
+              <span
+                style={
+                  styles.logoText
+                }
+              >
                 🏫
               </span>
             )}
           </div>
 
-          <div style={{ minWidth: 0 }}>
-
-            <h1 style={styles.schoolTitle}>
+          <div
+            style={{
+              minWidth: 0,
+            }}
+          >
+            <h1
+              style={
+                styles.schoolTitle
+              }
+            >
               {school.name}
             </h1>
 
-            <div style={styles.schoolMeta}>
-
+            <div
+              style={
+                styles.schoolMeta
+              }
+            >
               <span>
                 School Admin Panel
               </span>
 
-              <span style={styles.statusBadge}>
+              <span
+                style={
+                  styles.statusBadge
+                }
+              >
                 {school.status}
               </span>
-
             </div>
-
           </div>
 
         </div>
 
         <button
-          style={styles.logoutButton}
-          onClick={() => navigate('/')}
+          style={
+            styles.logoutButton
+          }
+          onClick={() =>
+            navigate('/')
+          }
         >
           🏠 Home
         </button>
 
       </header>
 
-      {/* =========================================
-          MAIN LAYOUT
-      ========================================== */}
+
+      {/* LAYOUT */}
 
       <div style={styles.layout}>
 
-        {/* =======================================
-            SIDEBAR
-        ======================================== */}
+        {/* SIDEBAR */}
 
-        <aside style={styles.sidebar}>
+        <aside
+          style={
+            styles.sidebar
+          }
+        >
 
-          <button
-            style={
-              activeSection === 'dashboard'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'dashboard'
             }
             onClick={() =>
-              setActiveSection('dashboard')
+              changeSection(
+                'dashboard'
+              )
             }
           >
             📊 Dashboard
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'school'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'school'
             }
             onClick={() =>
-              setActiveSection('school')
+              changeSection(
+                'school'
+              )
             }
           >
             🏫 School Information
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'classes'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'classes'
             }
             onClick={() =>
-              setActiveSection('classes')
+              changeSection(
+                'classes'
+              )
             }
           >
             📚 Classes 1–12
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'students'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'students'
             }
             onClick={() =>
-              setActiveSection('students')
+              changeSection(
+                'students'
+              )
             }
           >
             👨‍🎓 Students
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'teachers'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'teachers'
             }
             onClick={() =>
-              setActiveSection('teachers')
+              changeSection(
+                'teachers'
+              )
             }
           >
             👨‍🏫 Teachers
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'homework'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'homework'
             }
             onClick={() =>
-              setActiveSection('homework')
+              changeSection(
+                'homework'
+              )
             }
           >
             📝 Homework
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'results'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'results'
             }
             onClick={() =>
-              setActiveSection('results')
+              changeSection(
+                'results'
+              )
             }
           >
             📊 Results
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'attendance'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'attendance'
             }
             onClick={() =>
-              setActiveSection('attendance')
+              changeSection(
+                'attendance'
+              )
             }
           >
             📅 Attendance
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'notices'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'notices'
             }
             onClick={() =>
-              setActiveSection('notices')
+              changeSection(
+                'notices'
+              )
             }
           >
             📢 Notices
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'events'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'events'
             }
             onClick={() =>
-              setActiveSection('events')
+              changeSection(
+                'events'
+              )
             }
           >
             🎉 Events
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'gallery'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'gallery'
             }
             onClick={() =>
-              setActiveSection('gallery')
+              changeSection(
+                'gallery'
+              )
             }
           >
             🖼️ Gallery
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'documents'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'documents'
             }
             onClick={() =>
-              setActiveSection('documents')
+              changeSection(
+                'documents'
+              )
             }
           >
             📄 Documents
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'members'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'members'
             }
             onClick={() =>
-              setActiveSection('members')
+              changeSection(
+                'members'
+              )
             }
           >
             🔐 Staff Access
-          </button>
+          </MenuButton>
 
-          <button
-            style={
-              activeSection === 'subscription'
-                ? styles.activeMenu
-                : styles.menuButton
+          <MenuButton
+            active={
+              activeSection ===
+              'subscription'
             }
             onClick={() =>
-              setActiveSection('subscription')
+              changeSection(
+                'subscription'
+              )
             }
           >
             💳 Subscription
-          </button>
+          </MenuButton>
 
         </aside>
 
-        {/* =======================================
-            CONTENT
-        ======================================== */}
 
-        <main style={styles.content}>
+        {/* CONTENT */}
 
-          {/* =====================================
-              DASHBOARD
-          ====================================== */}
+        <main
+          style={
+            styles.content
+          }
+        >
 
-          {activeSection === 'dashboard' && (
-            <>
-              <h2 style={styles.pageHeading}>
-                📊 School Dashboard
-              </h2>
-
-              <p style={styles.description}>
-                Manage your school's information,
-                teachers, classes and other school
-                services from this panel.
-              </p>
-
-              <div style={styles.cardGrid}>
-
-                <StatCard
-                  icon="🏫"
-                  title="School Status"
-                  value={school.status}
-                />
-
-                <StatCard
-                  icon="👨‍🏫"
-                  title="Active Teachers"
-                  value={String(
-                    teachers.length
-                  )}
-                />
-
-                <StatCard
-                  icon="👨‍💼"
-                  title="School Admins"
-                  value={String(
-                    schoolAdmins.length
-                  )}
-                />
-
-                <StatCard
-                  icon="⏳"
-                  title="Pending Staff"
-                  value={String(
-                    pendingTeachers.length +
-                    pendingAdmins.length
-                  )}
-                />
-
-              </div>
-
-              <div style={styles.infoCard}>
-
-                <h3>
-                  🏫 School Information
-                </h3>
-
-                <InfoRow
-                  label="School Name"
-                  value={school.name}
-                />
-
-                <InfoRow
-                  label="School ID"
-                  value={schoolId}
-                />
-
-                <InfoRow
-                  label="School URL Slug"
-                  value={school.slug}
-                />
-
-                <InfoRow
-                  label="Owner Email"
-                  value={school.ownerEmail}
-                />
-
-                <InfoRow
-                  label="Address"
-                  value={
-                    school.address ||
-                    'Not added'
-                  }
-                />
-
-                <InfoRow
-                  label="Phone"
-                  value={
-                    school.phone ||
-                    'Not added'
-                  }
-                />
-
-                <InfoRow
-                  label="Email"
-                  value={
-                    school.email ||
-                    'Not added'
-                  }
-                />
-
-              </div>
-            </>
+          {message && (
+            <div
+              style={
+                styles.message
+              }
+            >
+              {message}
+            </div>
           )}
 
-          {/* =====================================
-              SCHOOL
-          ====================================== */}
 
-          {activeSection === 'school' && (
-            <SectionPlaceholder
-              icon="🏫"
-              title="School Information"
-              text="School profile editing will be connected to the multi-school Firestore content system."
+          {/* DASHBOARD */}
+
+          {activeSection ===
+            'dashboard' && (
+            <Dashboard
+              school={school}
+              schoolId={schoolId}
+              teachers={
+                teachers
+              }
+              schoolAdmins={
+                schoolAdmins
+              }
+              pendingTeachers={
+                pendingTeachers
+              }
+              pendingAdmins={
+                pendingAdmins
+              }
             />
           )}
 
-          {/* =====================================
-              CLASSES
-          ====================================== */}
 
-          {activeSection === 'classes' && (
-            <SectionPlaceholder
-              icon="📚"
-              title="Classes 1–12"
-              text="Classes 1–12 management will be connected to the SchoolClass Firestore collection."
+          {/* SCHOOL */}
+
+          {activeSection ===
+            'school' && (
+            <SchoolInformation
+              school={school}
+              setSchool={
+                setSchool
+              }
+              onSave={
+                saveSchool
+              }
+              saving={
+                saving
+              }
             />
           )}
 
-          {/* =====================================
-              STUDENTS
-          ====================================== */}
 
-          {activeSection === 'students' && (
-            <SectionPlaceholder
-              icon="👨‍🎓"
-              title="Students"
-              text="Student management will be connected to the students collection."
+          {/* GENERIC CRUD MODULES */}
+
+          {[
+            'classes',
+            'students',
+            'homework',
+            'results',
+            'attendance',
+            'notices',
+            'events',
+            'gallery',
+            'documents',
+          ].includes(
+            activeSection
+          ) && (
+            <CrudModule
+              section={
+                activeSection
+              }
+              items={
+                items
+              }
+              form={
+                form
+              }
+              setForm={
+                setForm
+              }
+              editingId={
+                editingId
+              }
+              setEditingId={
+                setEditingId
+              }
+              onSave={
+                saveItem
+              }
+              onDelete={
+                deleteItem
+              }
+              loading={
+                sectionLoading ||
+                saving
+              }
             />
           )}
 
-          {/* =====================================
-              TEACHERS
-          ====================================== */}
 
-          {activeSection === 'teachers' && (
-            <>
-              <h2 style={styles.pageHeading}>
-                👨‍🏫 Teachers
-              </h2>
+          {/* TEACHERS */}
 
-              <p style={styles.description}>
-                Active teachers and their assigned
-                school access are shown here.
-              </p>
-
-              <div style={styles.infoCard}>
-
-                {teachers.length === 0 ? (
-                  <EmptyState
-                    text="No active teachers found."
-                  />
-                ) : (
-                  teachers.map((teacher) => (
-                    <div
-                      key={teacher.id}
-                      style={styles.memberRow}
-                    >
-
-                      <div>
-                        <strong>
-                          {teacher.invitedByEmail ||
-                            teacher.uid}
-                        </strong>
-
-                        <div style={styles.smallText}>
-                          Role: Teacher
-                        </div>
-
-                        <div style={styles.smallText}>
-                          Assigned Classes:{' '}
-                          {teacher.assignments.length
-                            ? teacher.assignments.join(', ')
-                            : 'None'}
-                        </div>
-                      </div>
-
-                      <button
-                        style={styles.dangerButton}
-                        onClick={() =>
-                          revokeMembership(
-                            teacher
-                          )
-                        }
-                      >
-                        Revoke
-                      </button>
-
-                    </div>
-                  ))
-                )}
-
-              </div>
-
-              {pendingTeachers.length > 0 && (
-                <div style={styles.infoCard}>
-
-                  <h3>
-                    ⏳ Pending Teacher Access
-                  </h3>
-
-                  {pendingTeachers.map(
-                    (teacher) => (
-                      <div
-                        key={teacher.id}
-                        style={styles.memberRow}
-                      >
-
-                        <div>
-                          <strong>
-                            {teacher.invitedByEmail ||
-                              teacher.uid}
-                          </strong>
-
-                          <div
-                            style={styles.smallText}
-                          >
-                            Waiting for activation
-                          </div>
-                        </div>
-
-                        <button
-                          style={
-                            styles.successButton
-                          }
-                          onClick={() =>
-                            activateMembership(
-                              teacher
-                            )
-                          }
-                        >
-                          Activate
-                        </button>
-
-                      </div>
-                    )
-                  )}
-
-                </div>
-              )}
-
-            </>
-          )}
-
-          {/* =====================================
-              HOMEWORK
-          ====================================== */}
-
-          {activeSection === 'homework' && (
-            <SectionPlaceholder
-              icon="📝"
-              title="Homework"
-              text="Homework management will be connected to the homework collection."
+          {activeSection ===
+            'teachers' && (
+            <TeachersSection
+              teachers={
+                teachers
+              }
+              pendingTeachers={
+                pendingTeachers
+              }
+              onActivate={
+                activateMembership
+              }
+              onRevoke={
+                revokeMembership
+              }
             />
           )}
 
-          {/* =====================================
-              RESULTS
-          ====================================== */}
 
-          {activeSection === 'results' && (
-            <SectionPlaceholder
-              icon="📊"
-              title="Results"
-              text="Student results, marksheets and examinations will be connected to the results system."
+          {/* STAFF */}
+
+          {activeSection ===
+            'members' && (
+            <StaffSection
+              schoolAdmins={
+                schoolAdmins
+              }
+              teachers={
+                teachers
+              }
+              pendingAdmins={
+                pendingAdmins
+              }
+              onActivate={
+                activateMembership
+              }
+              onRevoke={
+                revokeMembership
+              }
             />
           )}
 
-          {/* =====================================
-              ATTENDANCE
-          ====================================== */}
 
-          {activeSection === 'attendance' && (
-            <SectionPlaceholder
-              icon="📅"
-              title="Attendance"
-              text="Daily student attendance will be connected to the attendance collection."
-            />
-          )}
+          {/* SUBSCRIPTION */}
 
-          {/* =====================================
-              NOTICES
-          ====================================== */}
-
-          {activeSection === 'notices' && (
-            <SectionPlaceholder
-              icon="📢"
-              title="Notices"
-              text="School notices will be connected to the schoolContent/notice system."
-            />
-          )}
-
-          {/* =====================================
-              EVENTS
-          ====================================== */}
-
-          {activeSection === 'events' && (
-            <SectionPlaceholder
-              icon="🎉"
-              title="Events"
-              text="School events will be connected to the school event system."
-            />
-          )}
-
-          {/* =====================================
-              GALLERY
-          ====================================== */}
-
-          {activeSection === 'gallery' && (
-            <SectionPlaceholder
-              icon="🖼️"
-              title="Gallery"
-              text="School gallery management will be connected to the gallery collection."
-            />
-          )}
-
-          {/* =====================================
-              DOCUMENTS
-          ====================================== */}
-
-          {activeSection === 'documents' && (
-            <SectionPlaceholder
-              icon="📄"
-              title="Documents"
-              text="School documents will be connected to the documents collection."
-            />
-          )}
-
-          {/* =====================================
-              STAFF ACCESS
-          ====================================== */}
-
-          {activeSection === 'members' && (
-            <>
-              <h2 style={styles.pageHeading}>
-                🔐 Staff Access
-              </h2>
-
-              <p style={styles.description}>
-                Manage school administrator and
-                teacher memberships.
-              </p>
-
-              <div style={styles.infoCard}>
-
-                <h3>
-                  👨‍💼 School Administrators
-                </h3>
-
-                {schoolAdmins.length === 0 ? (
-                  <EmptyState
-                    text="No active school administrators."
-                  />
-                ) : (
-                  schoolAdmins.map((member) => (
-                    <MemberRow
-                      key={member.id}
-                      member={member}
-                      onRevoke={() =>
-                        revokeMembership(member)
-                      }
-                    />
-                  ))
-                )}
-
-              </div>
-
-              <div style={styles.infoCard}>
-
-                <h3>
-                  👨‍🏫 Active Teachers
-                </h3>
-
-                {teachers.length === 0 ? (
-                  <EmptyState
-                    text="No active teachers."
-                  />
-                ) : (
-                  teachers.map((member) => (
-                    <MemberRow
-                      key={member.id}
-                      member={member}
-                      onRevoke={() =>
-                        revokeMembership(member)
-                      }
-                    />
-                  ))
-                )}
-
-              </div>
-
-              {pendingAdmins.length > 0 && (
-                <div style={styles.infoCard}>
-
-                  <h3>
-                    ⏳ Pending Administrators
-                  </h3>
-
-                  {pendingAdmins.map(
-                    (member) => (
-                      <div
-                        key={member.id}
-                        style={styles.memberRow}
-                      >
-
-                        <div>
-                          <strong>
-                            {member.invitedByEmail ||
-                              member.uid}
-                          </strong>
-                        </div>
-
-                        <button
-                          style={
-                            styles.successButton
-                          }
-                          onClick={() =>
-                            activateMembership(
-                              member
-                            )
-                          }
-                        >
-                          Activate
-                        </button>
-
-                      </div>
-                    )
-                  )}
-
-                </div>
-              )}
-
-            </>
-          )}
-
-          {/* =====================================
-              SUBSCRIPTION
-          ====================================== */}
-
-          {activeSection === 'subscription' && (
-            <SectionPlaceholder
-              icon="💳"
-              title="Subscription & Wallet"
-              text="Subscription and wallet information will be connected to the billing system."
+          {activeSection ===
+            'subscription' && (
+            <SubscriptionSection
+              school={
+                school
+              }
             />
           )}
 
         </main>
 
       </div>
+    </div>
+  );
+}
+
+
+/* =========================================================
+   MENU BUTTON
+========================================================= */
+
+function MenuButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      style={
+        active
+          ? styles.activeMenu
+          : styles.menuButton
+      }
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+function Dashboard({
+  school,
+  schoolId,
+  teachers,
+  schoolAdmins,
+  pendingTeachers,
+  pendingAdmins,
+}: {
+  school: School;
+  schoolId: string;
+  teachers: SchoolMembership[];
+  schoolAdmins: SchoolMembership[];
+  pendingTeachers: SchoolMembership[];
+  pendingAdmins: SchoolMembership[];
+}) {
+  return (
+    <>
+      <h2
+        style={
+          styles.pageHeading
+        }
+      >
+        📊 School Dashboard
+      </h2>
+
+      <p
+        style={
+          styles.description
+        }
+      >
+        Manage your school from this
+        dashboard.
+      </p>
+
+      <div
+        style={
+          styles.cardGrid
+        }
+      >
+
+        <StatCard
+          icon="🏫"
+          title="School Status"
+          value={
+            school.status
+          }
+        />
+
+        <StatCard
+          icon="👨‍🏫"
+          title="Active Teachers"
+          value={String(
+            teachers.length
+          )}
+        />
+
+        <StatCard
+          icon="👨‍💼"
+          title="School Admins"
+          value={String(
+            schoolAdmins.length
+          )}
+        />
+
+        <StatCard
+          icon="⏳"
+          title="Pending Staff"
+          value={String(
+            pendingTeachers.length +
+              pendingAdmins.length
+          )}
+        />
+
+      </div>
+
+      <div
+        style={
+          styles.infoCard
+        }
+      >
+        <h3>
+          🏫 School Information
+        </h3>
+
+        <InfoRow
+          label="School Name"
+          value={
+            school.name
+          }
+        />
+
+        <InfoRow
+          label="School ID"
+          value={
+            schoolId
+          }
+        />
+
+        <InfoRow
+          label="School URL"
+          value={
+            school.slug
+          }
+        />
+
+        <InfoRow
+          label="Owner Email"
+          value={
+            school.ownerEmail
+          }
+        />
+
+        <InfoRow
+          label="Address"
+          value={
+            school.address ||
+            'Not added'
+          }
+        />
+
+        <InfoRow
+          label="Phone"
+          value={
+            school.phone ||
+            'Not added'
+          }
+        />
+
+        <InfoRow
+          label="Subscription"
+          value={
+            school.subscriptionStatus ||
+            'Not available'
+          }
+        />
+      </div>
+    </>
+  );
+}
+
+
+/* =========================================================
+   SCHOOL INFORMATION
+========================================================= */
+
+function SchoolInformation({
+  school,
+  setSchool,
+  onSave,
+  saving,
+}: {
+  school: School;
+  setSchool: React.Dispatch<
+    React.SetStateAction<School | null>
+  >;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  return (
+    <>
+      <h2
+        style={
+          styles.pageHeading
+        }
+      >
+        🏫 School Information
+      </h2>
+
+      <div
+        style={
+          styles.formCard
+        }
+      >
+
+        <Input
+          label="School Name"
+          value={
+            school.name || ''
+          }
+          onChange={(value) =>
+            setSchool({
+              ...school,
+              name: value,
+            })
+          }
+        />
+
+        <Input
+          label="Tagline"
+          value={
+            school.tagline || ''
+          }
+          onChange={(value) =>
+            setSchool({
+              ...school,
+              tagline: value,
+            })
+          }
+        />
+
+        <Input
+          label="Address"
+          value={
+            school.address || ''
+          }
+          onChange={(value) =>
+            setSchool({
+              ...school,
+              address: value,
+            })
+          }
+        />
+
+        <Input
+          label="Phone"
+          value={
+            school.phone || ''
+          }
+          onChange={(value) =>
+            setSchool({
+              ...school,
+              phone: value,
+            })
+          }
+        />
+
+        <Input
+          label="Logo URL"
+          value={
+            school.logoUrl || ''
+          }
+          onChange={(value) =>
+            setSchool({
+              ...school,
+              logoUrl: value,
+            })
+          }
+        />
+
+        <Input
+          label="Description"
+          textarea
+          value={
+            school.description ||
+            ''
+          }
+          onChange={(value) =>
+            setSchool({
+              ...school,
+              description: value,
+            })
+          }
+        />
+
+        <button
+          style={
+            styles.primaryButton
+          }
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving
+            ? 'Saving...'
+            : '💾 Save School Information'}
+        </button>
+
+      </div>
+    </>
+  );
+}
+
+
+/* =========================================================
+   CRUD MODULE
+========================================================= */
+
+function CrudModule({
+  section,
+  items,
+  form,
+  setForm,
+  editingId,
+  setEditingId,
+  onSave,
+  onDelete,
+  loading,
+}: {
+  section: string;
+  items: AnyRecord[];
+  form: AnyRecord;
+  setForm: React.Dispatch<
+    React.SetStateAction<AnyRecord>
+  >;
+  editingId: string | null;
+  setEditingId: (
+    value: string | null
+  ) => void;
+  onSave: () => void;
+  onDelete: (
+    id: string
+  ) => void;
+  loading: boolean;
+}) {
+  const config =
+    moduleConfig[section];
+
+  if (!config) {
+    return null;
+  }
+
+  const field = (
+    key: string
+  ) =>
+    form[key] ?? '';
+
+  const setField = (
+    key: string,
+    value: any
+  ) => {
+    setForm((old) => ({
+      ...old,
+      [key]: value,
+    }));
+  };
+
+  return (
+    <>
+      <h2
+        style={
+          styles.pageHeading
+        }
+      >
+        {config.icon}{' '}
+        {config.title}
+      </h2>
+
+      <div
+        style={
+          styles.formCard
+        }
+      >
+
+        <h3>
+          {editingId
+            ? '✏️ Edit Record'
+            : '➕ Add New Record'}
+        </h3>
+
+        {config.fields.map(
+          (fieldConfig) => (
+            <Input
+              key={
+                fieldConfig.key
+              }
+              label={
+                fieldConfig.label
+              }
+              type={
+                fieldConfig.type ||
+                'text'
+              }
+              textarea={
+                fieldConfig.type ===
+                'textarea'
+              }
+              value={field(
+                fieldConfig.key
+              )}
+              onChange={(value) =>
+                setField(
+                  fieldConfig.key,
+                  value
+                )
+              }
+              options={
+                fieldConfig.options
+              }
+            />
+          )
+        )}
+
+        <div
+          style={
+            styles.formButtons
+          }
+        >
+          <button
+            style={
+              styles.primaryButton
+            }
+            onClick={
+              onSave
+            }
+            disabled={loading}
+          >
+            {loading
+              ? 'Saving...'
+              : editingId
+              ? '💾 Update'
+              : '➕ Add'}
+          </button>
+
+          {editingId && (
+            <button
+              style={
+                styles.secondaryButton
+              }
+              onClick={() => {
+                setEditingId(
+                  null
+                );
+                setForm({});
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+
+      </div>
+
+
+      {/* RECORDS */}
+
+      <div
+        style={
+          styles.infoCard
+        }
+      >
+
+        <div
+          style={
+            styles.listHeader
+          }
+        >
+          <h3>
+            {config.title} List
+          </h3>
+
+          <span
+            style={
+              styles.countBadge
+            }
+          >
+            {items.length}
+          </span>
+        </div>
+
+        {loading ? (
+          <EmptyState
+            text="Loading..."
+          />
+        ) : items.length ===
+          0 ? (
+          <EmptyState
+            text={
+              `No ${config.title.toLowerCase()} found.`
+            }
+          />
+        ) : (
+          items.map(
+            (item) => (
+              <RecordRow
+                key={
+                  item.id
+                }
+                item={
+                  item
+                }
+                section={
+                  section
+                }
+                onEdit={() => {
+                  setEditingId(
+                    item.id || null
+                  );
+
+                  setForm({
+                    ...item,
+                  });
+
+                  window.scrollTo({
+                    top: 0,
+                    behavior:
+                      'smooth',
+                  });
+                }}
+                onDelete={() =>
+                  item.id &&
+                  onDelete(
+                    item.id
+                  )
+                }
+              />
+            )
+          )
+        )}
+
+      </div>
+    </>
+  );
+}
+
+
+/* =========================================================
+   MODULE CONFIG
+========================================================= */
+
+const moduleConfig: Record<
+  string,
+  {
+    title: string;
+    icon: string;
+    fields: {
+      key: string;
+      label: string;
+      type?: string;
+      options?: string[];
+    }[];
+  }
+> = {
+
+  classes: {
+    title: 'Classes 1–12',
+    icon: '📚',
+    fields: [
+      {
+        key: 'className',
+        label: 'Class',
+        type: 'select',
+        options: [
+          'Class 1',
+          'Class 2',
+          'Class 3',
+          'Class 4',
+          'Class 5',
+          'Class 6',
+          'Class 7',
+          'Class 8',
+          'Class 9',
+          'Class 10',
+          'Class 11',
+          'Class 12',
+        ],
+      },
+      {
+        key: 'section',
+        label: 'Section',
+      },
+      {
+        key: 'teacherName',
+        label: 'Class Teacher',
+      },
+      {
+        key: 'room',
+        label: 'Room',
+      },
+    ],
+  },
+
+
+  students: {
+    title: 'Students',
+    icon: '👨‍🎓',
+    fields: [
+      {
+        key: 'name',
+        label: 'Student Name',
+      },
+      {
+        key: 'rollNumber',
+        label: 'Roll Number',
+      },
+      {
+        key: 'className',
+        label: 'Class',
+        type: 'select',
+        options: [
+          'Class 1',
+          'Class 2',
+          'Class 3',
+          'Class 4',
+          'Class 5',
+          'Class 6',
+          'Class 7',
+          'Class 8',
+          'Class 9',
+          'Class 10',
+          'Class 11',
+          'Class 12',
+        ],
+      },
+      {
+        key: 'section',
+        label: 'Section',
+      },
+      {
+        key: 'parentName',
+        label: 'Parent / Guardian Name',
+      },
+      {
+        key: 'phone',
+        label: 'Parent Phone',
+        type: 'tel',
+      },
+      {
+        key: 'address',
+        label: 'Address',
+        type: 'textarea',
+      },
+    ],
+  },
+
+
+  homework: {
+    title: 'Homework',
+    icon: '📝',
+    fields: [
+      {
+        key: 'title',
+        label: 'Homework Title',
+      },
+      {
+        key: 'className',
+        label: 'Class',
+        type: 'select',
+        options: [
+          'Class 1',
+          'Class 2',
+          'Class 3',
+          'Class 4',
+          'Class 5',
+          'Class 6',
+          'Class 7',
+          'Class 8',
+          'Class 9',
+          'Class 10',
+          'Class 11',
+          'Class 12',
+        ],
+      },
+      {
+        key: 'subject',
+        label: 'Subject',
+      },
+      {
+        key: 'description',
+        label: 'Homework Details',
+        type: 'textarea',
+      },
+      {
+        key: 'dueDate',
+        label: 'Due Date',
+        type: 'date',
+      },
+    ],
+  },
+
+
+  results: {
+    title: 'Results',
+    icon: '📊',
+    fields: [
+      {
+        key: 'studentName',
+        label: 'Student Name',
+      },
+      {
+        key: 'rollNumber',
+        label: 'Roll Number',
+      },
+      {
+        key: 'className',
+        label: 'Class',
+        type: 'select',
+        options: [
+          'Class 1',
+          'Class 2',
+          'Class 3',
+          'Class 4',
+          'Class 5',
+          'Class 6',
+          'Class 7',
+          'Class 8',
+          'Class 9',
+          'Class 10',
+          'Class 11',
+          'Class 12',
+        ],
+      },
+      {
+        key: 'exam',
+        label: 'Exam',
+      },
+      {
+        key: 'subject',
+        label: 'Subject',
+      },
+      {
+        key: 'marks',
+        label: 'Marks',
+        type: 'number',
+      },
+      {
+        key: 'maxMarks',
+        label: 'Maximum Marks',
+        type: 'number',
+      },
+      {
+        key: 'grade',
+        label: 'Grade',
+      },
+    ],
+  },
+
+
+  attendance: {
+    title: 'Attendance',
+    icon: '📅',
+    fields: [
+      {
+        key: 'studentName',
+        label: 'Student Name',
+      },
+      {
+        key: 'rollNumber',
+        label: 'Roll Number',
+      },
+      {
+        key: 'className',
+        label: 'Class',
+        type: 'select',
+        options: [
+          'Class 1',
+          'Class 2',
+          'Class 3',
+          'Class 4',
+          'Class 5',
+          'Class 6',
+          'Class 7',
+          'Class 8',
+          'Class 9',
+          'Class 10',
+          'Class 11',
+          'Class 12',
+        ],
+      },
+      {
+        key: 'date',
+        label: 'Date',
+        type: 'date',
+      },
+      {
+        key: 'status',
+        label: 'Attendance Status',
+        type: 'select',
+        options: [
+          'Present',
+          'Absent',
+          'Late',
+          'Leave',
+        ],
+      },
+    ],
+  },
+
+
+  notices: {
+    title: 'Notices',
+    icon: '📢',
+    fields: [
+      {
+        key: 'title',
+        label: 'Notice Title',
+      },
+      {
+        key: 'description',
+        label: 'Notice',
+        type: 'textarea',
+      },
+      {
+        key: 'date',
+        label: 'Date',
+        type: 'date',
+      },
+    ],
+  },
+
+
+  events: {
+    title: 'Events',
+    icon: '🎉',
+    fields: [
+      {
+        key: 'title',
+        label: 'Event Title',
+      },
+      {
+        key: 'description',
+        label: 'Event Description',
+        type: 'textarea',
+      },
+      {
+        key: 'date',
+        label: 'Event Date',
+        type: 'date',
+      },
+      {
+        key: 'location',
+        label: 'Location',
+      },
+    ],
+  },
+
+
+  gallery: {
+    title: 'Gallery',
+    icon: '🖼️',
+    fields: [
+      {
+        key: 'title',
+        label: 'Image Title',
+      },
+      {
+        key: 'imageUrl',
+        label: 'Image URL',
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        type: 'textarea',
+      },
+    ],
+  },
+
+
+  documents: {
+    title: 'Documents',
+    icon: '📄',
+    fields: [
+      {
+        key: 'title',
+        label: 'Document Title',
+      },
+      {
+        key: 'documentUrl',
+        label: 'Document URL',
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        type: 'textarea',
+      },
+    ],
+  },
+};
+
+
+/* =========================================================
+   INPUT
+========================================================= */
+
+function Input({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  textarea = false,
+  options,
+}: {
+  label: string;
+  value: any;
+  onChange: (
+    value: string
+  ) => void;
+  type?: string;
+  textarea?: boolean;
+  options?: string[];
+}) {
+  return (
+    <label
+      style={
+        styles.fieldLabel
+      }
+    >
+      <span>
+        {label}
+      </span>
+
+      {options ? (
+        <select
+          value={
+            value || ''
+          }
+          onChange={(e) =>
+            onChange(
+              e.target.value
+            )
+          }
+          style={
+            styles.input
+          }
+        >
+          <option value="">
+            Select...
+          </option>
+
+          {options.map(
+            (option) => (
+              <option
+                key={
+                  option
+                }
+                value={
+                  option
+                }
+              >
+                {option}
+              </option>
+            )
+          )}
+        </select>
+      ) : textarea ? (
+        <textarea
+          value={
+            value || ''
+          }
+          onChange={(e) =>
+            onChange(
+              e.target.value
+            )
+          }
+          style={{
+            ...styles.input,
+            minHeight: 110,
+            resize:
+              'vertical',
+          }}
+        />
+      ) : (
+        <input
+          type={type}
+          value={
+            value || ''
+          }
+          onChange={(e) =>
+            onChange(
+              e.target.value
+            )
+          }
+          style={
+            styles.input
+          }
+        />
+      )}
+    </label>
+  );
+}
+
+
+/* =========================================================
+   RECORD ROW
+========================================================= */
+
+function RecordRow({
+  item,
+  section,
+  onEdit,
+  onDelete,
+}: {
+  item: AnyRecord;
+  section: string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const title =
+    item.name ||
+    item.studentName ||
+    item.title ||
+    item.className ||
+    'Record';
+
+  const subtitle =
+    item.rollNumber
+      ? `Roll No: ${item.rollNumber}`
+      : item.subject
+      ? `Subject: ${item.subject}`
+      : item.date
+      ? `Date: ${item.date}`
+      : item.description
+      ? item.description
+      : '';
+
+  return (
+    <div
+      style={
+        styles.memberRow
+      }
+    >
+
+      <div
+        style={{
+          minWidth: 0,
+          flex: 1,
+        }}
+      >
+        <strong>
+          {title}
+        </strong>
+
+        {subtitle && (
+          <div
+            style={
+              styles.smallText
+            }
+          >
+            {subtitle}
+          </div>
+        )}
+
+        {section ===
+          'results' && (
+          <div
+            style={
+              styles.smallText
+            }
+          >
+            Marks:{' '}
+            {item.marks ??
+              '-'}
+            {' / '}
+            {item.maxMarks ??
+              '-'}
+            {' • '}
+            Grade:{' '}
+            {item.grade ||
+              '-'}
+          </div>
+        )}
+
+        {section ===
+          'attendance' && (
+          <div
+            style={
+              styles.smallText
+            }
+          >
+            Status:{' '}
+            {item.status ||
+              '-'}
+          </div>
+        )}
+
+        {section ===
+          'gallery' &&
+          item.imageUrl && (
+            <img
+              src={
+                item.imageUrl
+              }
+              alt={
+                item.title ||
+                'Gallery'
+              }
+              style={
+                styles.thumbnail
+              }
+            />
+          )}
+      </div>
+
+      <div
+        style={
+          styles.rowButtons
+        }
+      >
+        <button
+          style={
+            styles.editButton
+          }
+          onClick={
+            onEdit
+          }
+        >
+          ✏️ Edit
+        </button>
+
+        <button
+          style={
+            styles.dangerButton
+          }
+          onClick={
+            onDelete
+          }
+        >
+          🗑️ Delete
+        </button>
+      </div>
 
     </div>
+  );
+}
+
+
+/* =========================================================
+   TEACHERS
+========================================================= */
+
+function TeachersSection({
+  teachers,
+  pendingTeachers,
+  onActivate,
+  onRevoke,
+}: {
+  teachers: SchoolMembership[];
+  pendingTeachers: SchoolMembership[];
+  onActivate: (
+    member: SchoolMembership
+  ) => void;
+  onRevoke: (
+    member: SchoolMembership
+  ) => void;
+}) {
+  return (
+    <>
+      <h2
+        style={
+          styles.pageHeading
+        }
+      >
+        👨‍🏫 Teachers
+      </h2>
+
+      <div
+        style={
+          styles.infoCard
+        }
+      >
+        <h3>
+          Active Teachers
+        </h3>
+
+        {teachers.length ===
+        0 ? (
+          <EmptyState
+            text="No active teachers found."
+          />
+        ) : (
+          teachers.map(
+            (teacher) => (
+              <MemberRow
+                key={
+                  teacher.id
+                }
+                member={
+                  teacher
+                }
+                onRevoke={() =>
+                  onRevoke(
+                    teacher
+                  )
+                }
+              />
+            )
+          )
+        )}
+      </div>
+
+      {pendingTeachers.length >
+        0 && (
+        <div
+          style={
+            styles.infoCard
+          }
+        >
+          <h3>
+            ⏳ Pending Teacher Access
+          </h3>
+
+          {pendingTeachers.map(
+            (teacher) => (
+              <div
+                key={
+                  teacher.id
+                }
+                style={
+                  styles.memberRow
+                }
+              >
+                <div>
+                  <strong>
+                    {teacher.invitedByEmail ||
+                      teacher.uid}
+                  </strong>
+
+                  <div
+                    style={
+                      styles.smallText
+                    }
+                  >
+                    Waiting for activation
+                  </div>
+                </div>
+
+                <button
+                  style={
+                    styles.successButton
+                  }
+                  onClick={() =>
+                    onActivate(
+                      teacher
+                    )
+                  }
+                >
+                  Activate
+                </button>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+
+/* =========================================================
+   STAFF
+========================================================= */
+
+function StaffSection({
+  schoolAdmins,
+  teachers,
+  pendingAdmins,
+  onActivate,
+  onRevoke,
+}: {
+  schoolAdmins: SchoolMembership[];
+  teachers: SchoolMembership[];
+  pendingAdmins: SchoolMembership[];
+  onActivate: (
+    member: SchoolMembership
+  ) => void;
+  onRevoke: (
+    member: SchoolMembership
+  ) => void;
+}) {
+  return (
+    <>
+      <h2
+        style={
+          styles.pageHeading
+        }
+      >
+        🔐 Staff Access
+      </h2>
+
+      <div
+        style={
+          styles.infoCard
+        }
+      >
+        <h3>
+          👨‍💼 School Administrators
+        </h3>
+
+        {schoolAdmins.length ===
+        0 ? (
+          <EmptyState
+            text="No active school administrators."
+          />
+        ) : (
+          schoolAdmins.map(
+            (member) => (
+              <MemberRow
+                key={
+                  member.id
+                }
+                member={
+                  member
+                }
+                onRevoke={() =>
+                  onRevoke(
+                    member
+                  )
+                }
+              />
+            )
+          )
+        )}
+      </div>
+
+      <div
+        style={
+          styles.infoCard
+        }
+      >
+        <h3>
+          👨‍🏫 Active Teachers
+        </h3>
+
+        {teachers.length ===
+        0 ? (
+          <EmptyState
+            text="No active teachers."
+          />
+        ) : (
+          teachers.map(
+            (member) => (
+              <MemberRow
+                key={
+                  member.id
+                }
+                member={
+                  member
+                }
+                onRevoke={() =>
+                  onRevoke(
+                    member
+                  )
+                }
+              />
+            )
+          )
+        )}
+      </div>
+
+      {pendingAdmins.length >
+        0 && (
+        <div
+          style={
+            styles.infoCard
+          }
+        >
+          <h3>
+            ⏳ Pending Administrators
+          </h3>
+
+          {pendingAdmins.map(
+            (member) => (
+              <div
+                key={
+                  member.id
+                }
+                style={
+                  styles.memberRow
+                }
+              >
+                <div>
+                  <strong>
+                    {member.invitedByEmail ||
+                      member.uid}
+                  </strong>
+                </div>
+
+                <button
+                  style={
+                    styles.successButton
+                  }
+                  onClick={() =>
+                    onActivate(
+                      member
+                    )
+                  }
+                >
+                  Activate
+                </button>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+
+/* =========================================================
+   SUBSCRIPTION
+========================================================= */
+
+function SubscriptionSection({
+  school,
+}: {
+  school: School;
+}) {
+  return (
+    <>
+      <h2
+        style={
+          styles.pageHeading
+        }
+      >
+        💳 Subscription
+      </h2>
+
+      <div
+        style={
+          styles.cardGrid
+        }
+      >
+        <StatCard
+          icon="💰"
+          title="Payment Status"
+          value={
+            school.paymentStatus ||
+            'PENDING'
+          }
+        />
+
+        <StatCard
+          icon="📅"
+          title="Subscription"
+          value={
+            school.subscriptionStatus ||
+            'PENDING'
+          }
+        />
+
+        <StatCard
+          icon="🏫"
+          title="School Status"
+          value={
+            school.status
+          }
+        />
+      </div>
+
+      <div
+        style={
+          styles.infoCard
+        }
+      >
+        <h3>
+          Subscription
+          Information
+        </h3>
+
+        <InfoRow
+          label="Payment Status"
+          value={
+            school.paymentStatus ||
+            'PENDING'
+          }
+        />
+
+        <InfoRow
+          label="Subscription Status"
+          value={
+            school.subscriptionStatus ||
+            'PENDING'
+          }
+        />
+
+        <p
+          style={
+            styles.description
+          }
+        >
+          Recharge और subscription
+          payment के लिए Payment
+          section का उपयोग करें।
+        </p>
+      </div>
+    </>
   );
 }
 
@@ -1040,24 +2880,36 @@ function StatCard({
   value: string;
 }) {
   return (
-    <div style={styles.statCard}>
-
-      <div style={styles.statIcon}>
+    <div
+      style={
+        styles.statCard
+      }
+    >
+      <div
+        style={
+          styles.statIcon
+        }
+      >
         {icon}
       </div>
 
       <div>
-
-        <div style={styles.statTitle}>
+        <div
+          style={
+            styles.statTitle
+          }
+        >
           {title}
         </div>
 
-        <div style={styles.statValue}>
+        <div
+          style={
+            styles.statValue
+          }
+        >
           {value}
         </div>
-
       </div>
-
     </div>
   );
 }
@@ -1071,16 +2923,26 @@ function InfoRow({
   value: string;
 }) {
   return (
-    <div style={styles.infoRow}>
-
-      <span style={styles.infoLabel}>
+    <div
+      style={
+        styles.infoRow
+      }
+    >
+      <span
+        style={
+          styles.infoLabel
+        }
+      >
         {label}
       </span>
 
-      <span style={styles.infoValue}>
+      <span
+        style={
+          styles.infoValue
+        }
+      >
         {value}
       </span>
-
     </div>
   );
 }
@@ -1094,37 +2956,53 @@ function MemberRow({
   onRevoke: () => void;
 }) {
   return (
-    <div style={styles.memberRow}>
-
+    <div
+      style={
+        styles.memberRow
+      }
+    >
       <div>
-
         <strong>
           {member.invitedByEmail ||
             member.uid}
         </strong>
 
-        <div style={styles.smallText}>
+        <div
+          style={
+            styles.smallText
+          }
+        >
           Role: {member.role}
         </div>
 
-        {member.role === 'teacher' && (
-          <div style={styles.smallText}>
+        {member.role ===
+          'teacher' && (
+          <div
+            style={
+              styles.smallText
+            }
+          >
             Classes:{' '}
-            {member.assignments.length
-              ? member.assignments.join(', ')
+            {member.assignments
+              ?.length
+              ? member.assignments.join(
+                  ', '
+                )
               : 'None'}
           </div>
         )}
-
       </div>
 
       <button
-        style={styles.dangerButton}
-        onClick={onRevoke}
+        style={
+          styles.dangerButton
+        }
+        onClick={
+          onRevoke
+        }
       >
         Revoke
       </button>
-
     </div>
   );
 }
@@ -1136,44 +3014,13 @@ function EmptyState({
   text: string;
 }) {
   return (
-    <div style={styles.empty}>
+    <div
+      style={
+        styles.empty
+      }
+    >
       {text}
     </div>
-  );
-}
-
-
-function SectionPlaceholder({
-  icon,
-  title,
-  text,
-}: {
-  icon: string;
-  title: string;
-  text: string;
-}) {
-  return (
-    <>
-      <h2 style={styles.pageHeading}>
-        {icon} {title}
-      </h2>
-
-      <div style={styles.placeholderCard}>
-
-        <div style={styles.placeholderIcon}>
-          {icon}
-        </div>
-
-        <h3>{title}</h3>
-
-        <p>{text}</p>
-
-        <div style={styles.comingSoon}>
-          Module Setup — Next Step
-        </div>
-
-      </div>
-    </>
   );
 }
 
@@ -1184,21 +3031,25 @@ function SectionPlaceholder({
 
 const styles: Record<
   string,
-  React.CSSProperties
+  CSSProperties
 > = {
 
   page: {
-    minHeight: '100vh',
+    minHeight:
+      '100vh',
     background:
       'linear-gradient(135deg, #eef2ff, #f8fafc)',
     color: '#172033',
   },
 
   fullPage: {
-    minHeight: '100vh',
+    minHeight:
+      '100vh',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
     background:
       'linear-gradient(135deg, #e0f2fe, #f8fafc)',
     padding: 20,
@@ -1236,10 +3087,13 @@ const styles: Record<
 
   header: {
     minHeight: 80,
-    padding: '14px 22px',
+    padding:
+      '14px 22px',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems:
+      'center',
+    justifyContent:
+      'space-between',
     gap: 15,
     background:
       'linear-gradient(90deg, #4f46e5, #7c3aed, #db2777)',
@@ -1250,7 +3104,8 @@ const styles: Record<
 
   headerLeft: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems:
+      'center',
     gap: 14,
     minWidth: 0,
   },
@@ -1261,18 +3116,22 @@ const styles: Record<
     borderRadius: 16,
     background: '#fff',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
     boxShadow:
       '0 5px 0 rgba(0,0,0,0.2)',
     flexShrink: 0,
-    overflow: 'hidden',
+    overflow:
+      'hidden',
   },
 
   logo: {
     width: '100%',
     height: '100%',
-    objectFit: 'cover',
+    objectFit:
+      'cover',
   },
 
   logoText: {
@@ -1283,56 +3142,57 @@ const styles: Record<
     margin: 0,
     fontSize: 22,
     lineHeight: 1.2,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    overflow:
+      'hidden',
+    textOverflow:
+      'ellipsis',
+    whiteSpace:
+      'nowrap',
   },
 
   schoolMeta: {
     display: 'flex',
     gap: 10,
-    alignItems: 'center',
+    alignItems:
+      'center',
     marginTop: 5,
     fontSize: 12,
     opacity: 0.95,
-    flexWrap: 'wrap',
+    flexWrap:
+      'wrap',
   },
 
   statusBadge: {
-    padding: '3px 8px',
+    padding:
+      '3px 8px',
     borderRadius: 20,
-    background: '#fff',
-    color: '#4f46e5',
+    background:
+      '#fff',
+    color:
+      '#4f46e5',
     fontWeight: 800,
   },
 
   logoutButton: {
     border: 'none',
     borderRadius: 12,
-    padding: '12px 18px',
-    background: '#fff',
-    color: '#4f46e5',
+    padding:
+      '12px 18px',
+    background:
+      '#fff',
+    color:
+      '#4f46e5',
     fontWeight: 800,
-    cursor: 'pointer',
+    cursor:
+      'pointer',
     boxShadow:
       '0 5px 0 rgba(0,0,0,0.2)',
     flexShrink: 0,
   },
 
-  secondaryButton: {
-    border: 'none',
-    borderRadius: 12,
-    padding: '12px 20px',
-    background: '#64748b',
-    color: '#fff',
-    fontWeight: 800,
-    cursor: 'pointer',
-    boxShadow:
-      '0 5px 0 #334155',
-  },
-
   layout: {
-    display: 'flex',
+    display:
+      'flex',
     minHeight:
       'calc(100vh - 83px)',
   },
@@ -1340,39 +3200,52 @@ const styles: Record<
   sidebar: {
     width: 250,
     padding: 16,
-    background: '#111827',
-    display: 'flex',
-    flexDirection: 'column',
+    background:
+      '#111827',
+    display:
+      'flex',
+    flexDirection:
+      'column',
     gap: 9,
     flexShrink: 0,
-    overflowY: 'auto',
+    overflowY:
+      'auto',
   },
 
   menuButton: {
     width: '100%',
-    textAlign: 'left',
+    textAlign:
+      'left',
     border: 'none',
     borderRadius: 12,
-    padding: '12px 14px',
-    background: '#1f2937',
-    color: '#e5e7eb',
+    padding:
+      '12px 14px',
+    background:
+      '#1f2937',
+    color:
+      '#e5e7eb',
     fontWeight: 700,
-    cursor: 'pointer',
+    cursor:
+      'pointer',
     boxShadow:
       '0 4px 0 #080d16',
   },
 
   activeMenu: {
     width: '100%',
-    textAlign: 'left',
+    textAlign:
+      'left',
     border: 'none',
     borderRadius: 12,
-    padding: '12px 14px',
+    padding:
+      '12px 14px',
     background:
       'linear-gradient(90deg, #06b6d4, #3b82f6)',
-    color: '#fff',
+    color:
+      '#fff',
     fontWeight: 800,
-    cursor: 'pointer',
+    cursor:
+      'pointer',
     boxShadow:
       '0 4px 0 #1e3a8a',
   },
@@ -1390,13 +3263,28 @@ const styles: Record<
   },
 
   description: {
-    color: '#64748b',
+    color:
+      '#64748b',
     marginTop: 0,
     marginBottom: 24,
   },
 
+  message: {
+    background:
+      '#ecfdf5',
+    color:
+      '#047857',
+    border:
+      '1px solid #a7f3d0',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 18,
+    fontWeight: 700,
+  },
+
   cardGrid: {
-    display: 'grid',
+    display:
+      'grid',
     gridTemplateColumns:
       'repeat(auto-fit, minmax(190px, 1fr))',
     gap: 18,
@@ -1404,11 +3292,14 @@ const styles: Record<
   },
 
   statCard: {
-    background: '#fff',
+    background:
+      '#fff',
     borderRadius: 20,
     padding: 20,
-    display: 'flex',
-    alignItems: 'center',
+    display:
+      'flex',
+    alignItems:
+      'center',
     gap: 15,
     boxShadow:
       '0 8px 0 #cbd5e1, 0 12px 25px rgba(0,0,0,0.08)',
@@ -1418,16 +3309,21 @@ const styles: Record<
     width: 50,
     height: 50,
     borderRadius: 15,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#eef2ff',
+    display:
+      'flex',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
+    background:
+      '#eef2ff',
     fontSize: 25,
   },
 
   statTitle: {
     fontSize: 13,
-    color: '#64748b',
+    color:
+      '#64748b',
     fontWeight: 700,
   },
 
@@ -1438,7 +3334,8 @@ const styles: Record<
   },
 
   infoCard: {
-    background: '#fff',
+    background:
+      '#fff',
     borderRadius: 20,
     padding: 22,
     marginBottom: 20,
@@ -1446,80 +3343,192 @@ const styles: Record<
       '0 7px 0 #dbeafe, 0 12px 25px rgba(0,0,0,0.07)',
   },
 
+  formCard: {
+    background:
+      '#fff',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    boxShadow:
+      '0 7px 0 #dbeafe, 0 12px 25px rgba(0,0,0,0.07)',
+  },
+
+  fieldLabel: {
+    display:
+      'flex',
+    flexDirection:
+      'column',
+    gap: 7,
+    marginBottom: 16,
+    fontWeight: 800,
+    color:
+      '#334155',
+  },
+
+  input: {
+    width: '100%',
+    boxSizing:
+      'border-box',
+    border:
+      '1px solid #cbd5e1',
+    borderRadius: 12,
+    padding:
+      '12px 14px',
+    fontSize: 15,
+    outline:
+      'none',
+    background:
+      '#f8fafc',
+  },
+
+  formButtons: {
+    display:
+      'flex',
+    gap: 12,
+    flexWrap:
+      'wrap',
+    marginTop: 10,
+  },
+
   infoRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
+    display:
+      'flex',
+    justifyContent:
+      'space-between',
     gap: 20,
-    padding: '13px 0',
+    padding:
+      '13px 0',
     borderBottom:
       '1px solid #e5e7eb',
-    flexWrap: 'wrap',
+    flexWrap:
+      'wrap',
   },
 
   infoLabel: {
-    color: '#64748b',
+    color:
+      '#64748b',
     fontWeight: 700,
   },
 
   infoValue: {
     fontWeight: 700,
-    textAlign: 'right',
-    wordBreak: 'break-word',
+    textAlign:
+      'right',
+    wordBreak:
+      'break-word',
   },
 
   memberRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    display:
+      'flex',
+    alignItems:
+      'center',
+    justifyContent:
+      'space-between',
     gap: 15,
     padding: 15,
     marginTop: 10,
     borderRadius: 14,
-    background: '#f8fafc',
-    border: '1px solid #e2e8f0',
+    background:
+      '#f8fafc',
+    border:
+      '1px solid #e2e8f0',
+  },
+
+  rowButtons: {
+    display:
+      'flex',
+    gap: 8,
+    flexWrap:
+      'wrap',
+  },
+
+  editButton: {
+    border:
+      'none',
+    borderRadius: 10,
+    padding:
+      '10px 14px',
+    background:
+      'linear-gradient(90deg, #f59e0b, #d97706)',
+    color:
+      '#fff',
+    fontWeight: 800,
+    cursor:
+      'pointer',
   },
 
   smallText: {
     marginTop: 4,
-    color: '#64748b',
+    color:
+      '#64748b',
     fontSize: 13,
   },
 
   primaryButton: {
-    border: 'none',
+    border:
+      'none',
     borderRadius: 12,
-    padding: '12px 20px',
+    padding:
+      '12px 20px',
     background:
       'linear-gradient(90deg, #2563eb, #7c3aed)',
-    color: '#fff',
+    color:
+      '#fff',
     fontWeight: 800,
-    cursor: 'pointer',
+    cursor:
+      'pointer',
     boxShadow:
       '0 5px 0 #1e3a8a',
   },
 
+  secondaryButton: {
+    border:
+      'none',
+    borderRadius: 12,
+    padding:
+      '12px 20px',
+    background:
+      '#64748b',
+    color:
+      '#fff',
+    fontWeight: 800,
+    cursor:
+      'pointer',
+    boxShadow:
+      '0 5px 0 #334155',
+  },
+
   successButton: {
-    border: 'none',
+    border:
+      'none',
     borderRadius: 10,
-    padding: '10px 15px',
+    padding:
+      '10px 15px',
     background:
       'linear-gradient(90deg, #10b981, #059669)',
-    color: '#fff',
+    color:
+      '#fff',
     fontWeight: 800,
-    cursor: 'pointer',
+    cursor:
+      'pointer',
     boxShadow:
       '0 4px 0 #047857',
   },
 
   dangerButton: {
-    border: 'none',
+    border:
+      'none',
     borderRadius: 10,
-    padding: '10px 15px',
+    padding:
+      '10px 15px',
     background:
       'linear-gradient(90deg, #ef4444, #dc2626)',
-    color: '#fff',
+    color:
+      '#fff',
     fontWeight: 800,
-    cursor: 'pointer',
+    cursor:
+      'pointer',
     boxShadow:
       '0 4px 0 #991b1b',
     flexShrink: 0,
@@ -1527,35 +3536,51 @@ const styles: Record<
 
   empty: {
     padding: 25,
-    textAlign: 'center',
-    color: '#64748b',
-    background: '#f8fafc',
+    textAlign:
+      'center',
+    color:
+      '#64748b',
+    background:
+      '#f8fafc',
     borderRadius: 12,
   },
 
-  placeholderCard: {
-    maxWidth: 700,
-    margin: '30px auto',
-    background: '#fff',
-    borderRadius: 24,
-    padding: 40,
-    textAlign: 'center',
-    boxShadow:
-      '0 8px 0 #dbeafe, 0 15px 30px rgba(0,0,0,0.08)',
+  listHeader: {
+    display:
+      'flex',
+    alignItems:
+      'center',
+    justifyContent:
+      'space-between',
+    gap: 15,
+    marginBottom: 15,
   },
 
-  placeholderIcon: {
-    fontSize: 60,
-  },
-
-  comingSoon: {
-    display: 'inline-block',
-    marginTop: 15,
-    padding: '10px 18px',
+  countBadge: {
+    minWidth: 35,
+    height: 35,
     borderRadius: 20,
-    background: '#eef2ff',
-    color: '#4f46e5',
-    fontWeight: 800,
+    display:
+      'flex',
+    alignItems:
+      'center',
+    justifyContent:
+      'center',
+    background:
+      '#eef2ff',
+    color:
+      '#4f46e5',
+    fontWeight: 900,
+  },
+
+  thumbnail: {
+    width: 90,
+    height: 70,
+    objectFit:
+      'cover',
+    borderRadius: 10,
+    marginTop: 10,
+    display:
+      'block',
   },
 };
-
