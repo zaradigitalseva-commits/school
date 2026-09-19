@@ -21,6 +21,7 @@ import {
   fetchMyMembership,
   isPlatformAdminEmail,
   subscribeToMyMembership,
+  claimTeacherInvite,
 } from '@/firebase/firestore';
 
 import type { UserRole } from '@/firebase/types';
@@ -92,6 +93,12 @@ export function AuthProvider({
           }
 
           await ensureUserRecord(firebaseUser.uid, email);
+
+          try {
+            await claimTeacherInvite(firebaseUser.uid, email);
+          } catch (error) {
+            console.error('Teacher invite claim failed:', error);
+          }
 
           const membership = await fetchMyMembership();
           if (membership?.status === 'ACTIVE' && membership.role === 'school_admin') {
