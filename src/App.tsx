@@ -183,6 +183,11 @@ function App() {
           ===================================================== */}
 
           <Route
+            path="/ad"
+            element={<AdvertisementManagerPage />}
+          />
+
+          <Route
             path="/admin/advertisements"
             element={
               <ProtectedRoute
