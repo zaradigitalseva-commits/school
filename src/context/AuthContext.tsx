@@ -19,6 +19,7 @@ import { auth, googleProvider } from '@/firebase/config';
 import {
   ensureUserRecord,
   fetchMyMembership,
+  ensureSchoolOwnerMembership,
   isPlatformAdminEmail,
   subscribeToMyMembership,
   claimTeacherInvite,
@@ -100,7 +101,17 @@ export function AuthProvider({
             console.error('Teacher invite claim failed:', error);
           }
 
-          const membership = await fetchMyMembership();
+          let membership = await fetchMyMembership();
+
+          // Repair older/live schools whose owner membership was never activated.
+          if (!membership || membership.role !== 'school_admin' || membership.status !== 'ACTIVE') {
+            try {
+              const repaired = await ensureSchoolOwnerMembership(firebaseUser.uid, email);
+              if (repaired) membership = repaired;
+            } catch (error) {
+              console.error('School owner membership repair failed:', error);
+            }
+          }
           if (membership?.status === 'ACTIVE' && membership.role === 'school_admin') {
             setRole('school_admin');
           } else if (membership?.status === 'ACTIVE' && membership.role === 'teacher') {
