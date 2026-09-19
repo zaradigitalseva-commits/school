@@ -45,6 +45,12 @@ service cloud.firestore {
         && className in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments;
     }
 
+    function isSchoolOwner(schoolId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/schools/$(schoolId))
+        && get(/databases/$(database)/documents/schools/$(schoolId)).data.ownerUid == request.auth.uid;
+    }
+
     function liveSchool(schoolId) {
       return exists(/databases/$(database)/documents/schools/$(schoolId))
         && get(/databases/$(database)/documents/schools/$(schoolId)).data.status == 'LIVE';
@@ -298,7 +304,11 @@ service cloud.firestore {
     }
 
     match /utrReservations/{utr} {
-      allow read: if isPlatformAdmin();
+      allow read: if isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.uid == request.auth.uid
+        );
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.schoolId is string
