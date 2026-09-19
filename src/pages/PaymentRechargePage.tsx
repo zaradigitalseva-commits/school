@@ -369,18 +369,27 @@ export default function PaymentRechargePage() {
       });
 
       setMessage(
-        '✅ Payment request सफलतापूर्वक submit हो गई है। Admin approval का इंतजार करें।'
+        '✅ Payment request submitted successfully! Admin approval का इंतजार करें।'
       );
 
       setUtr('');
 
       /*
-       * Refresh history
+       * Refresh history अलग से करें.
+       * History read fail होने पर भी successful submit का message
+       * हटना नहीं चाहिए.
        */
-      const updatedHistory =
-        await fetchMyRechargeRequests(user.uid);
+      try {
+        const updatedHistory =
+          await fetchMyRechargeRequests(user.uid);
 
-      setHistory(updatedHistory);
+        setHistory(updatedHistory);
+      } catch (historyError) {
+        console.error(
+          'Payment history refresh failed:',
+          historyError
+        );
+      }
 
       /*
        * WhatsApp message
