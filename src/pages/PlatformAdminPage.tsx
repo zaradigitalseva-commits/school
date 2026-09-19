@@ -1,4 +1,9 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+} from 'react';
+
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -263,12 +268,22 @@ export default function PlatformAdminPage() {
 
   /*
    * =======================================================
+   * OPEN ADVERTISEMENT ADMIN
+   * =======================================================
+   */
+
+  function openAdvertisementAdmin() {
+    navigate('/admin/advertisements');
+  }
+
+  /*
+   * =======================================================
    * SAVE PAYMENT SETTINGS
    * =======================================================
    */
 
   async function handleSaveSettings(
-    event: React.FormEvent
+    event: FormEvent
   ) {
     event.preventDefault();
 
@@ -661,9 +676,12 @@ export default function PlatformAdminPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 px-4 py-8">
       <div className="mx-auto max-w-7xl">
 
-        {/* HEADER */}
+        {/* =================================================
+            HEADER
+        ================================================== */}
 
         <div className="mb-8 text-center text-white">
+
           <div className="text-6xl">
             👨‍💼
           </div>
@@ -675,26 +693,33 @@ export default function PlatformAdminPage() {
           <p className="mt-2 text-white/90">
             Manage all schools, payments and platform settings
           </p>
+
         </div>
 
         {/* =================================================
-            ADVERTISEMENT ADMIN BUTTON
+            ADVERTISEMENT ADMIN
+            ONLY ONE BUTTON
         ================================================== */}
 
         <div className="mb-6">
-          <a
-            href="/admin/advertisements"
-            className="block w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-center text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
+
+          <button
+            type="button"
+            onClick={openAdvertisementAdmin}
+            className="w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-center text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:scale-[1.01] hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
           >
             📢 Advertisement Admin
 
             <span className="mt-1 block text-sm font-bold text-white/80">
               Paid Slider + Scrolling Advertisement
             </span>
-          </a>
+          </button>
+
         </div>
 
-        {/* MESSAGES */}
+        {/* =================================================
+            MESSAGES
+        ================================================== */}
 
         {error && (
           <div className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-700 shadow-lg">
@@ -708,7 +733,9 @@ export default function PlatformAdminPage() {
           </div>
         )}
 
-        {/* STATISTICS */}
+        {/* =================================================
+            STATISTICS
+        ================================================== */}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -770,7 +797,9 @@ export default function PlatformAdminPage() {
 
         </div>
 
-        {/* PAYMENT SETTINGS */}
+        {/* =================================================
+            PAYMENT SETTINGS
+        ================================================== */}
 
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
@@ -786,6 +815,8 @@ export default function PlatformAdminPage() {
             onSubmit={handleSaveSettings}
             className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2"
           >
+
+            {/* UPI */}
 
             <div>
               <label className="mb-2 block font-bold text-gray-800">
@@ -806,6 +837,8 @@ export default function PlatformAdminPage() {
               />
             </div>
 
+            {/* QR */}
+
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 QR Image URL
@@ -825,6 +858,8 @@ export default function PlatformAdminPage() {
               />
             </div>
 
+            {/* SUPPORT */}
+
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 Support Phone
@@ -843,6 +878,8 @@ export default function PlatformAdminPage() {
                 className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
               />
             </div>
+
+            {/* INSTRUCTIONS */}
 
             <div>
               <label className="mb-2 block font-bold text-gray-800">
@@ -864,7 +901,10 @@ export default function PlatformAdminPage() {
               />
             </div>
 
+            {/* SAVE */}
+
             <div className="md:col-span-2">
+
               <button
                 type="submit"
                 disabled={saving}
@@ -874,18 +914,23 @@ export default function PlatformAdminPage() {
                   ? '⏳ Saving...'
                   : '💾 Save Payment Settings'}
               </button>
+
             </div>
 
           </form>
+
         </section>
 
-        {/* PENDING PAYMENT REQUESTS */}
+        {/* =================================================
+            PENDING PAYMENT REQUESTS
+        ================================================== */}
 
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
 
             <div>
+
               <h2 className="text-2xl font-black text-gray-900">
                 💰 Pending Payment Requests
               </h2>
@@ -893,9 +938,11 @@ export default function PlatformAdminPage() {
               <p className="mt-1 text-gray-600">
                 Approve करने पर request में दिए गए exact amount और days activate होंगे।
               </p>
+
             </div>
 
             <div className="rounded-2xl bg-blue-50 px-5 py-3 text-center">
+
               <p className="text-xs font-bold text-blue-600">
                 PENDING
               </p>
@@ -903,18 +950,23 @@ export default function PlatformAdminPage() {
               <p className="text-2xl font-black text-blue-700">
                 {requests.length}
               </p>
+
             </div>
 
           </div>
 
           {requests.length === 0 ? (
+
             <div className="mt-5 rounded-2xl bg-gray-50 p-6 text-center text-gray-600">
               No pending payment requests.
             </div>
+
           ) : (
+
             <div className="mt-5 space-y-4">
 
               {requests.map((request) => {
+
                 const school =
                   getSchoolById(
                     request.schoolId
@@ -925,10 +977,13 @@ export default function PlatformAdminPage() {
                   request.id;
 
                 return (
+
                   <div
                     key={request.id}
                     className="rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-lg"
                   >
+
+                    {/* SCHOOL */}
 
                     <div className="mb-5 rounded-2xl bg-white p-4 shadow">
 
@@ -950,9 +1005,12 @@ export default function PlatformAdminPage() {
 
                     </div>
 
+                    {/* PAYMENT DATA */}
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
                       <div className="rounded-2xl bg-green-50 p-4">
+
                         <p className="text-sm font-bold text-gray-500">
                           Recharge Amount
                         </p>
@@ -960,9 +1018,11 @@ export default function PlatformAdminPage() {
                         <p className="mt-1 text-2xl font-black text-green-600">
                           ₹{request.amount}
                         </p>
+
                       </div>
 
                       <div className="rounded-2xl bg-purple-50 p-4">
+
                         <p className="text-sm font-bold text-gray-500">
                           Subscription
                         </p>
@@ -970,9 +1030,11 @@ export default function PlatformAdminPage() {
                         <p className="mt-1 text-2xl font-black text-purple-700">
                           {request.days} days
                         </p>
+
                       </div>
 
                       <div className="rounded-2xl bg-blue-50 p-4">
+
                         <p className="text-sm font-bold text-gray-500">
                           UTR
                         </p>
@@ -980,9 +1042,11 @@ export default function PlatformAdminPage() {
                         <p className="mt-1 break-all font-black text-blue-700">
                           {request.utr || '—'}
                         </p>
+
                       </div>
 
                       <div className="rounded-2xl bg-yellow-50 p-4">
+
                         <p className="text-sm font-bold text-gray-500">
                           Request Date
                         </p>
@@ -994,16 +1058,21 @@ export default function PlatformAdminPage() {
                               | undefined
                           )}
                         </p>
+
                       </div>
 
                     </div>
+
+                    {/* NOTE */}
 
                     {(
                       request as RechargeRequest & {
                         note?: string;
                       }
                     ).note && (
+
                       <div className="mt-4 rounded-2xl bg-gray-50 p-4">
+
                         <p className="text-sm font-bold text-gray-500">
                           Note
                         </p>
@@ -1015,15 +1084,21 @@ export default function PlatformAdminPage() {
                             }
                           ).note}
                         </p>
+
                       </div>
+
                     )}
+
+                    {/* PROOF */}
 
                     {(
                       request as RechargeRequest & {
                         proofUrl?: string;
                       }
                     ).proofUrl && (
+
                       <div className="mt-4">
+
                         <a
                           href={
                             (
@@ -1038,35 +1113,54 @@ export default function PlatformAdminPage() {
                         >
                           🔗 Open Payment Proof
                         </a>
+
                       </div>
+
                     )}
 
-                    {/* =================================================
-    ADVERTISEMENT ADMIN BUTTON
-================================================== */}
+                    {/* APPROVE / REJECT */}
 
-<div className="mb-6">
-  <button
-    type="button"
-    onClick={() => {
-      window.location.href = '/admin/advertisements';
-    }}
-    className="w-full rounded-3xl bg-gradient-to-r from-pink-500 via-purple-600 to-blue-600 px-6 py-5 text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:brightness-110 active:translate-y-1 active:shadow-none md:text-xl"
-  >
-    📢 Advertisement Admin
+                    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
-    <span className="mt-1 block text-sm font-bold text-white/80">
-      Paid Slider + Scrolling Advertisement
-    </span>
-  </button>
-</div>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          handleApprove(
+                            request.id
+                          )
+                        }
+                        className="rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-4 font-black text-white shadow-[0_5px_0_rgb(21,128,61)] disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                      >
+                        {busy
+                          ? '⏳ Processing...'
+                          : '✅ Approve Payment'}
+                      </button>
 
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          handleReject(
+                            request.id
+                          )
+                        }
+                        className="rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 px-5 py-4 font-black text-white shadow-[0_5px_0_rgb(185,28,28)] disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-1 active:shadow-none"
+                      >
+                        {busy
+                          ? '⏳ Processing...'
+                          : '❌ Reject Payment'}
+                      </button>
+
+                    </div>
 
                   </div>
+
                 );
               })}
 
             </div>
+
           )}
 
         </section>
@@ -1078,6 +1172,7 @@ export default function PlatformAdminPage() {
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-2xl md:p-8">
 
           <div>
+
             <h2 className="text-2xl font-black text-gray-900">
               🏫 All Schools
             </h2>
@@ -1085,11 +1180,13 @@ export default function PlatformAdminPage() {
             <p className="mt-1 text-gray-600">
               यहाँ से हर school का पूरा data, recharge, WhatsApp और status manage करें।
             </p>
+
           </div>
 
           <div className="mt-5 space-y-5">
 
             {schools.map((school) => {
+
               const busy =
                 processingSchool ===
                 school.id;
@@ -1109,6 +1206,7 @@ export default function PlatformAdminPage() {
                 );
 
               return (
+
                 <div
                   key={school.id}
                   className="rounded-3xl border-2 border-gray-100 bg-gradient-to-br from-white to-gray-50 p-5 shadow-lg"
@@ -1116,7 +1214,9 @@ export default function PlatformAdminPage() {
 
                   <div className="flex flex-col gap-5">
 
-                    {/* SCHOOL DETAILS */}
+                    {/* =================================================
+                        SCHOOL DETAILS
+                    ================================================== */}
 
                     <div>
 
@@ -1147,9 +1247,12 @@ export default function PlatformAdminPage() {
                         {school.slug}
                       </p>
 
+                      {/* SUBSCRIPTION INFO */}
+
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
                         <div className="rounded-2xl bg-white p-3 shadow-sm">
+
                           <p className="text-xs font-bold text-gray-500">
                             Subscription
                           </p>
@@ -1169,9 +1272,11 @@ export default function PlatformAdminPage() {
                               subscriptionLabel
                             }
                           </p>
+
                         </div>
 
                         <div className="rounded-2xl bg-white p-3 shadow-sm">
+
                           <p className="text-xs font-bold text-gray-500">
                             Approval Type
                           </p>
@@ -1182,9 +1287,11 @@ export default function PlatformAdminPage() {
                               '—'
                             }
                           </p>
+
                         </div>
 
                         <div className="rounded-2xl bg-white p-3 shadow-sm">
+
                           <p className="text-xs font-bold text-gray-500">
                             Days
                           </p>
@@ -1194,9 +1301,11 @@ export default function PlatformAdminPage() {
                               ? `${school.subscriptionDays} days`
                               : '—'}
                           </p>
+
                         </div>
 
                         <div className="rounded-2xl bg-white p-3 shadow-sm">
+
                           <p className="text-xs font-bold text-gray-500">
                             Amount
                           </p>
@@ -1207,6 +1316,7 @@ export default function PlatformAdminPage() {
                               ? `₹${school.paymentAmount}`
                               : '—'}
                           </p>
+
                         </div>
 
                       </div>
@@ -1216,6 +1326,7 @@ export default function PlatformAdminPage() {
                       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
 
                         <div className="rounded-2xl bg-blue-50 p-3">
+
                           <p className="text-xs font-bold text-blue-600">
                             Subscription Start
                           </p>
@@ -1225,6 +1336,7 @@ export default function PlatformAdminPage() {
                               school.subscriptionStartDate
                             )}
                           </p>
+
                         </div>
 
                         <div
@@ -1238,6 +1350,7 @@ export default function PlatformAdminPage() {
                                 : 'bg-orange-50'
                           }`}
                         >
+
                           <p
                             className={`text-xs font-bold ${
                               whatsappState ===
@@ -1267,13 +1380,16 @@ export default function PlatformAdminPage() {
                               school.subscriptionExpiryDate
                             )}
                           </p>
+
                         </div>
 
                       </div>
 
                     </div>
 
-                    {/* ACTION AREA */}
+                    {/* =================================================
+                        ACTION AREA
+                    ================================================== */}
 
                     <div className="border-t-2 border-gray-100 pt-5">
 
@@ -1281,6 +1397,7 @@ export default function PlatformAdminPage() {
 
                       {school.status !==
                         'LIVE' && (
+
                         <div className="rounded-3xl border-2 border-emerald-100 bg-emerald-50 p-4">
 
                           <div className="mb-3">
@@ -1314,6 +1431,7 @@ export default function PlatformAdminPage() {
                                 onChange={(
                                   event
                                 ) => {
+
                                   const value =
                                     event.target
                                       .value;
@@ -1335,6 +1453,7 @@ export default function PlatformAdminPage() {
                                       })
                                     );
                                   }
+
                                 }}
                                 placeholder="जैसे 30, 60, 365"
                                 className="w-full rounded-2xl border-2 border-emerald-200 bg-white px-4 py-3 font-black outline-none focus:border-emerald-500"
@@ -1371,9 +1490,12 @@ export default function PlatformAdminPage() {
                           </p>
 
                         </div>
+
                       )}
 
-                      {/* SCHOOL ACTION BUTTONS */}
+                      {/* =================================================
+                          SCHOOL ACTION BUTTONS
+                      ================================================== */}
 
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -1437,6 +1559,7 @@ export default function PlatformAdminPage() {
 
                         {school.status ===
                         'SUSPENDED' ? (
+
                           <button
                             type="button"
                             disabled={busy}
@@ -1450,8 +1573,10 @@ export default function PlatformAdminPage() {
                           >
                             🟢 Restore
                           </button>
+
                         ) : school.status ===
                           'LIVE' ? (
+
                           <button
                             type="button"
                             disabled={busy}
@@ -1465,40 +1590,51 @@ export default function PlatformAdminPage() {
                           >
                             ⛔ Suspend
                           </button>
+
                         ) : null}
 
                       </div>
 
-                      {/* STATUS INFO */}
+                      {/* =================================================
+                          STATUS INFO
+                      ================================================== */}
 
                       <div className="mt-3">
 
                         {whatsappState ===
                           'EXPIRED' && (
+
                           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
                             🔴 Subscription expired. Recharge reminder WhatsApp भेज सकते हैं।
                           </p>
+
                         )}
 
                         {whatsappState ===
                           'EXPIRING_SOON' && (
+
                           <p className="rounded-xl bg-orange-50 px-4 py-3 text-sm font-bold text-orange-700">
                             ⚠️ Subscription अगले 3 दिनों में expire होने वाला है।
                           </p>
+
                         )}
 
                         {whatsappState ===
                           'ACTIVE' && (
+
                           <p className="rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
                             🟢 Subscription active है।
                           </p>
+
                         )}
 
                         {whatsappState ===
                           'NO_EXPIRY' && (
+
                           <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm font-bold text-gray-600">
                             ℹ️ Subscription expiry date उपलब्ध नहीं है।
                           </p>
+
                         )}
 
                       </div>
@@ -1506,22 +1642,30 @@ export default function PlatformAdminPage() {
                     </div>
 
                   </div>
+
                 </div>
+
               );
             })}
 
             {schools.length === 0 && (
+
               <div className="rounded-2xl bg-gray-50 p-6 text-center text-gray-600">
                 No schools registered yet.
               </div>
+
             )}
 
           </div>
+
         </section>
 
-        {/* SUSPENDED SUMMARY */}
+        {/* =================================================
+            SUSPENDED SUMMARY
+        ================================================== */}
 
         {suspendedSchools.length > 0 && (
+
           <div className="mt-6 rounded-3xl bg-white p-6 text-center shadow-2xl">
 
             <p className="text-sm font-bold text-gray-500">
@@ -1533,6 +1677,7 @@ export default function PlatformAdminPage() {
             </p>
 
           </div>
+
         )}
 
       </div>
