@@ -1560,6 +1560,8 @@ function Dashboard({
   pendingTeachers: SchoolMembership[];
   pendingAdmins: SchoolMembership[];
 }) {
+  const navigate = useNavigate();
+
   return (
     <>
       <h2
@@ -2158,7 +2160,7 @@ function SubscriptionSection({
           <div key={item.id} style={{ ...styles.memberRow, display: 'block', marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <strong>#{history.length - index} • ₹{Number(item.amount || 0)}</strong>
-              <span style={styles.smallText}>{item.createdAt ? new Date(item.createdAt as any).toLocaleString('en-IN') : 'Date pending'}</span>
+              <span style={styles.smallText}>{item.createdAt && typeof item.createdAt === 'object' && item.createdAt !== null && 'toDate' in item.createdAt && typeof (item.createdAt as { toDate?: unknown }).toDate === 'function' ? (item.createdAt as { toDate: () => Date }).toDate().toLocaleString('en-IN') : item.createdAt ? String(item.createdAt) : 'Date pending'}</span>
             </div>
             <div style={styles.smallText}>📅 {Number(item.days || 0)} days • {item.source || item.type || 'RECHARGE'}{item.utr ? ' • UTR: ' + item.utr : ''}</div>
           </div>
