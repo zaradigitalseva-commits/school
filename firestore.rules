@@ -114,10 +114,14 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid)
         || (signedIn()
           && request.resource.data.role == 'teacher'
-          && request.resource.data.status in ['ACTIVE', 'PENDING']
+          && request.resource.data.status == 'ACTIVE'
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.email == request.auth.token.email
           && request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-          && request.resource.data.uid is string);
+          && exists(/databases/$(database)/documents/teacherInvites/$(request.resource.data.schoolId + '_' + request.auth.token.email))
+          && get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.schoolId + '_' + request.auth.token.email)).data.email == request.auth.token.email
+          && get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.schoolId + '_' + request.auth.token.email)).data.schoolId == request.resource.data.schoolId
+          && get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.schoolId + '_' + request.auth.token.email)).data.status == 'PENDING');
 
       allow update: if isPlatformAdmin()
         || (signedIn()
@@ -129,6 +133,16 @@ service cloud.firestore {
           && request.resource.data.role in ['teacher', 'school_admin']);
 
       allow delete: if isPlatformAdmin();
+    }
+
+    match /teacherInvites/{inviteId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && request.auth.token.email == resource.data.email)
+        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+      allow create, update: if isPlatformAdmin()
+        || (signedIn() && request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow delete: if isPlatformAdmin()
+        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
     match /schoolOwnerRegistrations/{uid} {
