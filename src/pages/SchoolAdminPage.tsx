@@ -67,12 +67,51 @@ import type {
 
 import type { CSSProperties } from 'react';
 
+import { fetchSchoolRechargeHistory } from '@/firebase/payment';
+
 
 type AnyRecord = {
   id?: string;
   [key: string]: any;
 };
 
+const PLATFORM_ADMIN_WHATSAPP = '919112170192';
+
+function getRemainingSubscriptionDays(school: School): number | null {
+  if (!school.subscriptionExpiryDate) return null;
+  const expiry = new Date(school.subscriptionExpiryDate).getTime();
+  if (!Number.isFinite(expiry)) return null;
+  return Math.ceil((expiry - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+function getSubscriptionReminderText(school: School): string | null {
+  const days = getRemainingSubscriptionDays(school);
+  if (days === null) return null;
+  if (days <= 0) return '🔴 आपकी subscription समाप्त हो चुकी है। कृपया तुरंत recharge करें।';
+  if (days <= 3) return '🚨 आपकी subscription ' + days + ' दिन में समाप्त होने वाली है। आज ही recharge करें।';
+  if (days <= 7) return '⚠️ आपकी subscription ' + days + ' दिन में समाप्त होने वाली है। समय पर recharge करें।';
+  return null;
+}
+
+function openPlatformAdminWhatsApp(school: School) {
+  const days = getRemainingSubscriptionDays(school);
+  const expiry = school.subscriptionExpiryDate ? new Date(school.subscriptionExpiryDate).toLocaleDateString('en-IN') : 'Not available';
+  const totalAmount = Number(school.totalRechargeAmount ?? school.paymentAmount ?? 0);
+  const totalDays = Number(school.totalRechargeDays ?? school.subscriptionDays ?? 0);
+  const message = [
+    'नमस्कार Platform Admin,',
+    '',
+    '🏫 School: ' + school.name,
+    '📧 Owner: ' + school.ownerEmail,
+    '⏳ Remaining: ' + (days === null ? 'N/A' : Math.max(days, 0) + ' days'),
+    '📅 Expiry: ' + expiry,
+    '💰 Total Recharge: ₹' + totalAmount,
+    '📦 Total Recharge Days: ' + totalDays,
+    '',
+    'कृपया recharge/payment के लिए सहायता करें।'
+  ].join('\n');
+  window.open('https://wa.me/' + PLATFORM_ADMIN_WHATSAPP + '?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
+}
 
 export default function SchoolAdminPage() {
   const navigate = useNavigate();
@@ -1461,9 +1500,8 @@ export default function SchoolAdminPage() {
           {activeSection ===
             'subscription' && (
             <SubscriptionSection
-              school={
-                school
-              }
+              school={school}
+              schoolId={schoolId}
             />
           )}
 
@@ -1540,6 +1578,41 @@ function Dashboard({
         Manage your school from this
         dashboard.
       </p>
+
+      {getSubscriptionReminderText(school) && (
+        <div
+          style={{
+            marginBottom: 18,
+            borderRadius: 18,
+            padding: 18,
+            background: '#fff7ed',
+            border: '2px solid #fb923c',
+            color: '#9a3412',
+            fontWeight: 900,
+          }}
+        >
+          <div style={{ fontSize: 18 }}>
+            {getSubscriptionReminderText(school)}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 14 }}>
+            Expiry: {school.subscriptionExpiryDate ? new Date(school.subscriptionExpiryDate).toLocaleDateString('en-IN') : 'Not available'}
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              style={styles.primaryButton}
+              onClick={() => navigate('/payment/recharge?schoolId=' + encodeURIComponent(schoolId))}
+            >
+              💳 Recharge Now
+            </button>
+            <button
+              style={styles.secondaryButton}
+              onClick={() => openPlatformAdminWhatsApp(school)}
+            >
+              📲 Admin को Message
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         style={
@@ -2010,6 +2083,90 @@ function CrudModule({
   );
 }
 
+
+/* =========================================================
+   SUBSCRIPTION
+========================================================= */
+
+function SubscriptionSection({
+  school,
+  schoolId,
+}: {
+  school: School;
+  schoolId: string;
+}) {
+  const navigate = useNavigate();
+  const [history, setHistory] = useState<Awaited<ReturnType<typeof fetchSchoolRechargeHistory>>>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingHistory(true);
+    setHistoryError('');
+    fetchSchoolRechargeHistory(schoolId)
+      .then((items) => { if (!cancelled) setHistory(items); })
+      .catch((error) => { if (!cancelled) setHistoryError(error instanceof Error ? error.message : 'Recharge history load नहीं हुई।'); })
+      .finally(() => { if (!cancelled) setLoadingHistory(false); });
+    return () => { cancelled = true; };
+  }, [schoolId]);
+
+  const remainingDays = getRemainingSubscriptionDays(school);
+  const totalAmount = Number(school.totalRechargeAmount ?? school.paymentAmount ?? history.reduce((sum, item) => sum + Number(item.amount || 0), 0));
+  const totalDays = Number(school.totalRechargeDays ?? school.subscriptionDays ?? history.reduce((sum, item) => sum + Number(item.days || 0), 0));
+  const expiryText = school.subscriptionExpiryDate ? new Date(school.subscriptionExpiryDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not available';
+
+  return (
+    <>
+      <h2 style={styles.pageHeading}>💳 Subscription & Recharge</h2>
+
+      {getSubscriptionReminderText(school) && (
+        <div style={{ marginBottom: 18, borderRadius: 18, padding: 18, background: '#fff7ed', border: '2px solid #fb923c', color: '#9a3412', fontWeight: 900 }}>
+          {getSubscriptionReminderText(school)}
+        </div>
+      )}
+
+      <div style={styles.cardGrid}>
+        <StatCard icon="💰" title="Total Recharge" value={'₹' + totalAmount} />
+        <StatCard icon="📅" title="Total Recharge Days" value={String(totalDays)} />
+        <StatCard icon="⏳" title="Remaining Days" value={remainingDays === null ? 'N/A' : String(Math.max(remainingDays, 0))} />
+        <StatCard icon="📆" title="Expiry" value={school.subscriptionExpiryDate ? new Date(school.subscriptionExpiryDate).toLocaleDateString('en-IN') : 'N/A'} />
+      </div>
+
+      <div style={{ ...styles.infoCard, marginTop: 18 }}>
+        <div style={styles.listHeader}>
+          <div>
+            <h3>💳 Current Subscription</h3>
+            <div style={styles.smallText}>{school.subscriptionStatus || 'PENDING'}</div>
+          </div>
+          <button style={styles.primaryButton} onClick={() => navigate('/payment/recharge?schoolId=' + encodeURIComponent(schoolId))}>🔄 Recharge Now</button>
+        </div>
+        <InfoRow label="Expiry" value={expiryText} />
+        <InfoRow label="Total Amount" value={'₹' + totalAmount} />
+        <InfoRow label="Total Days" value={String(totalDays)} />
+        <InfoRow label="Recharge Count" value={String(history.length)} />
+        <button style={{ ...styles.secondaryButton, marginTop: 14 }} onClick={() => openPlatformAdminWhatsApp(school)}>📲 Admin को Recharge Reminder भेजें</button>
+      </div>
+
+      <div style={{ ...styles.infoCard, marginTop: 18 }}>
+        <div style={styles.listHeader}>
+          <h3>📜 पूरी Recharge History</h3>
+          <span style={styles.countBadge}>{history.length}</span>
+        </div>
+        {historyError && <div style={{ color: '#b91c1c', fontWeight: 800 }}>{historyError}</div>}
+        {loadingHistory ? <EmptyState text="Recharge history loading..." /> : history.length === 0 ? <EmptyState text="अभी कोई recharge transaction नहीं है।" /> : history.map((item, index) => (
+          <div key={item.id} style={{ ...styles.memberRow, display: 'block', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <strong>#{history.length - index} • ₹{Number(item.amount || 0)}</strong>
+              <span style={styles.smallText}>{item.createdAt ? new Date(item.createdAt as any).toLocaleString('en-IN') : 'Date pending'}</span>
+            </div>
+            <div style={styles.smallText}>📅 {Number(item.days || 0)} days • {item.source || item.type || 'RECHARGE'}{item.utr ? ' • UTR: ' + item.utr : ''}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
 /* =========================================================
    MODULE CONFIG
