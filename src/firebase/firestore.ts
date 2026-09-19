@@ -2104,10 +2104,8 @@ export async function registerSchool(
   };
 
   await runTransaction(db, async (transaction) => {
-    const [slugSnapshot, membershipSnapshot] = await Promise.all([
-      transaction.get(slugRef),
-      transaction.get(membershipRef),
-    ]);
+    const slugSnapshot = await transaction.get(slugRef);
+    const membershipSnapshot = await transaction.get(membershipRef);
 
     if (slugSnapshot.exists()) {
       throw new Error(
