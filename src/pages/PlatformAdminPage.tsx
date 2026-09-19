@@ -278,6 +278,55 @@ export default function PlatformAdminPage() {
 
   /*
    * =======================================================
+   * QR IMAGE UPLOAD
+   * =======================================================
+   */
+
+  async function handleQrUpload(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('कृपया केवल image file चुनें।');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 700 * 1024) {
+      setError('QR image 700 KB से छोटी रखें।');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setError('');
+      setMessage('');
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('QR image read नहीं हो सकी।'));
+        reader.readAsDataURL(file);
+      });
+
+      setSettings((current) => ({
+        ...current,
+        qrImageUrl: dataUrl,
+      }));
+
+      setMessage('QR image तैयार है। अब Save Payment Settings दबाएँ।');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'QR image upload नहीं हो सकी।');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  /*
+   * =======================================================
    * APPROVE PAID RECHARGE
    * =======================================================
    */
@@ -852,105 +901,67 @@ export default function PlatformAdminPage() {
           </h2>
 
           <p className="mt-1 text-gray-600">
-            These details are shown to schools on the payment page.
+            सिर्फ payment के लिए जरूरी settings रखें।
           </p>
 
           <form
             onSubmit={handleSaveSettings}
-            className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2"
+            className="mt-6 space-y-5"
           >
-
             <div>
               <label className="mb-2 block font-bold text-gray-800">
                 UPI ID
               </label>
-
               <input
                 value={settings.upiId}
                 onChange={(event) =>
                   setSettings({
                     ...settings,
-                    upiId:
-                      event.target.value,
+                    upiId: event.target.value,
                   })
                 }
                 placeholder="example@upi"
+                autoComplete="off"
                 className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
               />
+              <p className="mt-2 text-xs font-bold text-gray-500">
+                यह UPI ID school को text में नहीं दिखाई जाएगी; Pay Now button के लिए उपयोग होगी।
+              </p>
             </div>
 
             <div>
               <label className="mb-2 block font-bold text-gray-800">
-                QR Image URL
+                Payment QR Code
               </label>
-
               <input
-                value={settings.qrImageUrl}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    qrImageUrl:
-                      event.target.value,
-                  })
-                }
-                placeholder="https://..."
-                className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleQrUpload}
+                className="block w-full rounded-2xl border-2 border-gray-200 bg-white px-4 py-3 font-bold text-gray-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-black file:text-white"
               />
+              <p className="mt-2 text-xs font-bold text-gray-500">
+                QR image upload करें। अधिकतम 700 KB। किसी QR URL की जरूरत नहीं है।
+              </p>
+
+              {settings.qrImageUrl && (
+                <div className="mt-4 rounded-2xl border-2 border-gray-100 bg-gray-50 p-4 text-center">
+                  <p className="mb-3 text-sm font-black text-gray-700">Current QR</p>
+                  <img
+                    src={settings.qrImageUrl}
+                    alt="Payment QR"
+                    className="mx-auto h-48 w-48 rounded-2xl bg-white object-contain p-2 shadow-lg"
+                  />
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="mb-2 block font-bold text-gray-800">
-                Support Phone
-              </label>
-
-              <input
-                value={settings.supportPhone}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    supportPhone:
-                      event.target.value,
-                  })
-                }
-                placeholder="Support phone number"
-                className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block font-bold text-gray-800">
-                Instructions
-              </label>
-
-              <textarea
-                value={settings.instructions}
-                onChange={(event) =>
-                  setSettings({
-                    ...settings,
-                    instructions:
-                      event.target.value,
-                  })
-                }
-                rows={3}
-                placeholder="Payment instructions"
-                className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 font-black text-white shadow-[0_6px_0_rgb(67,56,202)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
-              >
-                {saving
-                  ? '⏳ Saving...'
-                  : '💾 Save Payment Settings'}
-              </button>
-
-            </div>
-
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 font-black text-white shadow-[0_6px_0_rgb(67,56,202)] disabled:opacity-60 active:translate-y-1 active:shadow-none"
+            >
+              {saving ? '⏳ Saving...' : '💾 Save Payment Settings'}
+            </button>
           </form>
 
         </section>
