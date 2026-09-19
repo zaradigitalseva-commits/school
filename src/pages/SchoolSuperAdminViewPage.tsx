@@ -9,6 +9,10 @@ import {
   fetchAnnouncements,
   fetchEvents,
   fetchSchoolCollection,
+  subscribeToSchool,
+  subscribeToSchoolCollection,
+  subscribeToSchoolMemberships,
+  subscribeToTeachers,
 } from '@/firebase/firestore';
 
 type Tab =
@@ -994,6 +998,44 @@ export default function SchoolSuperAdminViewPage() {
 
     return () => {
       cancelled = true;
+    };
+  }, [schoolId]);
+
+  /* =========================================================
+     REALTIME SUPER ADMIN SCHOOL SYNC
+  ========================================================= */
+  useEffect(() => {
+    if (!schoolId) return;
+    const handleError = (error: Error) => console.error('Super Admin realtime error:', error);
+
+    const unsubSchool = subscribeToSchool(schoolId, (data) => {
+      if (data) setSchoolData(data as SchoolData);
+    }, handleError);
+    const unsubMembers = subscribeToSchoolMemberships(schoolId, (data) => {
+      setMemberships(data as Membership[]);
+    }, handleError);
+    const unsubTeachers = subscribeToTeachers(schoolId, (data) => {
+      setTeachers(data as Teacher[]);
+    }, handleError);
+
+    const collectionNames = ['students', 'classes', 'results', 'homework', 'attendance', 'gallery', 'documents', 'announcements', 'events'];
+    const unsubs = collectionNames.map((name) =>
+      subscribeToSchoolCollection(schoolId, name, (records) => {
+        if (name === 'announcements') {
+          setNotices(records as Notice[]);
+        } else if (name === 'events') {
+          setEvents(records as SchoolEvent[]);
+        } else {
+          setSchoolData((previous) => ({ ...(previous || { id: schoolId }), [name]: records } as SchoolData));
+        }
+      }, handleError)
+    );
+
+    return () => {
+      unsubSchool();
+      unsubMembers();
+      unsubTeachers();
+      unsubs.forEach((unsubscribe) => unsubscribe());
     };
   }, [schoolId]);
 
