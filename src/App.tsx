@@ -162,6 +162,7 @@ function App() {
             element={
               <ProtectedRoute
                 allowedRoles={[
+                  'user',
                   'school_admin',
                   'platform_admin',
                 ]}
