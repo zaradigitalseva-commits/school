@@ -166,9 +166,14 @@ export interface Teacher {
 
   name: string;
   phone?: string;
+  photoDataUrl?: string;
 
   subject?: string;
   assignedClass?: string;
+  section?: string;
+  qualification?: string;
+  teacherId?: string;
+  joiningDate?: string;
 
   status?: 'ACTIVE' | 'INACTIVE';
 
