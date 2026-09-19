@@ -295,6 +295,13 @@ export default function SchoolPublicPage() {
             </a>
 
             <a
+              href="#results"
+              className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-700"
+            >
+              Results
+            </a>
+
+            <a
               href="#gallery"
               className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-700"
             >
