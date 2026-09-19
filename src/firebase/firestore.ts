@@ -2461,6 +2461,100 @@ export function subscribeToAllSchools(
   );
 }
 
+
+export function subscribeToSchoolBySlug(
+  slug: string,
+  onData: (school: School | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const cleanSlug = slug?.trim().toLowerCase() || '';
+  if (!cleanSlug) {
+    onData(null);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, 'schools'),
+    where('slug', '==', cleanSlug),
+    where('status', '==', 'LIVE')
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const schoolDoc = snapshot.docs[0];
+      onData(
+        schoolDoc
+          ? ({ id: schoolDoc.id, ...schoolDoc.data() } as School)
+          : null
+      );
+    },
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToSchoolPublicCollection(
+  schoolId: string,
+  collectionName: string,
+  onData: (rows: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!schoolId || !collectionName) {
+    onData([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, collectionName),
+    where('schoolId', '==', schoolId)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onData(
+        snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+      );
+    },
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToPublicResults(
+  schoolId: string,
+  rollNumber: string,
+  onData: (rows: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const cleanRollNumber = rollNumber?.trim() || '';
+  if (!schoolId || !cleanRollNumber) {
+    onData([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, 'publicResults'),
+    where('schoolId', '==', schoolId),
+    where('rollNumber', '==', cleanRollNumber)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onData(
+        snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+      );
+    },
+    (error) => onError?.(error)
+  );
+}
+
 export function subscribeToSchool(
   schoolId: string,
   onData: (school: School | null) => void,
