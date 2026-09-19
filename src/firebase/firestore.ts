@@ -59,6 +59,25 @@ export function isAdminEmail(
 
 
 /* =========================================================
+   COMMON HELPERS
+========================================================= */
+
+function cleanData(
+  data: Record<string, any> | null | undefined
+): Record<string, any> {
+  if (!data) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(data).filter(
+      ([, value]) => value !== undefined
+    )
+  );
+}
+
+
+/* =========================================================
    ENSURE USER RECORD
 ========================================================= */
 
@@ -326,10 +345,36 @@ export async function saveSchoolInfo(
   const schoolRef =
     doc(db, 'schools', schoolId);
 
+  const snapshot =
+    await getDoc(schoolRef);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'School not found.'
+    );
+  }
+
+  const existing =
+    snapshot.data();
+
+  /*
+    Prevent accidental schoolId changes.
+  */
   const {
     schoolId: ignoredSchoolId,
-    ...safeInfo
+    id: ignoredId,
+    ...rawInfo
   } = info;
+
+  const safeInfo =
+    cleanData(rawInfo);
+
+  /*
+    Do not allow school admin to change
+    ownerUid or ownerEmail accidentally.
+  */
+  delete safeInfo.ownerUid;
+  delete safeInfo.ownerEmail;
 
   await setDoc(
     schoolRef,
@@ -337,6 +382,10 @@ export async function saveSchoolInfo(
       ...safeInfo,
       id: schoolId,
       updatedAt: serverTimestamp(),
+      ownerUid:
+        existing.ownerUid,
+      ownerEmail:
+        existing.ownerEmail,
     },
     {
       merge: true,
@@ -415,8 +464,17 @@ export async function fetchMyMembership(): Promise<
     return null;
   }
 
+  /*
+    Prefer ACTIVE school membership.
+  */
+  const activeDoc =
+    snapshot.docs.find(
+      (membershipDoc) =>
+        membershipDoc.data().status === 'ACTIVE'
+    );
+
   const membershipDoc =
-    snapshot.docs[0];
+    activeDoc || snapshot.docs[0];
 
   return {
     id: membershipDoc.id,
@@ -487,10 +545,17 @@ export async function updateSchoolMembership(
     );
   }
 
+  const {
+    id: ignoredId,
+    schoolId: ignoredSchoolId,
+    uid: ignoredUid,
+    ...safeUpdates
+  } = updates as any;
+
   await updateDoc(
     membershipRef,
     {
-      ...updates,
+      ...cleanData(safeUpdates),
       updatedAt: serverTimestamp(),
     }
   );
@@ -506,7 +571,11 @@ async function getSchoolDocument(
   schoolId: string,
   documentId: string
 ): Promise<any | null> {
-  if (!collectionName || !schoolId || !documentId) {
+  if (
+    !collectionName ||
+    !schoolId ||
+    !documentId
+  ) {
     return null;
   }
 
@@ -538,6 +607,10 @@ async function getSchoolDocument(
 }
 
 
+/* =========================================================
+   ADD SCHOOL DOCUMENT
+========================================================= */
+
 async function addSchoolDocument(
   collectionName: string,
   schoolId: string,
@@ -561,15 +634,16 @@ async function addSchoolDocument(
     );
   }
 
-  /*
-    Never trust schoolId coming from the UI.
-    The schoolId supplied to this function is always used.
-  */
   const {
     schoolId: ignoredSchoolId,
     id: ignoredId,
-    ...safeData
+    createdAt: ignoredCreatedAt,
+    updatedAt: ignoredUpdatedAt,
+    ...rawData
   } = data;
+
+  const safeData =
+    cleanData(rawData);
 
   const ref =
     await addDoc(
@@ -588,6 +662,10 @@ async function addSchoolDocument(
   return ref.id;
 }
 
+
+/* =========================================================
+   UPDATE SCHOOL DOCUMENT
+========================================================= */
 
 async function updateSchoolDocument(
   collectionName: string,
@@ -632,7 +710,9 @@ async function updateSchoolDocument(
   const existingData =
     snapshot.data();
 
-  if (existingData.schoolId !== schoolId) {
+  if (
+    existingData.schoolId !== schoolId
+  ) {
     throw new Error(
       'You are not allowed to modify this school data.'
     );
@@ -641,18 +721,28 @@ async function updateSchoolDocument(
   const {
     schoolId: ignoredSchoolId,
     id: ignoredId,
-    ...safeData
+    createdAt: ignoredCreatedAt,
+    updatedAt: ignoredUpdatedAt,
+    ...rawData
   } = data || {};
+
+  const safeData =
+    cleanData(rawData);
 
   await updateDoc(
     ref,
     {
       ...safeData,
+      schoolId,
       updatedAt: serverTimestamp(),
     }
   );
 }
 
+
+/* =========================================================
+   DELETE SCHOOL DOCUMENT
+========================================================= */
 
 async function deleteSchoolDocument(
   collectionName: string,
@@ -696,7 +786,9 @@ async function deleteSchoolDocument(
   const existingData =
     snapshot.data();
 
-  if (existingData.schoolId !== schoolId) {
+  if (
+    existingData.schoolId !== schoolId
+  ) {
     throw new Error(
       'You are not allowed to delete this school data.'
     );
@@ -731,7 +823,11 @@ export async function fetchTeachers(
   const teachersQuery =
     query(
       teachersRef,
-      where('schoolId', '==', schoolId)
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
     );
 
   const snapshot =
@@ -803,17 +899,78 @@ export async function deleteTeacher(
     );
   }
 
-  /*
-    Kept compatible with the old function.
-    Security rules should also protect this operation.
-  */
-  await deleteDoc(
+  const ref =
     doc(
       db,
       'teachers',
       id
+    );
+
+  const snapshot =
+    await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Teacher not found.'
+    );
+  }
+
+  const data =
+    snapshot.data();
+
+  const currentUid =
+    auth.currentUser?.uid;
+
+  if (!currentUid) {
+    throw new Error(
+      'You must be logged in.'
+    );
+  }
+
+  /*
+    Teacher records are normally controlled
+    through school memberships.
+    Only platform admin can delete without
+    knowing a school ownership context.
+  */
+  if (
+    !isPlatformAdminEmail(
+      auth.currentUser?.email
     )
-  );
+  ) {
+    if (!data.schoolId) {
+      throw new Error(
+        'Teacher school information is missing.'
+      );
+    }
+
+    const membershipId =
+      `${currentUid}_${data.schoolId}`;
+
+    const membershipRef =
+      doc(
+        db,
+        'schoolMemberships',
+        membershipId
+      );
+
+    const membershipSnapshot =
+      await getDoc(membershipRef);
+
+    if (
+      !membershipSnapshot.exists() ||
+      membershipSnapshot.data().role !==
+        'school_admin' ||
+      membershipSnapshot.data().status !==
+        'ACTIVE'
+    ) {
+      throw new Error(
+        'You are not allowed to delete this teacher.'
+      );
+    }
+  }
+
+  await deleteDoc(ref);
 }
 
 
@@ -829,7 +986,9 @@ export async function fetchAnnouncements(
 
   if (!schoolId) {
     const snapshot =
-      await getDocs(announcementsRef);
+      await getDocs(
+        announcementsRef
+      );
 
     return snapshot.docs.map(
       (announcementDoc) => ({
@@ -842,11 +1001,17 @@ export async function fetchAnnouncements(
   const announcementsQuery =
     query(
       announcementsRef,
-      where('schoolId', '==', schoolId)
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
     );
 
   const snapshot =
-    await getDocs(announcementsQuery);
+    await getDocs(
+      announcementsQuery
+    );
 
   return snapshot.docs.map(
     (announcementDoc) => ({
@@ -914,13 +1079,75 @@ export async function deleteAnnouncement(
     );
   }
 
-  await deleteDoc(
+  const ref =
     doc(
       db,
       'announcements',
       id
+    );
+
+  const snapshot =
+    await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Announcement not found.'
+    );
+  }
+
+  const data =
+    snapshot.data();
+
+  const currentUid =
+    auth.currentUser?.uid;
+
+  if (!currentUid) {
+    throw new Error(
+      'You must be logged in.'
+    );
+  }
+
+  if (
+    isPlatformAdminEmail(
+      auth.currentUser?.email
     )
-  );
+  ) {
+    await deleteDoc(ref);
+    return;
+  }
+
+  const schoolId =
+    data.schoolId;
+
+  if (!schoolId) {
+    throw new Error(
+      'Announcement school information is missing.'
+    );
+  }
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      `${currentUid}_${schoolId}`
+    );
+
+  const membershipSnapshot =
+    await getDoc(membershipRef);
+
+  if (
+    !membershipSnapshot.exists() ||
+    membershipSnapshot.data().role !==
+      'school_admin' ||
+    membershipSnapshot.data().status !==
+      'ACTIVE'
+  ) {
+    throw new Error(
+      'You are not allowed to delete this notice.'
+    );
+  }
+
+  await deleteDoc(ref);
 }
 
 
@@ -949,7 +1176,11 @@ export async function fetchEvents(
   const eventsQuery =
     query(
       eventsRef,
-      where('schoolId', '==', schoolId)
+      where(
+        'schoolId',
+        '==',
+        schoolId
+      )
     );
 
   const snapshot =
@@ -1021,13 +1252,75 @@ export async function deleteEvent(
     );
   }
 
-  await deleteDoc(
+  const ref =
     doc(
       db,
       'events',
       id
+    );
+
+  const snapshot =
+    await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    throw new Error(
+      'Event not found.'
+    );
+  }
+
+  const data =
+    snapshot.data();
+
+  const currentUid =
+    auth.currentUser?.uid;
+
+  if (!currentUid) {
+    throw new Error(
+      'You must be logged in.'
+    );
+  }
+
+  if (
+    isPlatformAdminEmail(
+      auth.currentUser?.email
     )
-  );
+  ) {
+    await deleteDoc(ref);
+    return;
+  }
+
+  const schoolId =
+    data.schoolId;
+
+  if (!schoolId) {
+    throw new Error(
+      'Event school information is missing.'
+    );
+  }
+
+  const membershipRef =
+    doc(
+      db,
+      'schoolMemberships',
+      `${currentUid}_${schoolId}`
+    );
+
+  const membershipSnapshot =
+    await getDoc(membershipRef);
+
+  if (
+    !membershipSnapshot.exists() ||
+    membershipSnapshot.data().role !==
+      'school_admin' ||
+    membershipSnapshot.data().status !==
+      'ACTIVE'
+  ) {
+    throw new Error(
+      'You are not allowed to delete this event.'
+    );
+  }
+
+  await deleteDoc(ref);
 }
 
 
@@ -1472,6 +1765,12 @@ export async function addAuthorizedAdmin(
   uid: string,
   email: string
 ): Promise<void> {
+  if (!uid || !email) {
+    throw new Error(
+      'UID and email are required.'
+    );
+  }
+
   await setDoc(
     doc(
       db,
@@ -1480,9 +1779,11 @@ export async function addAuthorizedAdmin(
     ),
     {
       uid,
-      email,
+      email:
+        email.trim().toLowerCase(),
       role: 'admin',
-      addedAt: serverTimestamp(),
+      addedAt:
+        serverTimestamp(),
     }
   );
 }
@@ -1491,6 +1792,12 @@ export async function addAuthorizedAdmin(
 export async function removeAuthorizedAdmin(
   uid: string
 ): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'UID is required.'
+    );
+  }
+
   await deleteDoc(
     doc(
       db,
@@ -1527,6 +1834,12 @@ export async function addAuthorizedFaculty(
   uid: string,
   email: string
 ): Promise<void> {
+  if (!uid || !email) {
+    throw new Error(
+      'UID and email are required.'
+    );
+  }
+
   await setDoc(
     doc(
       db,
@@ -1535,9 +1848,11 @@ export async function addAuthorizedFaculty(
     ),
     {
       uid,
-      email,
+      email:
+        email.trim().toLowerCase(),
       role: 'faculty',
-      addedAt: serverTimestamp(),
+      addedAt:
+        serverTimestamp(),
     }
   );
 }
@@ -1546,6 +1861,12 @@ export async function addAuthorizedFaculty(
 export async function removeAuthorizedFaculty(
   uid: string
 ): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      'UID is required.'
+    );
+  }
+
   await deleteDoc(
     doc(
       db,
@@ -1594,7 +1915,11 @@ export function formatDate(
       const date =
         new Date(value);
 
-      if (!isNaN(date.getTime())) {
+      if (
+        !isNaN(
+          date.getTime()
+        )
+      ) {
         return date.toLocaleDateString(
           'en-IN'
         );
@@ -1751,6 +2076,19 @@ export async function registerSchool(
       'schoolMemberships',
       membershipId
     );
+
+  /*
+    Prevent duplicate membership
+    from being silently overwritten.
+  */
+  const existingMembership =
+    await getDoc(membershipRef);
+
+  if (existingMembership.exists()) {
+    throw new Error(
+      'This school registration already exists.'
+    );
+  }
 
   const now =
     new Date().toISOString();
