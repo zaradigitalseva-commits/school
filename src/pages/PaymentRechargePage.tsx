@@ -164,10 +164,6 @@ export default function PaymentRechargePage() {
           );
         }
 
-        if (!currentSchoolId) {
-          throw new Error('School information नहीं मिली।');
-        }
-
         setSchoolId(currentSchoolId);
         setSchoolName(currentSchoolName);
 
