@@ -29,6 +29,9 @@ import PaymentRechargePage from '@/pages/PaymentRechargePage';
 import PlatformAdminPage from '@/pages/PlatformAdminPage';
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
 
+// Advertisement Admin
+import AdvertisementAdminPage from '@/pages/admin/AdvertisementAdminPage';
+
 // Super Admin school data viewer
 import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
 
@@ -160,6 +163,22 @@ function App() {
                 allowedRoles={['platform_admin']}
               >
                 <PlatformAdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =====================================================
+              ADVERTISEMENT ADMIN
+              Platform Admin Only
+          ====================================================== */}
+
+          <Route
+            path="/admin/advertisements"
+            element={
+              <ProtectedRoute
+                allowedRoles={['platform_admin']}
+              >
+                <AdvertisementAdminPage />
               </ProtectedRoute>
             }
           />
