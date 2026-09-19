@@ -746,45 +746,36 @@ export default function PaymentRechargePage() {
 
           {/* RIGHT - FORM + HISTORY */}
           <div className="space-y-6">
-            {/* SUBMIT FORM */}
-            {showUtrForm ? (
-              <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
-                <h2 className="text-xl font-black text-slate-900">🧾 Payment के बाद UTR भेजें</h2>
-                <div className="mt-4 rounded-2xl border-2 border-green-200 bg-green-50 p-4 text-sm font-bold text-green-700">
-                  ✅ Payment करने के बाद अपना UTR / Transaction ID यहाँ डालें।
+            {/* SUBMIT FORM - UTR ALWAYS VISIBLE */}
+            <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
+              <h2 className="text-xl font-black text-slate-900">🧾 Payment Details</h2>
+              <div className="mt-4 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 text-sm font-bold text-blue-700">
+                💡 इसी मोबाइल से Pay Now करके वापस आएँ, या दूसरे मोबाइल से QR payment करें। Payment के बाद UTR Number यहाँ डालकर भेजें।
+              </div>
+              <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+                <div>
+                  <label className="mb-2 block font-black text-slate-700">UTR Number *</label>
+                  <input
+                    type="text"
+                    value={utr}
+                    onChange={(event) => setUtr(event.target.value)}
+                    placeholder="Payment का UTR Number डालें"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  />
+                  <p className="mt-2 text-xs font-bold text-slate-400">⚠️ एक UTR Number केवल एक बार submit किया जा सकता है।</p>
                 </div>
-                <form onSubmit={handleSubmit} className="mt-5 space-y-5">
-                  <div>
-                    <label className="mb-2 block font-black text-slate-700">UTR Number *</label>
-                    <input
-                      type="text"
-                      value={utr}
-                      onChange={(event) => setUtr(event.target.value)}
-                      placeholder="Payment का UTR Number डालें"
-                      autoComplete="off"
-                      spellCheck={false}
-                      autoFocus
-                      className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                    />
-                    <p className="mt-2 text-xs font-bold text-slate-400">⚠️ एक UTR Number केवल एक बार submit किया जा सकता है।</p>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-3"><span className="font-bold text-slate-500">School</span><span className="max-w-[60%] text-right font-black text-slate-900">{schoolName || '-'}</span></div>
-                    <div className="mt-3 flex items-center justify-between border-b border-slate-200 pb-3"><span className="font-bold text-slate-500">Package</span><span className="font-black text-slate-900">₹{selectedPackage.amount}</span></div>
-                    <div className="mt-3 flex items-center justify-between"><span className="font-bold text-slate-500">Validity</span><span className="font-black text-slate-900">{selectedPackage.days} Days</span></div>
-                  </div>
-                  <button type="submit" disabled={submitting || !schoolId} className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-6 py-4 text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:brightness-105 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50">
-                    {submitting ? '⏳ UTR Sending...' : '📤 UTR SEND'}
-                  </button>
-                </form>
-              </section>
-            ) : (
-              <section className="rounded-3xl bg-white p-5 text-center shadow-2xl md:p-6">
-                <div className="text-4xl">💳</div>
-                <h2 className="mt-2 text-xl font-black text-slate-900">Payment के बाद UTR भेजें</h2>
-                <p className="mt-2 text-sm font-bold text-slate-500">पहले ऊपर दिए गए Pay Now से payment करें। Payment के बाद यहाँ UTR डालने का form दिखाई देगा।</p>
-              </section>
-            )}
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3"><span className="font-bold text-slate-500">School</span><span className="max-w-[60%] text-right font-black text-slate-900">{schoolName || '-'}</span></div>
+                  <div className="mt-3 flex items-center justify-between border-b border-slate-200 pb-3"><span className="font-bold text-slate-500">Package</span><span className="font-black text-slate-900">₹{selectedPackage.amount}</span></div>
+                  <div className="mt-3 flex items-center justify-between"><span className="font-bold text-slate-500">Validity</span><span className="font-black text-slate-900">{selectedPackage.days} Days</span></div>
+                </div>
+                <button type="submit" disabled={submitting || !schoolId} className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-6 py-4 text-lg font-black text-white shadow-[0_7px_0_rgb(67,56,202)] transition hover:brightness-105 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50">
+                  {submitting ? '⏳ UTR Sending...' : '📤 UTR SEND'}
+                </button>
+              </form>
+            </section>
 
             {/* HISTORY */}
             <section className="rounded-3xl bg-white p-5 shadow-2xl md:p-6">
