@@ -1,4 +1,3 @@
-
 import {
   collection,
   doc,
@@ -911,6 +910,60 @@ export async function deleteEvent(
 
 
 /* =========================================================
+   FETCH SCHOOL COLLECTION
+   Students / Classes / Results / Homework /
+   Attendance / Gallery / Documents
+========================================================= */
+
+export async function fetchSchoolCollection(
+  schoolId: string,
+  collectionName: string
+): Promise<any[]> {
+  if (!schoolId || !collectionName) {
+    return [];
+  }
+
+  try {
+    const collectionRef =
+      collection(
+        db,
+        collectionName
+      );
+
+    const collectionQuery =
+      query(
+        collectionRef,
+        where(
+          'schoolId',
+          '==',
+          schoolId
+        )
+      );
+
+    const snapshot =
+      await getDocs(
+        collectionQuery
+      );
+
+    return snapshot.docs.map(
+      (item) => ({
+        id:
+          item.id,
+        ...item.data(),
+      })
+    );
+  } catch (error) {
+    console.error(
+      `Error fetching school collection "${collectionName}" for school "${schoolId}":`,
+      error
+    );
+
+    return [];
+  }
+}
+
+
+/* =========================================================
    AUTHORIZED ADMINS
 ========================================================= */
 
@@ -1352,4 +1405,3 @@ export async function registerSchool(
 
   return school;
 }
-
