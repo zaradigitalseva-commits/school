@@ -22,6 +22,7 @@ import {
 import {
   fetchPublicSchools,
   fetchActivePlatformAds,
+  isPlatformAdminEmail,
   type PlatformAd,
 } from '@/firebase/firestore';
 import type { School } from '@/firebase/types';
@@ -112,6 +113,12 @@ export default function HomePage() {
   const openDashboard = () => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    // Always send the platform owner's exact email to the Platform Admin dashboard.
+    if (isPlatformAdminEmail(user.email)) {
+      navigate('/admin');
       return;
     }
 
