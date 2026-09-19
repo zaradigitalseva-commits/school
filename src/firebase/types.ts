@@ -122,6 +122,7 @@ export interface SchoolMembership {
   status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
 
   assignments?: string[];
+  subject?: string;
 
   createdAt: string;
   updatedAt: string;
