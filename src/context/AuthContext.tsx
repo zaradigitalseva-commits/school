@@ -52,20 +52,24 @@ export function AuthProvider({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeMembership: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(
       auth,
       async (firebaseUser) => {
         setLoading(true);
 
         if (!firebaseUser) {
-          const previousUser = auth.currentUser as any;
-          previousUser?.__schoolMembershipUnsubscribe?.();
+          unsubscribeMembership?.();
+          unsubscribeMembership = null;
           setUser(null);
           setRole('user');
           setLoading(false);
           return;
         }
 
+        unsubscribeMembership?.();
+        unsubscribeMembership = null;
         setUser(firebaseUser);
 
         const email =
@@ -100,7 +104,7 @@ export function AuthProvider({
 
           // Keep role live. If platform admin approves/suspends the membership,
           // this account changes role without requiring a browser refresh.
-          const unsubscribeMembership = subscribeToMyMembership(
+          unsubscribeMembership = subscribeToMyMembership(
             firebaseUser.uid,
             (liveMembership) => {
               if (liveMembership?.status === 'ACTIVE' && liveMembership.role === 'school_admin') {
@@ -113,7 +117,7 @@ export function AuthProvider({
             },
             (error) => console.error('Realtime membership listener failed:', error)
           );
-          (firebaseUser as any).__schoolMembershipUnsubscribe = unsubscribeMembership;
+
         } catch (error) {
           console.error(
             'Auth role resolution failed:',
@@ -128,7 +132,10 @@ export function AuthProvider({
       }
     );
 
-    return unsubscribe;
+    return () => {
+      unsubscribeMembership?.();
+      unsubscribe();
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
