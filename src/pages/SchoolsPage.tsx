@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchPublicSchools } from '@/firebase/firestore';
+import { subscribeToPublicSchools } from '@/firebase/firestore';
 import type { School } from '@/firebase/types';
 
 export default function SchoolsPage() {
@@ -10,40 +10,22 @@ export default function SchoolsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    let mounted = true;
+    setLoading(true);
+    setError('');
 
-    async function loadSchools() {
-      try {
-        setLoading(true);
-        setError('');
-
-        const data = await fetchPublicSchools();
-
-        if (mounted) {
-          setSchools(data);
-        }
-      } catch (err) {
-        console.error('Failed to load schools:', err);
-
-        if (mounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Unable to load schools.'
-          );
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+    const unsubscribe = subscribeToPublicSchools(
+      (data) => {
+        setSchools(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Failed to subscribe to schools:', err);
+        setError(err.message || 'Unable to load schools.');
+        setLoading(false);
       }
-    }
+    );
 
-    loadSchools();
-
-    return () => {
-      mounted = false;
-    };
+    return unsubscribe;
   }, []);
 
   const filteredSchools = useMemo(() => {
