@@ -3,10 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
-
     function signedIn() {
       return request.auth != null;
     }
@@ -16,455 +12,286 @@ service cloud.firestore {
         && request.auth.token.email == 'ngogrant454@gmail.com';
     }
 
-    function isSchoolAdmin(schoolId) {
+    function membershipId(uid, schoolId) {
+      return uid + '_' + schoolId;
+    }
+
+    function activeMembership(schoolId) {
       return signedIn()
-        && exists(
-          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
-        )
-        && get(
-          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
-        ).data.role == 'school_admin'
-        && get(
-          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
-        ).data.status == 'ACTIVE';
+        && exists(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId)))
+        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.uid == request.auth.uid
+        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.schoolId == schoolId
+        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.status == 'ACTIVE';
+    }
+
+    function isSchoolAdmin(schoolId) {
+      return activeMembership(schoolId)
+        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'school_admin';
     }
 
     function isTeacher(schoolId) {
-      return signedIn()
-        && exists(
-          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
-        )
-        && get(
-          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
-        ).data.role == 'teacher'
-        && get(
-          /databases/$(database)/documents/schoolMemberships/$(request.auth.uid + '_' + schoolId)
-        ).data.status == 'ACTIVE';
+      return activeMembership(schoolId)
+        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'teacher';
     }
 
     function schoolMember(schoolId) {
       return isSchoolAdmin(schoolId) || isTeacher(schoolId);
     }
 
-    // ============================================================
-    // USERS
-    // ============================================================
+    function liveSchool(schoolId) {
+      return exists(/databases/$(database)/documents/schools/$(schoolId))
+        && get(/databases/$(database)/documents/schools/$(schoolId)).data.status == 'LIVE';
+    }
 
     match /users/{uid} {
-      allow read: if signedIn() && (
-        request.auth.uid == uid ||
-        isPlatformAdmin()
-      );
-
-      allow create: if signedIn() &&
-        request.auth.uid == uid;
-
-      allow update: if signedIn() && (
-        request.auth.uid == uid ||
-        isPlatformAdmin()
-      );
-
+      allow read: if isPlatformAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isPlatformAdmin()
+        || (signedIn() && request.auth.uid == uid
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'photoURL', 'phone', 'updatedAt']));
       allow delete: if isPlatformAdmin();
     }
-
-    // ============================================================
-    // SCHOOLS
-    // ============================================================
 
     match /schools/{schoolId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          signedIn()
-          && resource.data.ownerUid == request.auth.uid
-        )
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid)
         || resource.data.status == 'LIVE';
 
-      allow create: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'PENDING_PAYMENT'
+        && request.resource.data.paymentStatus == 'PENDING'
+        && request.resource.data.subscriptionStatus == 'PENDING';
 
-      allow update: if
-        isPlatformAdmin()
-        || (
-          signedIn()
-          && resource.data.ownerUid == request.auth.uid
-        );
+      allow update: if isPlatformAdmin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.paymentStatus == resource.data.paymentStatus
+          && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly([
+               'name', 'slug', 'address', 'phone', 'email',
+               'whatsappNumber', 'whatsappVerified', 'tagline',
+               'description', 'logoUrl', 'heroImageUrl',
+               'principalName', 'principalMessage', 'principalImageUrl',
+               'campusImages', 'totalStudents', 'totalTeachers',
+               'foundedYear', 'updatedAt'
+             ]));
 
       allow delete: if isPlatformAdmin();
     }
-
-    // ============================================================
-    // SCHOOL MEMBERSHIPS
-    // ============================================================
 
     match /schoolMemberships/{membershipId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid)
+        || (signedIn() && resource.data.schoolId is string
+            && isSchoolAdmin(resource.data.schoolId));
 
-      allow read: if
-        isPlatformAdmin()
-        || (
-          signedIn()
-          && resource.data.uid == request.auth.uid
-        )
-        || (
-          signedIn()
-          && resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          signedIn()
+      // Registration may create only its own PENDING school_admin membership.
+      allow create: if isPlatformAdmin()
+        || (signedIn()
           && request.resource.data.uid == request.auth.uid
-        );
+          && request.resource.data.role == 'school_admin'
+          && request.resource.data.status == 'PENDING'
+          && request.resource.data.schoolId is string
+          && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+          && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid);
 
-      allow update: if
-        isPlatformAdmin()
-        || (
-          signedIn()
+      // A school admin may manage membership records in only their own school,
+      // but cannot change the school/uid of an existing membership.
+      allow update: if isPlatformAdmin()
+        || (signedIn()
           && resource.data.schoolId is string
           && isSchoolAdmin(resource.data.schoolId)
-        );
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.uid == resource.data.uid);
 
       allow delete: if isPlatformAdmin();
     }
-
-    // ============================================================
-    // SLUG RESERVATIONS
-    // ============================================================
 
     match /slugReservations/{slug} {
       allow read: if signedIn();
-      allow create: if signedIn();
+      // Only the owner registering a school may reserve the slug.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+        && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
       allow update, delete: if isPlatformAdmin();
     }
 
-    // ============================================================
-    // TEACHERS
-    // ============================================================
-
     match /teachers/{teacherId} {
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
 
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || resource.data.schoolId is string
-           && get(
-                /databases/$(database)/documents/schools/$(resource.data.schoolId)
-              ).data.status == 'LIVE';
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
 
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
+      allow update: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
 
-      allow update: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
-
-      allow delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
+      allow delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
-
-    // ============================================================
-    // ANNOUNCEMENTS
-    // ============================================================
 
     match /announcements/{announcementId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
     }
-
-    // ============================================================
-    // EVENTS
-    // ============================================================
 
     match /events/{eventId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
     }
 
-    // ============================================================
-    // FUTURE MULTI-SCHOOL COLLECTIONS
-    // ============================================================
-
     match /students/{studentId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
     }
 
     match /classes/{classId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
     }
 
     match /results/{resultId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
     }
 
     match /homework/{homeworkId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        )
-        || (
-          request.resource.data.schoolId is string
-          && isTeacher(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && isTeacher(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
+        || (request.resource.data.schoolId is string && isTeacher(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && isTeacher(resource.data.schoolId));
     }
 
     match /attendance/{attendanceId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        )
-        || (
-          request.resource.data.schoolId is string
-          && isTeacher(request.resource.data.schoolId)
-        );
-
-      allow update, delete: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && isSchoolAdmin(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && isTeacher(resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
+        || (request.resource.data.schoolId is string && isTeacher(request.resource.data.schoolId));
+      allow update, delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && isTeacher(resource.data.schoolId));
     }
 
     match /gallery/{galleryId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create, update, delete: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create, update, delete: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
     }
 
     match /documents/{documentId} {
-
-      allow read: if
-        isPlatformAdmin()
-        || (
-          resource.data.schoolId is string
-          && schoolMember(resource.data.schoolId)
-        )
-        || (
-          resource.data.schoolId is string
-          && get(
-               /databases/$(database)/documents/schools/$(resource.data.schoolId)
-             ).data.status == 'LIVE'
-        );
-
-      allow create, update, delete: if
-        isPlatformAdmin()
-        || (
-          request.resource.data.schoolId is string
-          && isSchoolAdmin(request.resource.data.schoolId)
-        );
+      allow read: if isPlatformAdmin()
+        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
+        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+      allow create, update, delete: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
     }
 
-    // ============================================================
-    // DEFAULT DENY
-    // ============================================================
+    // Payment data: platform admin controls settings/approval and school owner
+    // may create/read only their own recharge requests.
+    match /platformSettings/{settingId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /rechargeRequests/{rechargeId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+        && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'PENDING';
+      allow update: if isPlatformAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['proofImageUrl', 'updatedAt']));
+      allow delete: if isPlatformAdmin();
+    }
+
+    match /utrReservations/{utr} {
+      allow read: if isPlatformAdmin();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+        && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
+      allow update, delete: if isPlatformAdmin();
+    }
+
+    match /wallets/{schoolId} {
+      allow read: if isPlatformAdmin() || (signedIn() && isSchoolAdmin(schoolId));
+      allow write: if isPlatformAdmin();
+    }
+
+    match /walletTransactions/{transactionId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /subscriptions/{schoolId} {
+      allow read: if isPlatformAdmin() || (signedIn() && isSchoolAdmin(schoolId));
+      allow write: if isPlatformAdmin();
+    }
+
+    match /authorizedAdmins/{uid} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /authorizedFaculty/{uid} {
+      allow read, write: if isPlatformAdmin();
+    }
 
     match /{document=**} {
       allow read, write: if false;
