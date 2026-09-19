@@ -440,48 +440,58 @@ export async function fetchSchoolBySlug(
    SCHOOL MEMBERSHIP
 ========================================================= */
 
-export async function fetchMyMembership(): Promise<
-  SchoolMembership | null
-> {
-  const uid =
-    auth.currentUser?.uid;
+export async function fetchMyMemberships(): Promise<SchoolMembership[]> {
+  const uid = auth.currentUser?.uid;
 
   if (!uid) {
-    return null;
+    return [];
   }
 
-  const membershipsRef =
-    collection(db, 'schoolMemberships');
-
-  const membershipsQuery =
+  const snapshot = await getDocs(
     query(
-      membershipsRef,
+      collection(db, 'schoolMemberships'),
       where('uid', '==', uid)
+    )
+  );
+
+  return snapshot.docs.map(
+    (membershipDoc) => ({
+      id: membershipDoc.id,
+      ...membershipDoc.data(),
+    } as SchoolMembership)
+  );
+}
+
+export async function fetchMyMembership(
+  preferredSchoolId?: string
+): Promise<SchoolMembership | null> {
+  const memberships = await fetchMyMemberships();
+
+  const active = memberships.filter(
+    (membership) =>
+      membership.status === 'ACTIVE'
+  );
+
+  if (preferredSchoolId) {
+    return (
+      active.find(
+        (membership) =>
+          membership.schoolId === preferredSchoolId
+      ) || null
     );
-
-  const snapshot =
-    await getDocs(membershipsQuery);
-
-  if (snapshot.empty) {
-    return null;
   }
 
-  /*
-    Prefer ACTIVE school membership.
-  */
-  const activeDoc =
-    snapshot.docs.find(
-      (membershipDoc) =>
-        membershipDoc.data().status === 'ACTIVE'
-    );
-
-  const membershipDoc =
-    activeDoc || snapshot.docs[0];
-
-  return {
-    id: membershipDoc.id,
-    ...membershipDoc.data(),
-  } as SchoolMembership;
+  // Prefer an active school administrator when multiple
+  // active memberships exist.
+  return (
+    active.find(
+      (membership) =>
+        membership.role === 'school_admin'
+    ) ||
+    active[0] ||
+    memberships[0] ||
+    null
+  );
 }
 
 
