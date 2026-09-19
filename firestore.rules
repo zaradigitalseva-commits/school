@@ -38,6 +38,13 @@ service cloud.firestore {
       return isSchoolAdmin(schoolId) || isTeacher(schoolId);
     }
 
+    function teacherAssigned(schoolId, className) {
+      return isTeacher(schoolId)
+        && className is string
+        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments is list
+        && className in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments;
+    }
+
     function liveSchool(schoolId) {
       return exists(/databases/$(database)/documents/schools/$(schoolId))
         && get(/databases/$(database)/documents/schools/$(schoolId)).data.status == 'LIVE';
@@ -99,16 +106,24 @@ service cloud.firestore {
           && request.resource.data.role == 'school_admin'
           && request.resource.data.status == 'PENDING'
           && request.resource.data.schoolId is string
-          && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid);
+          && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid)
+        || (signedIn()
+          && request.resource.data.role == 'teacher'
+          && request.resource.data.status in ['ACTIVE', 'PENDING']
+          && request.resource.data.schoolId is string
+          && isSchoolAdmin(request.resource.data.schoolId)
+          && request.resource.data.uid is string);
 
-      // A school admin may manage membership records in only their own school,
-      // but cannot change the school/uid of an existing membership.
+      // A school admin may manage staff in only their own school.
+      // They cannot convert a staff member into a school administrator.
       allow update: if isPlatformAdmin()
         || (signedIn()
           && resource.data.schoolId is string
           && isSchoolAdmin(resource.data.schoolId)
           && request.resource.data.schoolId == resource.data.schoolId
-          && request.resource.data.uid == resource.data.uid);
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.role == 'teacher');
 
       allow delete: if isPlatformAdmin();
     }
@@ -200,10 +215,14 @@ service cloud.firestore {
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
-        || (request.resource.data.schoolId is string && isTeacher(request.resource.data.schoolId));
-      allow update, delete: if isPlatformAdmin()
+        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+      allow update: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && isTeacher(resource.data.schoolId));
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
+            && request.resource.data.schoolId == resource.data.schoolId
+            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+      allow delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
     match /attendance/{attendanceId} {
