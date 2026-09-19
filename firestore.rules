@@ -328,12 +328,15 @@ service cloud.firestore {
 
     match /walletTransactions/{transactionId} {
       allow read: if isPlatformAdmin()
-        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (signedIn() && resource.data.schoolId is string && isSchoolOwner(resource.data.schoolId));
       allow create, update, delete: if isPlatformAdmin();
     }
 
     match /subscriptions/{schoolId} {
-      allow read: if isPlatformAdmin() || (signedIn() && isSchoolAdmin(schoolId));
+      allow read: if isPlatformAdmin()
+        || (signedIn() && isSchoolAdmin(schoolId))
+        || isSchoolOwner(schoolId);
       allow write: if isPlatformAdmin();
     }
 
