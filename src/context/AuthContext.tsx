@@ -24,292 +24,118 @@ import {
 
 import type { UserRole } from '@/firebase/types';
 
-/*
- * =========================================================
- * AUTH CONTEXT TYPE
- * =========================================================
- */
-
 interface AuthContextValue {
   user: User | null;
   role: UserRole;
   loading: boolean;
-
-  // Current role helpers
   isPlatformAdmin: boolean;
   isSchoolAdmin: boolean;
   isTeacher: boolean;
   isUser: boolean;
-
-  // Legacy compatibility
   isAdmin: boolean;
   isFaculty: boolean;
-
-  // Authentication
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-/*
- * =========================================================
- * CONTEXT
- * =========================================================
- */
-
 const AuthContext =
-  createContext<AuthContextValue | undefined>(
-    undefined
-  );
-
-/*
- * =========================================================
- * PROVIDER
- * =========================================================
- */
+  createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [user, setUser] =
-    useState<User | null>(null);
-
-  const [role, setRole] =
-    useState<UserRole>('user');
-
-  const [loading, setLoading] =
-    useState(true);
-
-  /*
-   * =======================================================
-   * FIREBASE AUTH STATE
-   * =======================================================
-   *
-   * This runs:
-   *
-   * - after Google login
-   * - after browser refresh
-   * - when Firebase restores the login session
-   * - after logout
-   *
-   * IMPORTANT:
-   * Platform Admin is resolved BEFORE Firestore role lookup.
-   */
+  const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<UserRole>('user');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe =
-      onAuthStateChanged(
-        auth,
-        async (firebaseUser) => {
-          // Always show loading while authentication
-          // and application role are being resolved.
-          setLoading(true);
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        setLoading(true);
 
-          /*
-           * =================================================
-           * NO USER
-           * =================================================
-           */
+        if (!firebaseUser) {
+          setUser(null);
+          setRole('user');
+          setLoading(false);
+          return;
+        }
 
-          if (!firebaseUser) {
-            setUser(null);
-            setRole('user');
+        setUser(firebaseUser);
+
+        const email =
+          firebaseUser.email?.trim().toLowerCase() ?? '';
+
+        try {
+          if (isPlatformAdminEmail(email)) {
+            try {
+              await ensureUserRecord(firebaseUser.uid, email);
+            } catch (error) {
+              console.error(
+                'Platform admin user record sync failed:',
+                error
+              );
+            }
+
+            setRole('platform_admin');
             setLoading(false);
             return;
           }
 
-          /*
-           * =================================================
-           * USER EXISTS
-           * =================================================
-           */
+          await ensureUserRecord(firebaseUser.uid, email);
 
-          setUser(firebaseUser);
+          const membership = await fetchMyMembership();
 
-          const email =
-            firebaseUser.email
-              ?.trim()
-              .toLowerCase() ?? '';
-
-          try {
-            /*
-             * =================================================
-             * 1. PLATFORM ADMIN
-             * =================================================
-             *
-             * ngogrant454@gmail.com is the fixed
-             * Platform/Super Admin.
-             *
-             * This check MUST happen before Firestore
-             * role lookup.
-             *
-             * Therefore even after refresh:
-             *
-             * ngogrant454@gmail.com
-             *        ↓
-             * platform_admin
-             */
-
-            if (
-              isPlatformAdminEmail(email)
-            ) {
-              /*
-               * Make sure the user document exists.
-               *
-               * If this Firestore write fails, we STILL
-               * keep the platform_admin role.
-               */
-
-              try {
-                /*
-             * Normal users are identified by their ACTIVE
-             * school membership. We do not trust users/{uid}.role
-             * for school_admin/teacher access because a normal user
-             * must never be able to promote their own role.
-             */
-            await ensureUserRecord(
-              firebaseUser.uid,
-              email
-            );
-
-            const membership =
-              await fetchMyMembership();
-
-            if (
-              membership?.status === 'ACTIVE' &&
-              membership.role === 'school_admin'
-            ) {
-              setRole('school_admin');
-            } else if (
-              membership?.status === 'ACTIVE' &&
-              membership.role === 'teacher'
-            ) {
-              setRole('teacher');
-            } else {
-              setRole('user');
-            }
-          } catch (error) {
-            /*
-             * =================================================
-             * ROLE RESOLUTION ERROR
-             * =================================================
-             *
-             * Safe fallback:
-             *
-             * Platform Admin
-             *      → platform_admin
-             *
-             * Everyone else
-             *      → user
-             *
-             * We NEVER give school_admin or teacher access
-             * if role lookup fails.
-             */
-
-            console.error(
-              'Auth role resolution failed:',
-              error
-            );
-
-            if (
-              isPlatformAdminEmail(email)
-            ) {
-              setRole('platform_admin');
-            } else {
-              setRole('user');
-            }
+          if (
+            membership?.status === 'ACTIVE' &&
+            membership.role === 'school_admin'
+          ) {
+            setRole('school_admin');
+          } else if (
+            membership?.status === 'ACTIVE' &&
+            membership.role === 'teacher'
+          ) {
+            setRole('teacher');
+          } else {
+            setRole('user');
           }
+        } catch (error) {
+          console.error(
+            'Auth role resolution failed:',
+            error
+          );
 
+          // Never grant elevated access on a lookup error.
+          setRole('user');
+        } finally {
           setLoading(false);
         }
-      );
-
-    /*
-     * Cleanup Firebase listener
-     */
+      }
+    );
 
     return unsubscribe;
   }, []);
 
-  /*
-   * =========================================================
-   * GOOGLE LOGIN
-   * =========================================================
-   */
+  const signInWithGoogle = useCallback(async () => {
+    await signInWithPopup(auth, googleProvider);
+  }, []);
 
-  const signInWithGoogle =
-    useCallback(async () => {
-      await signInWithPopup(
-        auth,
-        googleProvider
-      );
-    }, []);
+  const signOut = useCallback(async () => {
+    try {
+      await firebaseSignOut(auth);
+    } finally {
+      setUser(null);
+      setRole('user');
+      setLoading(false);
+    }
+  }, []);
 
-  /*
-   * =========================================================
-   * LOGOUT
-   * =========================================================
-   */
-
-  const signOut =
-    useCallback(async () => {
-      try {
-        await firebaseSignOut(auth);
-      } finally {
-        /*
-         * Clear local state immediately.
-         */
-
-        setUser(null);
-        setRole('user');
-        setLoading(false);
-      }
-    }, []);
-
-  /*
-   * =========================================================
-   * ROLE HELPERS
-   * =========================================================
-   */
-
-  const isPlatformAdmin =
-    role === 'platform_admin';
-
-  const isSchoolAdmin =
-    role === 'school_admin';
-
-  const isTeacher =
-    role === 'teacher';
-
-  const isUser =
-    role === 'user';
-
-  /*
-   * =========================================================
-   * LEGACY HELPERS
-   * =========================================================
-   *
-   * Existing old components may still use:
-   *
-   * isAdmin
-   * isFaculty
-   *
-   * Keep these for compatibility.
-   */
-
-  const isAdmin =
-    isPlatformAdmin ||
-    isSchoolAdmin;
-
-  const isFaculty =
-    isTeacher;
-
-  /*
-   * =========================================================
-   * PROVIDER
-   * =========================================================
-   */
+  const isPlatformAdmin = role === 'platform_admin';
+  const isSchoolAdmin = role === 'school_admin';
+  const isTeacher = role === 'teacher';
+  const isUser = role === 'user';
 
   return (
     <AuthContext.Provider
@@ -317,15 +143,12 @@ export function AuthProvider({
         user,
         role,
         loading,
-
         isPlatformAdmin,
         isSchoolAdmin,
         isTeacher,
         isUser,
-
-        isAdmin,
-        isFaculty,
-
+        isAdmin: isPlatformAdmin || isSchoolAdmin,
+        isFaculty: isTeacher,
         signInWithGoogle,
         signOut,
       }}
@@ -335,16 +158,9 @@ export function AuthProvider({
   );
 }
 
-/*
- * =========================================================
- * useAuth HOOK
- * =========================================================
- */
-
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
-  const context =
-    useContext(AuthContext);
+  const context = useContext(AuthContext);
 
   if (!context) {
     throw new Error(
