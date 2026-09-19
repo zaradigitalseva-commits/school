@@ -53,6 +53,11 @@ import {
   addDocument,
   updateDocument,
   deleteDocument,
+
+  fetchTeachers,
+  addTeacher,
+  updateTeacher,
+  deleteTeacher,
 } from '@/firebase/firestore';
 
 import type {
@@ -87,6 +92,9 @@ export default function SchoolAdminPage() {
 
   const [memberships, setMemberships] =
     useState<SchoolMembership[]>([]);
+
+  const [teacherRecords, setTeacherRecords] =
+    useState<AnyRecord[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -245,6 +253,14 @@ export default function SchoolAdminPage() {
 
       setMemberships(
         membershipData
+      );
+
+      const teacherData = await fetchTeachers(
+        currentSchoolId
+      );
+
+      setTeacherRecords(
+        teacherData as AnyRecord[]
       );
 
     } catch (err) {
@@ -1397,6 +1413,9 @@ export default function SchoolAdminPage() {
           {activeSection ===
             'teachers' && (
             <TeachersSection
+              schoolId={schoolId}
+              teacherRecords={teacherRecords}
+              setTeacherRecords={setTeacherRecords}
               teachers={
                 teachers
               }
@@ -2346,6 +2365,220 @@ const moduleConfig: Record<
 };
 
 
+
+/* =========================================================
+   TEACHER PHOTO UPLOAD
+   Free: image is resized/compressed in the browser and
+   stored directly in the teacher Firestore document.
+========================================================= */
+
+async function compressTeacherPhoto(
+  file: File
+): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Please select an image file.');
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('Photo must be smaller than 5 MB.');
+  }
+
+  const sourceUrl = URL.createObjectURL(file);
+
+  try {
+    const image = new Image();
+
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () =>
+        reject(new Error('Unable to read this photo.'));
+      image.src = sourceUrl;
+    });
+
+    const maxSize = 600;
+    const scale = Math.min(
+      1,
+      maxSize / Math.max(image.naturalWidth, image.naturalHeight)
+    );
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(
+      1,
+      Math.round(image.naturalWidth * scale)
+    );
+    canvas.height = Math.max(
+      1,
+      Math.round(image.naturalHeight * scale)
+    );
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Photo processing is not supported in this browser.');
+    }
+
+    context.drawImage(
+      image,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+
+    if (dataUrl.length > 450000) {
+      throw new Error(
+        'Photo is still too large after compression. Please choose a smaller photo.'
+      );
+    }
+
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function TeacherPhotoUpload({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const choosePhoto = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      setError('');
+
+      const dataUrl = await compressTeacherPhoto(file);
+      onChange(dataUrl);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to upload photo.'
+      );
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: 12,
+        marginBottom: 16,
+      }}
+    >
+      <span
+        style={{
+          fontWeight: 800,
+          color: '#334155',
+        }}
+      >
+        Teacher Photo
+      </span>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        {value ? (
+          <img
+            src={value}
+            alt="Teacher preview"
+            style={{
+              width: 96,
+              height: 96,
+              borderRadius: 20,
+              objectFit: 'cover',
+              border: '2px solid #cbd5e1',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 96,
+              height: 96,
+              borderRadius: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#eff6ff',
+              border: '2px dashed #93c5fd',
+              fontSize: 38,
+            }}
+          >
+            👨‍🏫
+          </div>
+        )}
+
+        <label
+          style={{
+            ...styles.primaryButton,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: uploading ? 'wait' : 'pointer',
+          }}
+        >
+          {uploading ? '⏳ Processing...' : '📷 Upload Photo'}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={choosePhoto}
+            disabled={uploading}
+            style={{ display: 'none' }}
+          />
+        </label>
+
+        {value && (
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={() => onChange('')}
+            disabled={uploading}
+          >
+            Remove Photo
+          </button>
+        )}
+      </div>
+
+      <small style={styles.smallText}>
+        JPG/PNG/WebP • Max 5 MB selected • automatically compressed before saving
+      </small>
+
+      {error && (
+        <div
+          style={{
+            color: '#b91c1c',
+            fontWeight: 700,
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* =========================================================
    INPUT
 ========================================================= */
@@ -2596,12 +2829,19 @@ function RecordRow({
    TEACHERS
 ========================================================= */
 
+
 function TeachersSection({
+  schoolId,
+  teacherRecords,
+  setTeacherRecords,
   teachers,
   pendingTeachers,
   onActivate,
   onRevoke,
 }: {
+  schoolId: string;
+  teacherRecords: AnyRecord[];
+  setTeacherRecords: React.Dispatch<React.SetStateAction<AnyRecord[]>>;
   teachers: SchoolMembership[];
   pendingTeachers: SchoolMembership[];
   onActivate: (
@@ -2611,108 +2851,393 @@ function TeachersSection({
     member: SchoolMembership
   ) => void;
 }) {
+  const [form, setForm] = useState<AnyRecord>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingTeacher, setSavingTeacher] = useState(false);
+  const [teacherMessage, setTeacherMessage] = useState('');
+
+  const field = (key: string) => form[key] ?? '';
+
+  const setField = (key: string, value: any) => {
+    setForm((old) => ({
+      ...old,
+      [key]: value,
+    }));
+  };
+
+  const saveTeacherRecord = async () => {
+    if (!schoolId) return;
+
+    if (!String(field('name')).trim()) {
+      setTeacherMessage('Teacher name is required.');
+      return;
+    }
+
+    try {
+      setSavingTeacher(true);
+      setTeacherMessage('');
+
+      const data = {
+        ...form,
+        schoolId,
+        name: String(field('name')).trim(),
+        email: String(field('email')).trim().toLowerCase(),
+        phone: String(field('phone')).trim(),
+        subject: String(field('subject')).trim(),
+        assignedClass: String(field('assignedClass')).trim(),
+        section: String(field('section')).trim(),
+        qualification: String(field('qualification')).trim(),
+        teacherId: String(field('teacherId')).trim(),
+        joiningDate: String(field('joiningDate')).trim(),
+      };
+
+      if (editingId) {
+        await updateTeacher(editingId, data);
+      } else {
+        await addTeacher(data);
+      }
+
+      const refreshed = await fetchTeachers(schoolId);
+      setTeacherRecords(refreshed as AnyRecord[]);
+      setForm({});
+      setEditingId(null);
+      setTeacherMessage(
+        editingId
+          ? '✅ Teacher profile updated.'
+          : '✅ Teacher profile added.'
+      );
+    } catch (error) {
+      setTeacherMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save teacher profile.'
+      );
+    } finally {
+      setSavingTeacher(false);
+    }
+  };
+
+  const removeTeacherRecord = async (id: string) => {
+    if (!window.confirm('Delete this teacher profile?')) return;
+
+    try {
+      setSavingTeacher(true);
+      await deleteTeacher(id);
+      setTeacherRecords((old) =>
+        old.filter((item) => item.id !== id)
+      );
+      if (editingId === id) {
+        setEditingId(null);
+        setForm({});
+      }
+      setTeacherMessage('✅ Teacher profile deleted.');
+    } catch (error) {
+      setTeacherMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to delete teacher profile.'
+      );
+    } finally {
+      setSavingTeacher(false);
+    }
+  };
+
   return (
     <>
-      <h2
-        style={
-          styles.pageHeading
-        }
-      >
+      <h2 style={styles.pageHeading}>
         👨‍🏫 Teachers
       </h2>
 
-      <div
-        style={
-          styles.infoCard
-        }
-      >
+      <div style={styles.formCard}>
         <h3>
-          Active Teachers
+          {editingId
+            ? '✏️ Edit Teacher'
+            : '➕ Add Teacher'}
         </h3>
 
-        {teachers.length ===
-        0 ? (
-          <EmptyState
-            text="No active teachers found."
-          />
+        <TeacherPhotoUpload
+          value={field('photoDataUrl')}
+          onChange={(value) =>
+            setField('photoDataUrl', value)
+          }
+        />
+
+        <Input
+          label="Teacher Name *"
+          value={field('name')}
+          onChange={(value) => setField('name', value)}
+        />
+
+        <Input
+          label="Google Email"
+          type="email"
+          value={field('email')}
+          onChange={(value) => setField('email', value)}
+        />
+
+        <Input
+          label="Mobile / WhatsApp"
+          type="tel"
+          value={field('phone')}
+          onChange={(value) => setField('phone', value)}
+        />
+
+        <Input
+          label="Subject"
+          value={field('subject')}
+          onChange={(value) => setField('subject', value)}
+        />
+
+        <Input
+          label="Assigned Class"
+          options={[
+            'Class 1',
+            'Class 2',
+            'Class 3',
+            'Class 4',
+            'Class 5',
+            'Class 6',
+            'Class 7',
+            'Class 8',
+            'Class 9',
+            'Class 10',
+            'Class 11',
+            'Class 12',
+          ]}
+          value={field('assignedClass')}
+          onChange={(value) =>
+            setField('assignedClass', value)
+          }
+        />
+
+        <Input
+          label="Section"
+          value={field('section')}
+          onChange={(value) => setField('section', value)}
+        />
+
+        <Input
+          label="Qualification"
+          value={field('qualification')}
+          onChange={(value) =>
+            setField('qualification', value)
+          }
+        />
+
+        <Input
+          label="Teacher ID"
+          value={field('teacherId')}
+          onChange={(value) =>
+            setField('teacherId', value)
+          }
+        />
+
+        <Input
+          label="Joining Date"
+          type="date"
+          value={field('joiningDate')}
+          onChange={(value) =>
+            setField('joiningDate', value)
+          }
+        />
+
+        {teacherMessage && (
+          <div style={styles.message}>
+            {teacherMessage}
+          </div>
+        )}
+
+        <div style={styles.formButtons}>
+          <button
+            style={styles.primaryButton}
+            onClick={saveTeacherRecord}
+            disabled={savingTeacher}
+          >
+            {savingTeacher
+              ? 'Saving...'
+              : editingId
+              ? '💾 Update Teacher'
+              : '➕ Save Teacher'}
+          </button>
+
+          {editingId && (
+            <button
+              style={styles.secondaryButton}
+              onClick={() => {
+                setEditingId(null);
+                setForm({});
+                setTeacherMessage('');
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div style={styles.infoCard}>
+        <div style={styles.listHeader}>
+          <h3>Teacher Profiles</h3>
+          <span style={styles.countBadge}>
+            {teacherRecords.length}
+          </span>
+        </div>
+
+        {teacherRecords.length === 0 ? (
+          <EmptyState text="No teacher profiles added yet." />
         ) : (
-          teachers.map(
-            (teacher) => (
-              <MemberRow
-                key={
-                  teacher.id
-                }
-                member={
-                  teacher
-                }
-                onRevoke={() =>
-                  onRevoke(
-                    teacher
-                  )
-                }
-              />
-            )
-          )
+          teacherRecords.map((teacher) => (
+            <div
+              key={teacher.id}
+              style={styles.memberRow}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  minWidth: 0,
+                  flex: 1,
+                }}
+              >
+                {teacher.photoDataUrl ? (
+                  <img
+                    src={teacher.photoDataUrl}
+                    alt={teacher.name || 'Teacher'}
+                    style={{
+                      width: 58,
+                      height: 58,
+                      borderRadius: 16,
+                      objectFit: 'cover',
+                      border: '2px solid #e2e8f0',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 58,
+                      height: 58,
+                      borderRadius: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#eff6ff',
+                      fontSize: 28,
+                      flexShrink: 0,
+                    }}
+                  >
+                    👨‍🏫
+                  </div>
+                )}
+
+                <div style={{ minWidth: 0 }}>
+                  <strong>
+                    {teacher.name || 'Teacher'}
+                  </strong>
+
+                  <div style={styles.smallText}>
+                    {teacher.subject || 'Subject not added'}
+                    {' • '}
+                    {teacher.assignedClass || 'Class not assigned'}
+                    {teacher.section
+                      ? ' - ' + teacher.section
+                      : ''}
+                  </div>
+
+                  {teacher.email && (
+                    <div style={styles.smallText}>
+                      {teacher.email}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={styles.rowButtons}>
+                <button
+                  style={styles.editButton}
+                  onClick={() => {
+                    setEditingId(teacher.id || null);
+                    setForm({ ...teacher });
+                    window.scrollTo({
+                      top: 0,
+                      behavior: 'smooth',
+                    });
+                  }}
+                >
+                  ✏️ Edit
+                </button>
+
+                <button
+                  style={styles.dangerButton}
+                  onClick={() =>
+                    teacher.id &&
+                    removeTeacherRecord(teacher.id)
+                  }
+                >
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {pendingTeachers.length >
-        0 && (
-        <div
-          style={
-            styles.infoCard
-          }
-        >
-          <h3>
-            ⏳ Pending Teacher Access
-          </h3>
+      <div style={styles.infoCard}>
+        <h3>🔐 Teacher Login Access</h3>
 
-          {pendingTeachers.map(
-            (teacher) => (
+        {teachers.length === 0 ? (
+          <EmptyState text="No active teacher login memberships." />
+        ) : (
+          teachers.map((teacher) => (
+            <MemberRow
+              key={teacher.id}
+              member={teacher}
+              onRevoke={() => onRevoke(teacher)}
+            />
+          ))
+        )}
+
+        {pendingTeachers.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <h4 style={{ marginBottom: 10 }}>
+              ⏳ Pending Teacher Access
+            </h4>
+
+            {pendingTeachers.map((teacher) => (
               <div
-                key={
-                  teacher.id
-                }
-                style={
-                  styles.memberRow
-                }
+                key={teacher.id}
+                style={styles.memberRow}
               >
                 <div>
                   <strong>
-                    {teacher.invitedByEmail ||
-                      teacher.uid}
+                    {teacher.email || teacher.uid}
                   </strong>
-
-                  <div
-                    style={
-                      styles.smallText
-                    }
-                  >
+                  <div style={styles.smallText}>
                     Waiting for activation
                   </div>
                 </div>
 
                 <button
-                  style={
-                    styles.successButton
-                  }
-                  onClick={() =>
-                    onActivate(
-                      teacher
-                    )
-                  }
+                  style={styles.successButton}
+                  onClick={() => onActivate(teacher)}
                 >
                   Activate
                 </button>
               </div>
-            )
-          )}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+
+        <p style={{ ...styles.smallText, marginTop: 12 }}>
+          Teacher profile/photo and Teacher Login Access are separate.
+          Adding a profile does not automatically create a Google login
+          membership.
+        </p>
+      </div>
     </>
   );
 }
-
 
 /* =========================================================
    STAFF
