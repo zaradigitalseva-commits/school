@@ -47,7 +47,7 @@ import TeacherDashboardPage from '@/pages/TeacherDashboardPage';
 // =====================================================
 // ADVERTISEMENT ADMIN
 // =====================================================
-import AdvertisementAdminPage from '@/pages/admin/AdvertisementAdminPage';
+import AdvertisementManagerPage from '@/pages/admin/AdvertisementManagerPage';
 
 // =====================================================
 // SUPER ADMIN SCHOOL DATA VIEWER
@@ -188,7 +188,7 @@ function App() {
               <ProtectedRoute
                 allowedRoles={['platform_admin']}
               >
-                <AdvertisementAdminPage />
+                <AdvertisementManagerPage />
               </ProtectedRoute>
             }
           />
