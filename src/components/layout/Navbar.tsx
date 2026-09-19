@@ -120,14 +120,24 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           {showDashboardLink && (
-            <button
-              type="button"
-              onClick={openDashboard}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold btn-3d hover:bg-blue-700"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </button>
+            isPlatformAdminEmail(user?.email) || role === 'platform_admin' ? (
+              <Link
+                to="/admin"
+                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold btn-3d hover:bg-purple-700"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Admin Panel
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={openDashboard}
+                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold btn-3d hover:bg-blue-700"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
+              </button>
+            )
           )}
 
           {user ? (
@@ -177,14 +187,24 @@ export default function Navbar() {
             })}
 
             {showDashboardLink && (
-              <button
-                type="button"
-                onClick={openDashboard}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 text-left"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard
-              </button>
+              isPlatformAdminEmail(user?.email) || role === 'platform_admin' ? (
+                <Link
+                  to="/admin"
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-purple-700 bg-purple-50 text-left"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Admin Panel
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openDashboard}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 text-left"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Dashboard
+                </button>
+              )
             )}
 
             {!user && (
