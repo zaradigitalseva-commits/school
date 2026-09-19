@@ -4,7 +4,9 @@ import { AuthProvider } from '@/context/AuthContext';
 import PublicLayout from '@/components/layout/PublicLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
-// Public pages
+// =====================================================
+// PUBLIC PAGES
+// =====================================================
 import HomePage from '@/pages/public/HomePage';
 import AboutPage from '@/pages/public/AboutPage';
 import AcademicsPage from '@/pages/public/AcademicsPage';
@@ -13,27 +15,38 @@ import NoticesPage from '@/pages/public/NoticesPage';
 import EventsPage from '@/pages/public/EventsPage';
 import ContactPage from '@/pages/public/ContactPage';
 
-// Policy pages
+// =====================================================
+// POLICY PAGES
+// =====================================================
 import PrivacyPolicyPage from '@/pages/public/PrivacyPolicyPage';
 import TermsConditionsPage from '@/pages/public/TermsConditionsPage';
 import RefundCancellationPage from '@/pages/public/RefundCancellationPage';
 
-// Authentication / School pages
+// =====================================================
+// AUTHENTICATION / SCHOOL PAGES
+// =====================================================
 import LoginPage from '@/pages/LoginPage';
 import RegisterSchoolPage from '@/pages/RegisterSchoolPage';
 import SchoolsPage from '@/pages/SchoolsPage';
 import SchoolPublicPage from '@/pages/SchoolPublicPage';
 
-// Protected pages
+// =====================================================
+// PROTECTED PAGES
+// =====================================================
 import PaymentRechargePage from '@/pages/PaymentRechargePage';
 import PlatformAdminPage from '@/pages/PlatformAdminPage';
 import SchoolAdminPage from '@/pages/SchoolAdminPage';
 
-// Advertisement Admin
+// =====================================================
+// ADVERTISEMENT ADMIN
+// =====================================================
 import AdvertisementAdminPage from '@/pages/admin/AdvertisementAdminPage';
 
-// Super Admin school data viewer
+// =====================================================
+// SUPER ADMIN SCHOOL DATA VIEWER
+// =====================================================
 import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
+
 
 function App() {
   return (
@@ -43,8 +56,7 @@ function App() {
 
           {/* =====================================================
               PUBLIC WEBSITE
-          ====================================================== */}
-
+          ===================================================== */}
           <Route element={<PublicLayout />}>
 
             {/* Platform Home */}
@@ -85,7 +97,7 @@ function App() {
             />
 
             {/* =================================================
-                LEGAL / POLICY PAGES
+                LEGAL / POLICY
             ================================================== */}
 
             <Route
@@ -133,11 +145,11 @@ function App() {
 
           </Route>
 
+
           {/* =====================================================
               PAYMENT / RECHARGE
               School Admin + Platform Admin
-          ====================================================== */}
-
+          ===================================================== */}
           <Route
             path="/payment/recharge"
             element={
@@ -152,10 +164,11 @@ function App() {
             }
           />
 
-          {/* =====================================================
-              PLATFORM ADMIN
-          ====================================================== */}
 
+          {/* =====================================================
+              PLATFORM / SUPER ADMIN
+              Platform Admin Only
+          ===================================================== */}
           <Route
             path="/admin"
             element={
@@ -167,11 +180,14 @@ function App() {
             }
           />
 
+
           {/* =====================================================
               ADVERTISEMENT ADMIN
               Platform Admin Only
-          ====================================================== */}
-
+              
+              URL:
+              /admin/advertisements
+          ===================================================== */}
           <Route
             path="/admin/advertisements"
             element={
@@ -183,11 +199,11 @@ function App() {
             }
           />
 
+
           {/* =====================================================
               SUPER ADMIN - FULL SCHOOL DATA
               Platform Admin Only
-          ====================================================== */}
-
+          ===================================================== */}
           <Route
             path="/admin/school/:schoolId"
             element={
@@ -199,11 +215,11 @@ function App() {
             }
           />
 
+
           {/* =====================================================
               SCHOOL ADMIN
               School-specific dashboard
-          ====================================================== */}
-
+          ===================================================== */}
           <Route
             path="/school-admin"
             element={
@@ -215,11 +231,11 @@ function App() {
             }
           />
 
-          {/* =====================================================
-              INVALID / UNKNOWN URL
-              Redirect to Platform Home
-          ====================================================== */}
 
+          {/* =====================================================
+              UNKNOWN URL
+              Redirect to Platform Home
+          ===================================================== */}
           <Route
             path="*"
             element={
