@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useContext,
@@ -36,23 +35,17 @@ interface AuthContextValue {
   role: UserRole;
   loading: boolean;
 
-  /*
-   * Current role helpers
-   */
+  // Current role helpers
   isPlatformAdmin: boolean;
   isSchoolAdmin: boolean;
   isTeacher: boolean;
   isUser: boolean;
 
-  /*
-   * Legacy compatibility
-   */
+  // Legacy compatibility
   isAdmin: boolean;
   isFaculty: boolean;
 
-  /*
-   * Authentication
-   */
+  // Authentication
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -64,7 +57,9 @@ interface AuthContextValue {
  */
 
 const AuthContext =
-  createContext<AuthContextValue | undefined>(undefined);
+  createContext<AuthContextValue | undefined>(
+    undefined
+  );
 
 /*
  * =========================================================
@@ -77,7 +72,8 @@ export function AuthProvider({
 }: {
   children: ReactNode;
 }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] =
+    useState<User | null>(null);
 
   const [role, setRole] =
     useState<UserRole>('user');
@@ -89,165 +85,195 @@ export function AuthProvider({
    * =======================================================
    * FIREBASE AUTH STATE
    * =======================================================
+   *
+   * This runs:
+   *
+   * - after Google login
+   * - after browser refresh
+   * - when Firebase restores the login session
+   * - after logout
+   *
+   * IMPORTANT:
+   * Platform Admin is resolved BEFORE Firestore role lookup.
    */
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser) => {
-        /*
-         * Always enter loading state while resolving
-         * authentication + application role.
-         */
-        setLoading(true);
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        async (firebaseUser) => {
+          // Always show loading while authentication
+          // and application role are being resolved.
+          setLoading(true);
 
-        /*
-         * ---------------------------------------------------
-         * NO LOGIN
-         * ---------------------------------------------------
-         */
-
-        if (!firebaseUser) {
-          setUser(null);
-          setRole('user');
-          setLoading(false);
-          return;
-        }
-
-        /*
-         * ---------------------------------------------------
-         * USER LOGGED IN
-         * ---------------------------------------------------
-         */
-
-        setUser(firebaseUser);
-
-        /*
-         * Normalize email once.
-         */
-        const email =
-          firebaseUser.email
-            ?.trim()
-            .toLowerCase() ?? '';
-
-        try {
           /*
-           * -------------------------------------------------
-           * 1. PLATFORM ADMIN
-           * -------------------------------------------------
-           *
-           * This is the highest priority role.
-           *
-           * The fixed platform-admin email must ALWAYS
-           * receive platform_admin.
-           *
-           * This check happens before Firestore role lookup.
+           * =================================================
+           * NO USER
+           * =================================================
            */
-          if (isPlatformAdminEmail(email)) {
-            /*
-             * Make sure the normal user record also exists.
-             */
-            try {
-              await ensureUserRecord(
-                firebaseUser.uid,
-                email,
-                firebaseUser.displayName,
-                firebaseUser.photoURL
-              );
-            } catch (recordError) {
-              /*
-               * A user-record write failure should not remove
-               * the fixed Platform Admin role.
-               */
-              console.error(
-                'Platform admin user record update failed:',
-                recordError
-              );
-            }
 
-            setRole('platform_admin');
+          if (!firebaseUser) {
+            setUser(null);
+            setRole('user');
             setLoading(false);
             return;
           }
 
           /*
-           * -------------------------------------------------
-           * 2. NORMAL USER RECORD
-           * -------------------------------------------------
+           * =================================================
+           * USER EXISTS
+           * =================================================
            */
 
-          await ensureUserRecord(
-            firebaseUser.uid,
-            email,
-            firebaseUser.displayName,
-            firebaseUser.photoURL
-          );
+          setUser(firebaseUser);
 
-          /*
-           * -------------------------------------------------
-           * 3. RESOLVE APPLICATION ROLE
-           * -------------------------------------------------
-           *
-           * fetchUserRole is responsible for checking:
-           *
-           * - active school_admin membership
-           * - active teacher membership
-           * - normal user
-           */
-          const resolvedRole =
-            await fetchUserRole(
+          const email =
+            firebaseUser.email
+              ?.trim()
+              .toLowerCase() ?? '';
+
+          try {
+            /*
+             * =================================================
+             * 1. PLATFORM ADMIN
+             * =================================================
+             *
+             * ngogrant454@gmail.com is the fixed
+             * Platform/Super Admin.
+             *
+             * This check MUST happen before Firestore
+             * role lookup.
+             *
+             * Therefore even after refresh:
+             *
+             * ngogrant454@gmail.com
+             *        ↓
+             * platform_admin
+             */
+
+            if (
+              isPlatformAdminEmail(email)
+            ) {
+              /*
+               * Make sure the user document exists.
+               *
+               * If this Firestore write fails, we STILL
+               * keep the platform_admin role.
+               */
+
+              try {
+                await ensureUserRecord(
+                  firebaseUser.uid,
+                  email,
+                  firebaseUser.displayName,
+                  firebaseUser.photoURL
+                );
+              } catch (recordError) {
+                console.error(
+                  'Platform admin user record update failed:',
+                  recordError
+                );
+              }
+
+              /*
+               * IMPORTANT:
+               * Never wait for fetchUserRole() for the
+               * fixed Platform Admin.
+               */
+
+              setRole('platform_admin');
+              setLoading(false);
+
+              return;
+            }
+
+            /*
+             * =================================================
+             * 2. NORMAL USER RECORD
+             * =================================================
+             */
+
+            await ensureUserRecord(
               firebaseUser.uid,
-              email
+              email,
+              firebaseUser.displayName,
+              firebaseUser.photoURL
             );
 
-          /*
-           * -------------------------------------------------
-           * 4. ACCEPT ONLY KNOWN ROLES
-           * -------------------------------------------------
-           *
-           * Prevent unexpected Firestore values from becoming
-           * management access.
-           */
-          if (
-            resolvedRole === 'school_admin'
-          ) {
-            setRole('school_admin');
-          } else if (
-            resolvedRole === 'teacher'
-          ) {
-            setRole('teacher');
-          } else {
-            setRole('user');
-          }
-        } catch (error) {
-          /*
-           * -------------------------------------------------
-           * ROLE LOOKUP FAILED
-           * -------------------------------------------------
-           *
-           * Safe fallback:
-           *
-           * - Fixed Platform Admin -> platform_admin
-           * - Everyone else -> user
-           *
-           * Never give school-admin/teacher access if lookup
-           * fails.
-           */
-          console.error(
-            'Auth role resolution failed:',
-            error
-          );
+            /*
+             * =================================================
+             * 3. RESOLVE APPLICATION ROLE
+             * =================================================
+             *
+             * IMPORTANT FIX:
+             *
+             * fetchUserRole() receives UID only.
+             *
+             * Do NOT pass email here.
+             */
 
-          if (isPlatformAdminEmail(email)) {
-            setRole('platform_admin');
-          } else {
-            setRole('user');
+            const resolvedRole =
+              await fetchUserRole(
+                firebaseUser.uid
+              );
+
+            /*
+             * =================================================
+             * 4. ACCEPT ONLY VALID ROLES
+             * =================================================
+             */
+
+            if (
+              resolvedRole ===
+              'school_admin'
+            ) {
+              setRole('school_admin');
+            } else if (
+              resolvedRole === 'teacher'
+            ) {
+              setRole('teacher');
+            } else {
+              setRole('user');
+            }
+          } catch (error) {
+            /*
+             * =================================================
+             * ROLE RESOLUTION ERROR
+             * =================================================
+             *
+             * Safe fallback:
+             *
+             * Platform Admin
+             *      → platform_admin
+             *
+             * Everyone else
+             *      → user
+             *
+             * We NEVER give school_admin or teacher access
+             * if role lookup fails.
+             */
+
+            console.error(
+              'Auth role resolution failed:',
+              error
+            );
+
+            if (
+              isPlatformAdminEmail(email)
+            ) {
+              setRole('platform_admin');
+            } else {
+              setRole('user');
+            }
           }
+
+          setLoading(false);
         }
+      );
 
-        setLoading(false);
-      }
-    );
+    /*
+     * Cleanup Firebase listener
+     */
 
     return unsubscribe;
   }, []);
@@ -280,6 +306,7 @@ export function AuthProvider({
         /*
          * Clear local state immediately.
          */
+
         setUser(null);
         setRole('user');
         setLoading(false);
@@ -309,12 +336,12 @@ export function AuthProvider({
    * LEGACY HELPERS
    * =========================================================
    *
-   * Existing components may still use:
+   * Existing old components may still use:
    *
    * isAdmin
    * isFaculty
    *
-   * Keep them working.
+   * Keep these for compatibility.
    */
 
   const isAdmin =
@@ -373,4 +400,3 @@ export function useAuth() {
 
   return context;
 }
-
