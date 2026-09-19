@@ -2427,3 +2427,21 @@ export function subscribeToSchoolDocument(
     (error) => onError?.(error)
   );
 }
+
+
+export function subscribeToActivePlatformAds(
+  onData: (ads: PlatformAd[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const q = query(collection(db, 'platformAds'), where('active', '==', true));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const ads = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() } as PlatformAd))
+        .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+      onData(ads);
+    },
+    (error) => onError?.(error)
+  );
+}
