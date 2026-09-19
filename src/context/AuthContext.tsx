@@ -20,6 +20,7 @@ import {
   ensureUserRecord,
   fetchMyMembership,
   isPlatformAdminEmail,
+  subscribeToMyMembership,
 } from '@/firebase/firestore';
 
 import type { UserRole } from '@/firebase/types';
@@ -57,6 +58,8 @@ export function AuthProvider({
         setLoading(true);
 
         if (!firebaseUser) {
+          const previousUser = auth.currentUser as any;
+          previousUser?.__schoolMembershipUnsubscribe?.();
           setUser(null);
           setRole('user');
           setLoading(false);
@@ -87,20 +90,30 @@ export function AuthProvider({
           await ensureUserRecord(firebaseUser.uid, email);
 
           const membership = await fetchMyMembership();
-
-          if (
-            membership?.status === 'ACTIVE' &&
-            membership.role === 'school_admin'
-          ) {
+          if (membership?.status === 'ACTIVE' && membership.role === 'school_admin') {
             setRole('school_admin');
-          } else if (
-            membership?.status === 'ACTIVE' &&
-            membership.role === 'teacher'
-          ) {
+          } else if (membership?.status === 'ACTIVE' && membership.role === 'teacher') {
             setRole('teacher');
           } else {
             setRole('user');
           }
+
+          // Keep role live. If platform admin approves/suspends the membership,
+          // this account changes role without requiring a browser refresh.
+          const unsubscribeMembership = subscribeToMyMembership(
+            firebaseUser.uid,
+            (liveMembership) => {
+              if (liveMembership?.status === 'ACTIVE' && liveMembership.role === 'school_admin') {
+                setRole('school_admin');
+              } else if (liveMembership?.status === 'ACTIVE' && liveMembership.role === 'teacher') {
+                setRole('teacher');
+              } else {
+                setRole('user');
+              }
+            },
+            (error) => console.error('Realtime membership listener failed:', error)
+          );
+          (firebaseUser as any).__schoolMembershipUnsubscribe = unsubscribeMembership;
         } catch (error) {
           console.error(
             'Auth role resolution failed:',
