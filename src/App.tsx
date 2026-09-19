@@ -1,4 +1,3 @@
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 
@@ -33,15 +32,7 @@ import SchoolAdminPage from '@/pages/SchoolAdminPage';
 // Super Admin school data viewer
 import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
 
-/**
- * Main application component.
- *
- * IMPORTANT:
- * This is a named export because src/main.tsx imports:
- *
- * import { App } from './App.tsx';
- */
-export function App() {
+function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -50,6 +41,7 @@ export function App() {
           {/* =====================================================
               PUBLIC WEBSITE
           ====================================================== */}
+
           <Route element={<PublicLayout />}>
 
             {/* Platform Home */}
@@ -142,6 +134,7 @@ export function App() {
               PAYMENT / RECHARGE
               School Admin + Platform Admin
           ====================================================== */}
+
           <Route
             path="/payment/recharge"
             element={
@@ -159,6 +152,7 @@ export function App() {
           {/* =====================================================
               PLATFORM ADMIN
           ====================================================== */}
+
           <Route
             path="/admin"
             element={
@@ -174,6 +168,7 @@ export function App() {
               SUPER ADMIN - FULL SCHOOL DATA
               Platform Admin Only
           ====================================================== */}
+
           <Route
             path="/admin/school/:schoolId"
             element={
@@ -189,6 +184,7 @@ export function App() {
               SCHOOL ADMIN
               School-specific dashboard
           ====================================================== */}
+
           <Route
             path="/school-admin"
             element={
@@ -204,6 +200,7 @@ export function App() {
               INVALID / UNKNOWN URL
               Redirect to Platform Home
           ====================================================== */}
+
           <Route
             path="*"
             element={
@@ -220,3 +217,4 @@ export function App() {
   );
 }
 
+export default App;
