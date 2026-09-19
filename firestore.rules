@@ -113,6 +113,14 @@ service cloud.firestore {
           && request.resource.data.schoolId is string
           && getAfter(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid)
         || (signedIn()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.role == 'school_admin'
+          && request.resource.data.status == 'ACTIVE'
+          && request.resource.data.schoolId is string
+          && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+          && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.status == 'LIVE')
+        || (signedIn()
           && request.resource.data.role == 'teacher'
           && request.resource.data.status == 'ACTIVE'
           && request.resource.data.uid == request.auth.uid
