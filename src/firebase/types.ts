@@ -47,11 +47,14 @@ export interface School {
   address?: string;
   phone?: string;
   email?: string;
+  city?: string;
+  state?: string;
   whatsappNumber?: string;
   whatsappVerified?: boolean;
 
   principalName?: string;
   principalMessage?: string;
+  foundedYear?: string;
   principalImageUrl?: string;
 
   foundedYear?: string;
@@ -134,6 +137,11 @@ export interface SchoolRegistrationInput {
   slug: string;
 
   phone?: string;
+  email: string;
+  city: string;
+  state: string;
+  principalName: string;
+  foundedYear?: string;
   whatsappNumber: string;
   whatsappVerified: boolean;
 
