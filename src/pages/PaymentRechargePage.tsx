@@ -191,11 +191,6 @@ export default function PaymentRechargePage() {
         setOwnedSchools(schools);
         setSchoolId(currentSchoolId);
         setSchoolName(currentSchoolName);
-        try {
-          setShowUtrForm(sessionStorage.getItem('school-payment-started-' + currentSchoolId) === '1');
-        } catch {
-            }
-
         /*
          * Payment settings/history are independent of the school
          * document. Load them separately so one optional read does
@@ -288,12 +283,6 @@ export default function PaymentRechargePage() {
     /*
      * Mobile में installed UPI app open होगी.
      */
-    try {
-      sessionStorage.setItem('school-payment-started-' + schoolId, '1');
-    } catch {
-      // Ignore storage errors.
-    }
-    setShowUtrForm(true);
     window.location.href = paymentUrl;
   };
 
@@ -313,6 +302,10 @@ export default function PaymentRechargePage() {
   );
 
   const dynamicQrUrl = useMemo(() => {
+    if (paymentSettings?.qrImageUrl?.trim()) {
+      return paymentSettings.qrImageUrl.trim();
+    }
+
     if (!upiPaymentUrl) {
       return '';
     }
@@ -322,7 +315,7 @@ export default function PaymentRechargePage() {
       '?size=280x280&margin=10&data=' +
       encodeURIComponent(upiPaymentUrl)
     );
-  }, [upiPaymentUrl]);
+  }, [paymentSettings?.qrImageUrl, upiPaymentUrl]);
 
   /*
    * ---------------------------------------------------------
@@ -383,13 +376,6 @@ export default function PaymentRechargePage() {
       );
 
       setUtr('');
-      try {
-        sessionStorage.removeItem('school-payment-started-' + schoolId);
-      } catch {
-        // Ignore storage errors.
-      }
-      setShowUtrForm(false);
-
       /*
        * Refresh history अलग से करें.
        * History read fail होने पर भी successful submit का message
