@@ -1026,7 +1026,7 @@ export async function createTeacherInvite(data: { schoolId: string; teacherId: s
 export async function claimTeacherInvite(uid: string, email: string): Promise<void> {
   if (!uid || !email) return;
   const normalizedEmail = email.trim().toLowerCase();
-  const q = query(collection(db, 'teacherInvites'), where('email', '==', normalizedEmail), where('status', '==', 'PENDING'));
+  const q = query(collection(db, 'teacherInvites'), where('email', '==', normalizedEmail));
   const snapshot = await getDocs(q);
   for (const inviteDoc of snapshot.docs) {
     const inviteRef = doc(db, 'teacherInvites', inviteDoc.id);
