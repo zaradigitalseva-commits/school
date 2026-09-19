@@ -241,7 +241,8 @@ service cloud.firestore {
       allow update: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
         || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
-            && request.resource.data.schoolId == resource.data.schoolId);
+            && request.resource.data.schoolId == resource.data.schoolId
+            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
