@@ -566,22 +566,25 @@ export default function PlatformAdminPage() {
 
   if (showAdvertisementManager) {
     return (
-      <div className="min-h-screen bg-slate-950">
-        <div className="sticky top-0 z-50 flex items-center justify-between gap-3 bg-slate-900 px-4 py-3 shadow-lg">
-          <div className="font-black text-white">
-            📢 Advertisement Admin
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950 p-3 text-white sm:p-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/10 p-3 shadow-xl backdrop-blur">
+            <div>
+              <div className="text-xl font-black">📢 Advertisement Admin</div>
+              <div className="text-sm font-bold text-white/70">
+                Platform advertisements
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAdvertisementManager(false)}
+              className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(153,27,27)] active:translate-y-1 active:shadow-none"
+            >
+              ← Back to Platform Admin
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowAdvertisementManager(false)}
-            className="rounded-xl bg-red-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(153,27,27)] active:translate-y-1 active:shadow-none"
-          >
-            ← Back to Platform Admin
-          </button>
+          <AdvertisementManagerPage />
         </div>
-
-        <AdvertisementManagerPage />
       </div>
     );
   }
