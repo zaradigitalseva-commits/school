@@ -25,11 +25,9 @@ import type { School } from '@/firebase/types';
 import { useAuth } from '@/context/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
-const PLATFORM_ADMIN_EMAIL = 'ngogrant454@gmail.com';
-
 export default function HomePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
 
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,14 +100,23 @@ export default function HomePage() {
       return;
     }
 
-    const email = user.email?.trim().toLowerCase();
-
-    if (email === PLATFORM_ADMIN_EMAIL.toLowerCase()) {
+    if (role === 'platform_admin') {
       navigate('/admin');
       return;
     }
 
-    navigate('/school-admin');
+    if (role === 'school_admin') {
+      navigate('/school-admin');
+      return;
+    }
+
+    if (role === 'teacher') {
+      navigate('/dashboard');
+      return;
+    }
+
+    // A normal user has no management dashboard.
+    navigate('/');
   };
 
   /* =========================================================
