@@ -82,7 +82,7 @@ service cloud.firestore {
           && request.resource.data.subscriptionStatus == resource.data.subscriptionStatus
           && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly([
-               'name', 'slug', 'address', 'phone', 'email',
+               'name', 'address', 'phone', 'email',
                'whatsappNumber', 'whatsappVerified', 'tagline',
                'description', 'logoUrl', 'heroImageUrl',
                'principalName', 'principalMessage', 'principalImageUrl',
