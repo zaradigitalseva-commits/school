@@ -458,6 +458,36 @@ export default function PaymentRechargePage() {
           </button>
         </div>
 
+        {/* SCHOOL SELECTOR */}
+        {ownedSchools.length > 1 && (
+          <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-lg">
+            <label className="mb-2 block text-sm font-black text-blue-900">
+              🏫 Select School for Payment
+            </label>
+            <select
+              value={schoolId}
+              onChange={(event) => {
+                const id = event.target.value;
+                const selected = ownedSchools.find(
+                  (item) => item.id === id
+                );
+                setSchoolId(id);
+                setSchoolName(selected?.name || '');
+                setMessage('');
+                setError('');
+              }}
+              className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a school...</option>
+              {ownedSchools.map((schoolOption) => (
+                <option key={schoolOption.id} value={schoolOption.id}>
+                  {schoolOption.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* ALERTS */}
         {error && (
           <div className="mb-5 rounded-2xl border border-red-300 bg-red-50 px-5 py-4 font-bold text-red-700 shadow-lg">
