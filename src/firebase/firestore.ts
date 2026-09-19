@@ -1014,13 +1014,13 @@ export async function deleteTeacher(
    TEACHER LOGIN INVITES
 ========================================================= */
 
-export async function createTeacherInvite(data: { schoolId: string; teacherId: string; email: string; assignedClass: string; section?: string }): Promise<void> {
+export async function createTeacherInvite(data: { schoolId: string; teacherId: string; email: string; assignedClass: string; section?: string; subject?: string }): Promise<void> {
   const schoolId = data.schoolId?.trim();
   const email = data.email?.trim().toLowerCase();
   const assignedClass = data.assignedClass?.trim();
   if (!schoolId || !email || !assignedClass) throw new Error('School, teacher Google email and assigned class are required.');
   const inviteId = schoolId + '_' + email;
-  await setDoc(doc(db, 'teacherInvites', inviteId), { schoolId, teacherId: data.teacherId, email, assignedClass, section: data.section?.trim() || '', status: 'PENDING', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'teacherInvites', inviteId), { schoolId, teacherId: data.teacherId, email, assignedClass, section: data.section?.trim() || '', subject: data.subject?.trim() || '', status: 'PENDING', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function claimTeacherInvite(uid: string, email: string): Promise<void> {
@@ -1039,7 +1039,7 @@ export async function claimTeacherInvite(uid: string, email: string): Promise<vo
       if (!inviteSnap.exists()) return;
       const current = inviteSnap.data();
       if (current.status !== 'PENDING' || current.email !== normalizedEmail) return;
-      transaction.set(membershipRef, { id: membershipId, schoolId: current.schoolId, uid, email: normalizedEmail, role: 'teacher', status: 'ACTIVE', assignments: [current.section ? current.assignedClass + ' - ' + current.section : current.assignedClass], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+      transaction.set(membershipRef, { id: membershipId, schoolId: current.schoolId, uid, email: normalizedEmail, role: 'teacher', status: 'ACTIVE', assignments: [current.section ? current.assignedClass + ' - ' + current.section : current.assignedClass], subject: current.subject || '', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
       transaction.update(inviteRef, { status: 'CLAIMED', uid, updatedAt: serverTimestamp() });
     });
   }
