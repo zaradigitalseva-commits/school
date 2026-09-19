@@ -12,6 +12,7 @@ import {
   query,
   where,
   runTransaction,
+  onSnapshot,
 } from 'firebase/firestore';
 
 import { db, auth } from './config';
@@ -2328,4 +2329,83 @@ export async function registerSchool(
   });
 
   return school;
+}
+
+
+/* =========================================================
+   REALTIME LISTENERS
+========================================================= */
+
+export function subscribeToAllSchools(
+  onData: (schools: School[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'schools'),
+    (snapshot) => onData(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as School))),
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToSchool(
+  schoolId: string,
+  onData: (school: School | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!schoolId) return () => {};
+  return onSnapshot(
+    doc(db, 'schools', schoolId),
+    (snapshot) => onData(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as School) : null),
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToSchoolCollection(
+  schoolId: string,
+  collectionName: string,
+  onData: (rows: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!schoolId || !collectionName) return () => {};
+  const q = query(collection(db, collectionName), where('schoolId', '==', schoolId));
+  return onSnapshot(
+    q,
+    (snapshot) => onData(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (error) => onError?.(error)
+  );
+}
+
+export function subscribeToSchoolMemberships(
+  schoolId: string,
+  onData: (rows: SchoolMembership[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  return subscribeToSchoolCollection(schoolId, 'schoolMemberships', (rows) => onData(rows as SchoolMembership[]), onError);
+}
+
+export function subscribeToTeachers(
+  schoolId: string,
+  onData: (rows: Teacher[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  return subscribeToSchoolCollection(schoolId, 'teachers', (rows) => onData(rows as Teacher[]), onError);
+}
+
+export function subscribeToSchoolDocument(
+  schoolId: string,
+  collectionName: string,
+  documentId: string,
+  onData: (data: any | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!schoolId || !collectionName || !documentId) return () => {};
+  return onSnapshot(
+    doc(db, collectionName, documentId),
+    (snapshot) => {
+      if (!snapshot.exists()) return onData(null);
+      const data = snapshot.data();
+      onData(data.schoolId === schoolId || collectionName === 'schools' ? { id: snapshot.id, ...data } : null);
+    },
+    (error) => onError?.(error)
+  );
 }
