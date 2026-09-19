@@ -1035,9 +1035,6 @@ export default function PlatformAdminPage() {
                 processingSchool ===
                 school.id;
 
-              const currentFreeDays =
-                freeDays[school.id] || '';
-
               const subscriptionLabel =
                 getSubscriptionLabel(
                   school
