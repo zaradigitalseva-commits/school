@@ -466,22 +466,12 @@ export async function createRechargeRequest(
        * Duplicate UTR check
        */
 
-      const existingUTR =
-        await transaction.get(
-          utrRef
-        );
-
-      if (existingUTR.exists()) {
-        throw new Error(
-          'This UTR Number has already been submitted.'
-        );
-      }
-
       /*
-       * Reserve UTR
+       * Reserve UTR atomically.
+       * transaction.create() fails if this UTR document already exists,
+       * so no permission-requiring read of a missing reservation is needed.
        */
-
-      transaction.set(
+      transaction.create(
         utrRef,
         {
           utrNormalized,
