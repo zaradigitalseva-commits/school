@@ -3121,10 +3121,10 @@ function TeachersSection({
 
       if (editingId) {
         await updateTeacher(editingId, data);
-        await createTeacherInvite({ schoolId, teacherId: editingId, email: data.email, assignedClass: data.assignedClass, section: data.section });
+        await createTeacherInvite({ schoolId, teacherId: editingId, email: data.email, assignedClass: data.assignedClass, section: data.section, subject: data.subject });
       } else {
         const teacherId = await addTeacher(data);
-        await createTeacherInvite({ schoolId, teacherId, email: data.email, assignedClass: data.assignedClass, section: data.section });
+        await createTeacherInvite({ schoolId, teacherId, email: data.email, assignedClass: data.assignedClass, section: data.section, subject: data.subject });
       }
 
       const refreshed = await fetchTeachers(schoolId);
