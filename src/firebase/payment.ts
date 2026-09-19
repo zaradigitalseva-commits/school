@@ -460,30 +460,33 @@ export async function createRechargeRequest(
   ======================================================= */
 
   /*
-   * Firestore Web SDK में transaction.create() उपलब्ध नहीं है.
-   * इसलिए writeBatch().create() इस्तेमाल किया गया है.
+   * IMPORTANT:
+   * Firestore Web SDK Transaction/WriteBatch में create() method
+   * उपलब्ध नहीं है. इसी वजह से पहले वाला h.create error आ रहा था.
    *
-   * UTR document पहले से मौजूद होने पर batch atomic रूप से fail होगा.
-   * इससे duplicate UTR भी नहीं जाएगा और missing-permission read की
-   * जरूरत भी नहीं पड़ेगी.
+   * यहाँ runTransaction + get() + set() इस्तेमाल किया गया है.
+   * UTR पहले से मौजूद हो तो request reject होगी और duplicate UTR
+   * कभी overwrite नहीं होगा.
    */
-  const batch = writeBatch(db);
+  await runTransaction(db, async (transaction) => {
+    const existingUtrSnapshot = await transaction.get(utrRef);
 
-  batch.create(
-    utrRef,
-    {
+    if (existingUtrSnapshot.exists()) {
+      throw new Error(
+        'UTR Number has already been submitted.'
+      );
+    }
+
+    transaction.set(utrRef, {
       utrNormalized,
       rechargeRequestId: rechargeRef.id,
       schoolId: params.schoolId,
       schoolName,
       uid: params.uid,
       createdAt: serverTimestamp(),
-    }
-  );
+    });
 
-  batch.create(
-    rechargeRef,
-    {
+    transaction.set(rechargeRef, {
       schoolId: params.schoolId,
       schoolName,
       uid: params.uid,
@@ -493,10 +496,8 @@ export async function createRechargeRequest(
       utrNormalized,
       status: 'PENDING',
       createdAt: serverTimestamp(),
-    }
-  );
-
-  await batch.commit();
+    });
+  });
 
   return rechargeRef.id;
 }
