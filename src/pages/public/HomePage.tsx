@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 
 import {
-  fetchPublicSchools,
-  fetchActivePlatformAds,
+  subscribeToPublicSchools,
+  subscribeToActivePlatformAds,
   isPlatformAdminEmail,
   type PlatformAd,
 } from '@/firebase/firestore';
@@ -41,38 +41,35 @@ export default function HomePage() {
   const [platformAds, setPlatformAds] = useState<PlatformAd[]>([]);
 
   /* =========================================================
-     LOAD LIVE SCHOOLS
+     REALTIME LIVE SCHOOLS + PLATFORM ADS
   ========================================================= */
 
-  const loadSchools = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      const data = await fetchPublicSchools();
-
-      setSchools(data);
-    } catch (err) {
-      console.error('Failed to load schools:', err);
-      setError('Schools load nahi ho pa rahe hain.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadSchools();
-    loadPlatformAds();
-  }, []);
+    setLoading(true);
+    setError('');
 
-  const loadPlatformAds = async () => {
-    try {
-      const ads = await fetchActivePlatformAds();
-      setPlatformAds(ads);
-    } catch (error) {
-      console.error('Failed to load platform advertisements:', error);
-    }
-  };
+    const unsubscribeSchools = subscribeToPublicSchools(
+      (data) => {
+        setSchools(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Live schools error:', err);
+        setError('Schools load nahi ho pa rahe hain.');
+        setLoading(false);
+      }
+    );
+
+    const unsubscribeAds = subscribeToActivePlatformAds(
+      (ads) => setPlatformAds(ads),
+      (err) => console.error('Live platform ads error:', err)
+    );
+
+    return () => {
+      unsubscribeSchools();
+      unsubscribeAds();
+    };
+  }, []);
 
   /* =========================================================
      SEARCH
