@@ -1,4 +1,3 @@
-```tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -27,79 +26,794 @@ type Tab =
   | 'staff'
   | 'subscription';
 
-type RecordMap = Record<string, any>;
+type AnyRecord = Record<string, any>;
+
+interface SchoolData {
+  id?: string;
+  name?: string;
+  slug?: string;
+  logoUrl?: string;
+  imageUrl?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  status?: string;
+  paymentStatus?: string;
+  subscriptionStatus?: string;
+  subscriptionExpiry?: any;
+  createdAt?: any;
+
+  students?: AnyRecord[];
+  classes?: AnyRecord[];
+  results?: AnyRecord[];
+  homework?: AnyRecord[];
+  attendance?: AnyRecord[];
+  gallery?: AnyRecord[];
+  documents?: AnyRecord[];
+
+  [key: string]: any;
+}
+
+interface Teacher {
+  id?: string;
+  uid?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  assignedClass?: string;
+  className?: string;
+  role?: string;
+  schoolId?: string;
+  status?: string;
+  [key: string]: any;
+}
+
+interface Membership {
+  id?: string;
+  uid?: string;
+  email?: string;
+  displayName?: string;
+  name?: string;
+  role?: string;
+  status?: string;
+  schoolId?: string;
+  createdAt?: any;
+  [key: string]: any;
+}
+
+interface Notice {
+  id?: string;
+  title?: string;
+  message?: string;
+  description?: string;
+  date?: any;
+  createdAt?: any;
+  [key: string]: any;
+}
+
+interface SchoolEvent {
+  id?: string;
+  title?: string;
+  description?: string;
+  date?: any;
+  eventDate?: any;
+  createdAt?: any;
+  [key: string]: any;
+}
+
+interface CollectionConfig {
+  title: string;
+  icon: string;
+}
 
 const collectionConfig: Record<
-  Exclude<
-    Tab,
-    'info' |
-    'teachers' |
-    'notices' |
-    'events' |
-    'staff' |
-    'subscription'
-  >,
-  {
-    collection: string;
-    icon: string;
-    title: string;
-  }
+  'students' | 'classes' | 'results' | 'homework' | 'attendance' | 'gallery' | 'documents',
+  CollectionConfig
 > = {
   students: {
-    collection: 'students',
-    icon: '👨‍🎓',
     title: 'Students',
+    icon: '👨‍🎓',
   },
   classes: {
-    collection: 'classes',
-    icon: '📚',
     title: 'Classes',
+    icon: '🏫',
   },
   results: {
-    collection: 'results',
-    icon: '📝',
     title: 'Results',
+    icon: '📊',
   },
   homework: {
-    collection: 'homework',
-    icon: '📖',
     title: 'Homework',
+    icon: '📝',
   },
   attendance: {
-    collection: 'attendance',
-    icon: '📅',
     title: 'Attendance',
+    icon: '📅',
   },
   gallery: {
-    collection: 'gallery',
-    icon: '🖼️',
     title: 'Gallery',
+    icon: '🖼️',
   },
   documents: {
-    collection: 'documents',
-    icon: '📄',
     title: 'Documents',
+    icon: '📄',
   },
 };
 
+function humanize(value: string) {
+  return value
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function formatValue(value: any): string {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value);
+  }
+
+  if (value?.toDate instanceof Function) {
+    try {
+      return value.toDate().toLocaleString();
+    } catch {
+      return String(value);
+    }
+  }
+
+  if (value instanceof Date) {
+    return value.toLocaleString();
+  }
+
+  if (Array.isArray(value)) {
+    if (!value.length) {
+      return '—';
+    }
+
+    return value
+      .map((item) =>
+        typeof item === 'object'
+          ? JSON.stringify(item)
+          : String(item)
+      )
+      .join(', ');
+  }
+
+  if (typeof value === 'object') {
+    if (value.seconds !== undefined) {
+      try {
+        return new Date(value.seconds * 1000).toLocaleString();
+      } catch {
+        return JSON.stringify(value);
+      }
+    }
+
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function getRecordTitle(record: AnyRecord, index: number) {
+  return (
+    record.name ||
+    record.studentName ||
+    record.teacherName ||
+    record.title ||
+    record.subject ||
+    record.className ||
+    record.fileName ||
+    record.id ||
+    `Record ${index + 1}`
+  );
+}
+
+function getDisplayFields(record: AnyRecord) {
+  const hidden = new Set([
+    'id',
+    'uid',
+    'schoolId',
+    'ownerUid',
+    'ownerEmail',
+  ]);
+
+  return Object.entries(record).filter(
+    ([key]) => !hidden.has(key)
+  );
+}
+
+function DataBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: any;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </div>
+
+      <div className="break-words text-sm font-medium text-slate-900">
+        {formatValue(value)}
+      </div>
+    </div>
+  );
+}
+
+function SummaryCards({
+  schoolData,
+  teachers,
+  memberships,
+}: {
+  schoolData: SchoolData;
+  teachers: Teacher[];
+  memberships: Membership[];
+}) {
+  const cards = [
+    {
+      label: 'Students',
+      value: schoolData.students?.length || 0,
+      icon: '👨‍🎓',
+    },
+    {
+      label: 'Teachers',
+      value: teachers.length,
+      icon: '👩‍🏫',
+    },
+    {
+      label: 'Classes',
+      value: schoolData.classes?.length || 0,
+      icon: '🏫',
+    },
+    {
+      label: 'Staff',
+      value: memberships.length,
+      icon: '👥',
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md"
+        >
+          <div className="mb-2 text-3xl">{card.icon}</div>
+
+          <div className="text-2xl font-bold text-slate-900">
+            {card.value}
+          </div>
+
+          <div className="text-sm font-medium text-slate-500">
+            {card.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
+
+function InfoSection({
+  schoolData,
+  schoolInfo,
+}: {
+  schoolData: SchoolData;
+  schoolInfo: AnyRecord | null;
+}) {
+  const info = schoolInfo || schoolData;
+
+  const fields = [
+    ['School Name', info.name],
+    ['Slug', info.slug],
+    ['Email', info.email],
+    ['Phone', info.phone],
+    ['Address', info.address],
+    ['City', info.city],
+    ['State', info.state],
+    ['Status', info.status],
+    ['Payment Status', info.paymentStatus],
+    ['Subscription Status', info.subscriptionStatus],
+    ['Subscription Expiry', info.subscriptionExpiry],
+  ];
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          School Information
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Complete information of this school.
+        </p>
+      </div>
+
+      {info.logoUrl && (
+        <div className="flex justify-center">
+          <img
+            src={info.logoUrl}
+            alt={info.name || 'School logo'}
+            className="h-28 w-28 rounded-2xl object-cover shadow-lg"
+          />
+        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {fields.map(([label, value]) => (
+          <DataBox
+            key={label}
+            label={label}
+            value={value}
+          />
+        ))}
+      </div>
+
+      {info.description && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-2 font-bold text-slate-900">
+            Description
+          </h3>
+
+          <p className="whitespace-pre-wrap text-sm leading-7 text-slate-600">
+            {info.description}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TeachersSection({
+  teachers,
+}: {
+  teachers: Teacher[];
+}) {
+  if (!teachers.length) {
+    return (
+      <section>
+        <h2 className="mb-4 text-2xl font-bold text-slate-900">
+          Teachers
+        </h2>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          No teachers found.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Teachers
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Teachers registered in this school.
+        </p>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {teachers.map((teacher, index) => (
+          <div
+            key={teacher.id || teacher.uid || index}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md"
+          >
+            <div className="mb-4 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl">
+                👩‍🏫
+              </div>
+
+              <div className="min-w-0">
+                <h3 className="truncate font-bold text-slate-900">
+                  {teacher.name ||
+                    teacher.displayName ||
+                    'Teacher'}
+                </h3>
+
+                <p className="truncate text-sm text-slate-500">
+                  {teacher.email || 'No email'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <DataBox
+                label="Assigned Class"
+                value={
+                  teacher.assignedClass ||
+                  teacher.className ||
+                  'Not assigned'
+                }
+              />
+
+              <DataBox
+                label="Phone"
+                value={teacher.phone}
+              />
+
+              <DataBox
+                label="Role"
+                value={teacher.role || 'teacher'}
+              />
+
+              <DataBox
+                label="Status"
+                value={teacher.status || 'ACTIVE'}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NoticesSection({
+  notices,
+}: {
+  notices: Notice[];
+}) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Notices
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          School announcements and notices.
+        </p>
+      </div>
+
+      {!notices.length ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          No notices found.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {notices.map((notice, index) => (
+            <div
+              key={notice.id || index}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md"
+            >
+              <h3 className="text-lg font-bold text-slate-900">
+                {notice.title || 'Notice'}
+              </h3>
+
+              {(notice.date || notice.createdAt) && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatValue(
+                    notice.date || notice.createdAt
+                  )}
+                </p>
+              )}
+
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                {notice.message ||
+                  notice.description ||
+                  'No description'}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EventsSection({
+  events,
+}: {
+  events: SchoolEvent[];
+}) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Events
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          School events and activities.
+        </p>
+      </div>
+
+      {!events.length ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          No events found.
+        </div>
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2">
+          {events.map((event, index) => (
+            <div
+              key={event.id || index}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md"
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-xl">
+                  📅
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-slate-900">
+                    {event.title || 'Event'}
+                  </h3>
+
+                  {(event.date || event.eventDate) && (
+                    <p className="text-xs text-slate-500">
+                      {formatValue(
+                        event.date || event.eventDate
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <p className="whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                {event.description ||
+                  event.message ||
+                  'No description'}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StaffSection({
+  memberships,
+}: {
+  memberships: Membership[];
+}) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Staff Access
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Users and roles connected with this school.
+        </p>
+      </div>
+
+      {!memberships.length ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          No staff members found.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-md">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b bg-slate-50">
+              <tr>
+                <th className="px-5 py-4 font-bold text-slate-700">
+                  Name
+                </th>
+
+                <th className="px-5 py-4 font-bold text-slate-700">
+                  Email
+                </th>
+
+                <th className="px-5 py-4 font-bold text-slate-700">
+                  Role
+                </th>
+
+                <th className="px-5 py-4 font-bold text-slate-700">
+                  Status
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {memberships.map((member, index) => (
+                <tr
+                  key={member.id || member.uid || index}
+                  className="border-b last:border-b-0"
+                >
+                  <td className="px-5 py-4 font-medium text-slate-900">
+                    {member.name ||
+                      member.displayName ||
+                      'User'}
+                  </td>
+
+                  <td className="px-5 py-4 text-slate-600">
+                    {member.email || '—'}
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {member.role || '—'}
+                    </span>
+                  </td>
+
+                  <td className="px-5 py-4 text-slate-600">
+                    {member.status || 'ACTIVE'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SubscriptionSection({
+  schoolData,
+}: {
+  schoolData: SchoolData;
+}) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Subscription
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Current school subscription information.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <DataBox
+          label="School Status"
+          value={schoolData.status}
+        />
+
+        <DataBox
+          label="Payment Status"
+          value={schoolData.paymentStatus}
+        />
+
+        <DataBox
+          label="Subscription Status"
+          value={schoolData.subscriptionStatus}
+        />
+
+        <DataBox
+          label="Subscription Expiry"
+          value={schoolData.subscriptionExpiry}
+        />
+      </div>
+    </section>
+  );
+}
+
+function CollectionSection({
+  title,
+  icon,
+  rows,
+}: {
+  title: string;
+  icon: string;
+  rows: AnyRecord[];
+}) {
+  const [search, setSearch] = useState('');
+
+  const filteredRows = useMemo(() => {
+    const value = search.trim().toLowerCase();
+
+    if (!value) {
+      return rows;
+    }
+
+    return rows.filter((row) =>
+      JSON.stringify(row)
+        .toLowerCase()
+        .includes(value)
+    );
+  }, [rows, search]);
+
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">
+            {icon} {title}
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Total records: {rows.length}
+          </p>
+        </div>
+
+        <input
+          type="text"
+          value={search}
+          onChange={(event) =>
+            setSearch(event.target.value)
+          }
+          placeholder={`Search ${title.toLowerCase()}...`}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-slate-500 md:w-72"
+        />
+      </div>
+
+      {!filteredRows.length ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">
+          No {title.toLowerCase()} found.
+        </div>
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2">
+          {filteredRows.map((row, index) => (
+            <div
+              key={row.id || index}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md"
+            >
+              <h3 className="mb-4 text-lg font-bold text-slate-900">
+                {getRecordTitle(row, index)}
+              </h3>
+
+              <div className="grid gap-3">
+                {getDisplayFields(row).map(
+                  ([key, value]) => (
+                    <DataBox
+                      key={key}
+                      label={humanize(key)}
+                      value={value}
+                    />
+                  )
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+
+
+
+
 export default function SchoolSuperAdminViewPage() {
-  const { schoolId } = useParams();
+  const { schoolId } = useParams<{ schoolId: string }>();
   const navigate = useNavigate();
-
-  const [school, setSchool] = useState<any>(null);
-  const [schoolInfo, setSchoolInfo] = useState<any>(null);
-
-  const [memberships, setMemberships] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
-
-  const [schoolData, setSchoolData] = useState<
-    Record<string, any[]>
-  >({});
 
   const [activeTab, setActiveTab] =
     useState<Tab>('info');
+
+  const [schoolData, setSchoolData] =
+    useState<SchoolData | null>(null);
+
+  const [schoolInfo, setSchoolInfo] =
+    useState<AnyRecord | null>(null);
+
+  const [teachers, setTeachers] =
+    useState<Teacher[]>([]);
+
+  const [memberships, setMemberships] =
+    useState<Membership[]>([]);
+
+  const [notices, setNotices] =
+    useState<Notice[]>([]);
+
+  const [events, setEvents] =
+    useState<SchoolEvent[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -107,373 +821,473 @@ export default function SchoolSuperAdminViewPage() {
   const [error, setError] =
     useState('');
 
+  const [collectionLoading, setCollectionLoading] =
+    useState(false);
+
   useEffect(() => {
-    if (schoolId) {
-      loadSchool(schoolId);
+    if (!schoolId) {
+      setError('School ID is missing.');
+      setLoading(false);
+      return;
     }
+
+    let cancelled = false;
+
+    async function loadSchool() {
+      try {
+        setLoading(true);
+        setError('');
+
+        const [
+          school,
+          info,
+          schoolMemberships,
+          schoolTeachers,
+          announcements,
+          schoolEvents,
+        ] = await Promise.all([
+          fetchSchoolById(schoolId),
+          fetchSchoolInfo(schoolId),
+          fetchSchoolMemberships(schoolId),
+          fetchTeachers(schoolId),
+          fetchAnnouncements(schoolId),
+          fetchEvents(schoolId),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setSchoolData(
+          (school || {
+            id: schoolId,
+          }) as SchoolData
+        );
+
+        setSchoolInfo(
+          (info || null) as AnyRecord | null
+        );
+
+        setMemberships(
+          Array.isArray(schoolMemberships)
+            ? (schoolMemberships as Membership[])
+            : []
+        );
+
+        setTeachers(
+          Array.isArray(schoolTeachers)
+            ? (schoolTeachers as Teacher[])
+            : []
+        );
+
+        setNotices(
+          Array.isArray(announcements)
+            ? (announcements as Notice[])
+            : []
+        );
+
+        setEvents(
+          Array.isArray(schoolEvents)
+            ? (schoolEvents as SchoolEvent[])
+            : []
+        );
+
+        const collectionNames = [
+          'students',
+          'classes',
+          'results',
+          'homework',
+          'attendance',
+          'gallery',
+          'documents',
+        ] as const;
+
+        const collectionResults =
+          await Promise.all(
+            collectionNames.map(async (name) => {
+              try {
+                const records =
+                  await fetchSchoolCollection(
+                    schoolId,
+                    name
+                  );
+
+                return [
+                  name,
+                  Array.isArray(records)
+                    ? records
+                    : [],
+                ] as const;
+              } catch {
+                return [name, []] as const;
+              }
+            })
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        setSchoolData((previous) => {
+          const next: SchoolData = {
+            ...(previous || {}),
+          };
+
+          for (const [name, records] of collectionResults) {
+            next[name] = records;
+          }
+
+          return next;
+        });
+      } catch (err: any) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          'SchoolSuperAdminViewPage load error:',
+          err
+        );
+
+        setError(
+          err?.message ||
+            'Unable to load school information.'
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadSchool();
+
+    return () => {
+      cancelled = true;
+    };
   }, [schoolId]);
 
-  async function loadSchool(id: string) {
-    try {
-      setLoading(true);
-      setError('');
-
-      const genericCollections =
-        Object.entries(collectionConfig);
-
-      const [
-        schoolDataResult,
-        infoData,
-        membershipData,
-        teacherData,
-        noticeData,
-        eventData,
-        ...genericResults
-      ] = await Promise.all([
-        fetchSchoolById(id),
-
-        fetchSchoolInfo(id),
-
-        fetchSchoolMemberships(id),
-
-        fetchTeachers(id),
-
-        fetchAnnouncements(id),
-
-        fetchEvents(id),
-
-        ...genericCollections.map(
-          ([, config]) =>
-            fetchSchoolCollection(
-              config.collection,
-              id
-            )
-        ),
-      ]);
-
-      if (!schoolDataResult) {
-        throw new Error(
-          'School not found.'
-        );
-      }
-
-      const genericMap:
-        Record<string, any[]> = {};
-
-      genericCollections.forEach(
-        ([tab], index) => {
-          genericMap[tab] =
-            genericResults[index] || [];
-        }
-      );
-
-      setSchool(
-        schoolDataResult
-      );
-
-      setSchoolInfo(
-        infoData
-      );
-
-      setMemberships(
-        membershipData || []
-      );
-
-      setTeachers(
-        teacherData || []
-      );
-
-      setAnnouncements(
-        noticeData || []
-      );
-
-      setEvents(
-        eventData || []
-      );
-
-      setSchoolData(
-        genericMap
-      );
-    } catch (err: any) {
-      console.error(err);
-
-      setError(
-        err?.message ||
-        'School data load नहीं हुआ'
-      );
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (
+      !schoolId ||
+      !collectionConfig[
+        activeTab as keyof typeof collectionConfig
+      ]
+    ) {
+      return;
     }
-  }
 
-  const tabs: {
-    id: Tab;
-    label: string;
-    icon: string;
-  }[] = [
-    {
-      id: 'info',
-      label: 'School Info',
-      icon: '🏫',
-    },
-    {
-      id: 'students',
-      label: `Students (${schoolData.students?.length || 0})`,
-      icon: '👨‍🎓',
-    },
-    {
-      id: 'teachers',
-      label: `Teachers (${teachers.length})`,
-      icon: '👨‍🏫',
-    },
-    {
-      id: 'classes',
-      label: `Classes (${schoolData.classes?.length || 0})`,
-      icon: '📚',
-    },
-    {
-      id: 'results',
-      label: `Results (${schoolData.results?.length || 0})`,
-      icon: '📝',
-    },
-    {
-      id: 'homework',
-      label: `Homework (${schoolData.homework?.length || 0})`,
-      icon: '📖',
-    },
-    {
-      id: 'attendance',
-      label: `Attendance (${schoolData.attendance?.length || 0})`,
-      icon: '📅',
-    },
-    {
-      id: 'notices',
-      label: `Notices (${announcements.length})`,
-      icon: '📢',
-    },
-    {
-      id: 'events',
-      label: `Events (${events.length})`,
-      icon: '🎉',
-    },
-    {
-      id: 'gallery',
-      label: `Gallery (${schoolData.gallery?.length || 0})`,
-      icon: '🖼️',
-    },
-    {
-      id: 'documents',
-      label: `Documents (${schoolData.documents?.length || 0})`,
-      icon: '📄',
-    },
-    {
-      id: 'staff',
-      label: `Staff Access (${memberships.length})`,
-      icon: '👥',
-    },
-    {
-      id: 'subscription',
-      label: 'Subscription',
-      icon: '💳',
-    },
-  ];
+    let cancelled = false;
 
-  const counts = useMemo(
-    () => ({
-      students:
-        schoolData.students?.length || 0,
+    async function reloadCollection() {
+      try {
+        setCollectionLoading(true);
 
-      teachers:
-        teachers.length,
+        const records =
+          await fetchSchoolCollection(
+            schoolId,
+            activeTab
+          );
 
-      classes:
-        schoolData.classes?.length || 0,
+        if (cancelled) {
+          return;
+        }
 
-      results:
-        schoolData.results?.length || 0,
+        setSchoolData((previous) => ({
+          ...(previous || {}),
+          [activeTab]: Array.isArray(records)
+            ? records
+            : [],
+        }));
+      } catch (err) {
+        console.error(
+          'Collection loading error:',
+          err
+        );
+      } finally {
+        if (!cancelled) {
+          setCollectionLoading(false);
+        }
+      }
+    }
 
-      homework:
-        schoolData.homework?.length || 0,
+    reloadCollection();
 
-      attendance:
-        schoolData.attendance?.length || 0,
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, schoolId]);
 
-      notices:
-        announcements.length,
-
-      events:
-        events.length,
-
-      gallery:
-        schoolData.gallery?.length || 0,
-
-      documents:
-        schoolData.documents?.length || 0,
-
-      staff:
-        memberships.length,
-    }),
+  const tabs = useMemo(
+    () => [
+      {
+        id: 'info' as Tab,
+        label: 'School Info',
+        icon: '🏫',
+      },
+      {
+        id: 'students' as Tab,
+        label: `Students (${schoolData?.students?.length || 0})`,
+        icon: '👨‍🎓',
+      },
+      {
+        id: 'teachers' as Tab,
+        label: `Teachers (${teachers.length})`,
+        icon: '👩‍🏫',
+      },
+      {
+        id: 'classes' as Tab,
+        label: `Classes (${schoolData?.classes?.length || 0})`,
+        icon: '📚',
+      },
+      {
+        id: 'results' as Tab,
+        label: `Results (${schoolData?.results?.length || 0})`,
+        icon: '📊',
+      },
+      {
+        id: 'homework' as Tab,
+        label: `Homework (${schoolData?.homework?.length || 0})`,
+        icon: '📝',
+      },
+      {
+        id: 'attendance' as Tab,
+        label: `Attendance (${schoolData?.attendance?.length || 0})`,
+        icon: '📅',
+      },
+      {
+        id: 'notices' as Tab,
+        label: `Notices (${notices.length})`,
+        icon: '📢',
+      },
+      {
+        id: 'events' as Tab,
+        label: `Events (${events.length})`,
+        icon: '🎉',
+      },
+      {
+        id: 'gallery' as Tab,
+        label: `Gallery (${schoolData?.gallery?.length || 0})`,
+        icon: '🖼️',
+      },
+      {
+        id: 'documents' as Tab,
+        label: `Documents (${schoolData?.documents?.length || 0})`,
+        icon: '📄',
+      },
+      {
+        id: 'staff' as Tab,
+        label: `Staff (${memberships.length})`,
+        icon: '👥',
+      },
+      {
+        id: 'subscription' as Tab,
+        label: 'Subscription',
+        icon: '💳',
+      },
+    ],
     [
       schoolData,
-      teachers,
-      announcements,
-      events,
-      memberships,
+      teachers.length,
+      notices.length,
+      events.length,
+      memberships.length,
     ]
   );
 
   if (loading) {
     return (
-      <PageMessage
-        icon="⏳"
-        title="School data loading..."
-      />
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="rounded-2xl bg-white px-8 py-10 text-center shadow-lg">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-slate-700" />
+
+          <h2 className="text-lg font-bold text-slate-900">
+            Loading School...
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Please wait.
+          </p>
+        </div>
+      </div>
     );
   }
 
-  if (error) {
+  if (error && !schoolData) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-6">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-lg rounded-2xl border border-red-200 bg-white p-8 text-center shadow-lg">
+          <div className="mb-4 text-5xl">⚠️</div>
 
-        <button
-          onClick={() =>
-            navigate('/admin')
-          }
-          className="mb-6 rounded-xl bg-white/10 px-4 py-2 hover:bg-white/20"
-        >
-          ← Back to All Schools
-        </button>
-
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/30 p-6">
-
-          <h2 className="text-xl font-bold mb-2">
-            Data Load Error
+          <h2 className="text-xl font-bold text-slate-900">
+            Unable to Load School
           </h2>
 
-          <p>
+          <p className="mt-3 text-sm text-red-600">
             {error}
           </p>
 
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="mt-6 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:scale-[1.02]"
+          >
+            ← Go Back
+          </button>
         </div>
       </div>
     );
   }
 
-  if (!school) {
+  if (!schoolData) {
     return (
-      <PageMessage
-        icon="🏫"
-        title="School नहीं मिला।"
-      />
-    );
-  }
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="rounded-2xl bg-white p-8 text-center shadow-lg">
+          <div className="mb-3 text-5xl">🏫</div>
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-white">
-
-      {/* HEADER */}
-      <div className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/95 backdrop-blur">
-
-        <div className="max-w-7xl mx-auto px-4 py-4">
+          <h2 className="text-xl font-bold text-slate-900">
+            School Not Found
+          </h2>
 
           <button
-            onClick={() =>
-              navigate('/admin')
-            }
-            className="mb-4 rounded-xl bg-white/10 hover:bg-white/20 px-4 py-2"
+            type="button"
+            onClick={() => navigate(-1)}
+            className="mt-5 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
           >
-            ← Back to All Schools
+            ← Go Back
           </button>
-
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-
-            {school.logoUrl ||
-            school.logo ? (
-
-              <img
-                src={
-                  school.logoUrl ||
-                  school.logo
-                }
-                alt={school.name}
-                className="w-16 h-16 rounded-2xl object-cover bg-white"
-              />
-
-            ) : (
-
-              <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center text-3xl">
-                🏫
-              </div>
-
-            )}
-
-            <div className="flex-1">
-
-              <h1 className="text-2xl md:text-3xl font-bold">
-                {school.name}
-              </h1>
-
-              <p className="text-slate-400">
-                /school/{school.slug}
-              </p>
-
-              <p className="text-xs text-slate-500 mt-1">
-                School ID: {school.id}
-              </p>
-
-            </div>
-
-            <div
-              className={`px-4 py-2 rounded-full text-sm font-bold ${
-                school.status === 'LIVE'
-                  ? 'bg-green-500/20 text-green-400'
-                  : 'bg-yellow-500/20 text-yellow-400'
-              }`}
-            >
-              {school.status}
-            </div>
-
-          </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="max-w-7xl mx-auto px-4 py-5">
+  const collectionTab =
+    collectionConfig[
+      activeTab as keyof typeof collectionConfig
+    ];
 
-        {/* SUMMARY */}
-        <SummaryCards
-          counts={counts}
-        />
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            {schoolData.logoUrl ? (
+              <img
+                src={schoolData.logoUrl}
+                alt={schoolData.name || 'School'}
+                className="h-12 w-12 rounded-xl object-cover shadow"
+              />
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-2xl text-white">
+                🏫
+              </div>
+            )}
 
-        {/* TABS */}
-        <div className="flex gap-2 overflow-x-auto pb-3 mt-5">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-bold text-slate-900 md:text-xl">
+                {schoolData.name || 'School'}
+              </h1>
 
-          {tabs.map((tab) => (
+              <p className="truncate text-xs text-slate-500">
+                School Super Admin View
+              </p>
+            </div>
+          </div>
 
-            <button
-              key={tab.id}
-              onClick={() =>
-                setActiveTab(tab.id)
-              }
-              className={`whitespace-nowrap rounded-xl px-4 py-3 font-semibold transition ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              {tab.icon}{' '}
-              {tab.label}
-            </button>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="shrink-0 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:scale-[1.02]"
+          >
+            ← Back
+          </button>
+        </div>
+      </header>
 
-          ))}
+      <main className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
+        {/* School heading */}
+        <div className="mb-6 rounded-3xl bg-gradient-to-r from-slate-900 to-slate-700 p-6 text-white shadow-xl">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="mb-1 text-sm font-medium text-slate-300">
+                School Dashboard
+              </p>
 
+              <h2 className="text-2xl font-extrabold md:text-3xl">
+                {schoolData.name || 'School'}
+              </h2>
+
+              {schoolData.slug && (
+                <p className="mt-2 text-sm text-slate-300">
+                  /{schoolData.slug}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {schoolData.status && (
+                <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold backdrop-blur">
+                  Status: {schoolData.status}
+                </span>
+              )}
+
+              {schoolData.subscriptionStatus && (
+                <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold backdrop-blur">
+                  Subscription:{' '}
+                  {schoolData.subscriptionStatus}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* CONTENT */}
-        <div className="mt-4">
+        {/* Summary */}
+        <div className="mb-6">
+          <SummaryCards
+            schoolData={schoolData}
+            teachers={teachers}
+            memberships={memberships}
+          />
+        </div>
 
+        {/* Tabs */}
+        <div className="mb-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="flex min-w-max gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={[
+                  'rounded-xl px-4 py-3 text-sm font-bold transition',
+                  activeTab === tab.id
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100',
+                ].join(' ')}
+              >
+                <span className="mr-2">
+                  {tab.icon}
+                </span>
+
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error notice */}
+        {error && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+            {error}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="rounded-3xl border border-slate-200 bg-slate-50">
           {activeTab === 'info' && (
             <InfoSection
-              school={school}
+              schoolData={schoolData}
               schoolInfo={schoolInfo}
             />
           )}
@@ -486,9 +1300,7 @@ export default function SchoolSuperAdminViewPage() {
 
           {activeTab === 'notices' && (
             <NoticesSection
-              announcements={
-                announcements
-              }
+              notices={notices}
             />
           )}
 
@@ -500,940 +1312,43 @@ export default function SchoolSuperAdminViewPage() {
 
           {activeTab === 'staff' && (
             <StaffSection
-              memberships={
-                memberships
-              }
+              memberships={memberships}
             />
           )}
 
-          {activeTab ===
-            'subscription' && (
+          {activeTab === 'subscription' && (
             <SubscriptionSection
-              school={school}
+              schoolData={schoolData}
             />
           )}
 
-          {activeTab in
-            collectionConfig && (
-            <CollectionSection
-              title={
-                collectionConfig[
-                  activeTab as keyof typeof collectionConfig
-                ].title
-              }
-              icon={
-                collectionConfig[
-                  activeTab as keyof typeof collectionConfig
-                ].icon
-              }
-              rows={
-                schoolData[
-                  activeTab
-                ] || []
-              }
-            />
-          )}
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   LOADING / ERROR
-========================================================= */
-
-function PageMessage({
-  icon,
-  title,
-}: {
-  icon: string;
-  title: string;
-}) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-
-      <div className="text-center">
-
-        <div className="text-5xl mb-4">
-          {icon}
-        </div>
-
-        <h2 className="text-xl font-bold">
-          {title}
-        </h2>
-
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   SUMMARY CARDS
-========================================================= */
-
-function SummaryCards({
-  counts,
-}: {
-  counts: Record<
-    string,
-    number
-  >;
-}) {
-
-  const cards = [
-    ['👨‍🎓', 'Students', counts.students],
-    ['👨‍🏫', 'Teachers', counts.teachers],
-    ['📚', 'Classes', counts.classes],
-    ['📝', 'Results', counts.results],
-    ['📖', 'Homework', counts.homework],
-    ['📅', 'Attendance', counts.attendance],
-    ['📢', 'Notices', counts.notices],
-    ['🖼️', 'Gallery', counts.gallery],
-  ];
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-
-      {cards.map(
-        ([icon, label, value]) => (
-
-          <div
-            key={String(label)}
-            className="rounded-2xl bg-white/5 border border-white/10 p-4"
-          >
-
-            <div className="text-2xl">
-              {icon}
-            </div>
-
-            <div className="text-2xl font-black mt-2">
-              {value}
-            </div>
-
-            <div className="text-xs text-slate-400">
-              {label}
-            </div>
-
-          </div>
-
-        )
-      )}
-
-    </div>
-  );
-}
-
-/* =========================================================
-   SCHOOL INFORMATION
-========================================================= */
-
-function InfoSection({
-  school,
-  schoolInfo,
-}: {
-  school: any;
-  schoolInfo: any;
-}) {
-
-  const data =
-    schoolInfo || school;
-
-  const fields =
-    Object.entries(data || {})
-      .filter(
-        ([key]) =>
-          key !== 'id'
-      )
-      .sort(
-        ([a], [b]) =>
-          a.localeCompare(b)
-      );
-
-  return (
-    <section className="rounded-2xl bg-white/5 border border-white/10 p-5">
-
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-5">
-
-        <div>
-
-          <h2 className="text-2xl font-bold">
-            🏫 Complete School Information
-          </h2>
-
-          <p className="text-sm text-slate-400 mt-1">
-            School के Firebase document की सभी available जानकारी
-          </p>
-
-        </div>
-
-        <span className="rounded-full bg-blue-500/10 text-blue-300 px-3 py-1 text-xs font-bold">
-          {fields.length} FIELDS
-        </span>
-
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-
-        {fields.map(
-          ([label, value]) => (
-            <DataBox
-              key={label}
-              label={humanize(label)}
-              value={value}
-            />
-          )
-        )}
-
-      </div>
-
-    </section>
-  );
-}
-
-/* =========================================================
-   TEACHERS
-========================================================= */
-
-function TeachersSection({
-  teachers,
-}: {
-  teachers: any[];
-}) {
-
-  return (
-    <CollectionSection
-      title="Teachers"
-      icon="👨‍🏫"
-      rows={teachers}
-      preferredFields={[
-        'name',
-        'displayName',
-        'email',
-        'phone',
-        'assignedClass',
-        'class',
-        'subject',
-        'status',
-        'uid',
-      ]}
-    />
-  );
-}
-
-/* =========================================================
-   NOTICES
-========================================================= */
-
-function NoticesSection({
-  announcements,
-}: {
-  announcements: any[];
-}) {
-
-  return (
-    <CollectionSection
-      title="Notices / Announcements"
-      icon="📢"
-      rows={announcements}
-      preferredFields={[
-        'title',
-        'content',
-        'message',
-        'date',
-        'status',
-        'createdAt',
-        'updatedAt',
-      ]}
-    />
-  );
-}
-
-/* =========================================================
-   EVENTS
-========================================================= */
-
-function EventsSection({
-  events,
-}: {
-  events: any[];
-}) {
-
-  return (
-    <CollectionSection
-      title="Events"
-      icon="🎉"
-      rows={events}
-      preferredFields={[
-        'title',
-        'description',
-        'date',
-        'startDate',
-        'endDate',
-        'location',
-        'status',
-        'createdAt',
-      ]}
-    />
-  );
-}
-
-/* =========================================================
-   STAFF
-========================================================= */
-
-function StaffSection({
-  memberships,
-}: {
-  memberships: any[];
-}) {
-
-  return (
-    <CollectionSection
-      title="Staff Access"
-      icon="👥"
-      rows={memberships}
-      preferredFields={[
-        'email',
-        'uid',
-        'role',
-        'status',
-        'createdAt',
-        'updatedAt',
-      ]}
-    />
-  );
-}
-
-/* =========================================================
-   GENERIC COLLECTION
-========================================================= */
-
-function CollectionSection({
-  title,
-  icon,
-  rows,
-  preferredFields = [],
-}: {
-  title: string;
-  icon: string;
-  rows: any[];
-  preferredFields?: string[];
-}) {
-
-  const [
-    expanded,
-    setExpanded,
-  ] =
-    useState<string | null>(
-      null
-    );
-
-  const [
-    search,
-    setSearch,
-  ] =
-    useState('');
-
-  const filteredRows =
-    useMemo(() => {
-
-      const term =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!term) {
-        return rows;
-      }
-
-      return rows.filter(
-        (row) =>
-          JSON.stringify(
-            row
-          )
-            .toLowerCase()
-            .includes(term)
-      );
-
-    }, [rows, search]);
-
-  if (!rows.length) {
-
-    return (
-      <section className="rounded-2xl bg-white/5 border border-white/10 p-8 text-center">
-
-        <div className="text-5xl mb-4">
-          {icon}
-        </div>
-
-        <h2 className="text-2xl font-bold mb-2">
-          {title}
-        </h2>
-
-        <p className="text-slate-400">
-          इस school में अभी कोई data नहीं मिला।
-        </p>
-
-        <p className="text-xs text-slate-500 mt-2">
-          Data selected school के schoolId के अनुसार खोजा गया है।
-        </p>
-
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-2xl bg-white/5 border border-white/10 p-5">
-
-      {/* TITLE */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-
-        <div>
-
-          <h2 className="text-2xl font-bold">
-            {icon} {title}
-          </h2>
-
-          <p className="text-sm text-slate-400 mt-1">
-            Total records: {rows.length}
-          </p>
-
-        </div>
-
-        <span className="rounded-full bg-green-500/10 text-green-400 px-3 py-1 text-xs font-bold">
-          SCHOOL DATA ONLY
-        </span>
-
-      </div>
-
-      {/* SEARCH */}
-      <div className="mb-5">
-
-        <input
-          value={search}
-          onChange={(e) =>
-            setSearch(
-              e.target.value
-            )
-          }
-          placeholder={`🔎 Search ${title}...`}
-          className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-blue-500"
-        />
-
-        {search && (
-          <p className="text-xs text-slate-500 mt-2">
-            Showing {filteredRows.length} of {rows.length} records
-          </p>
-        )}
-
-      </div>
-
-      {/* RECORDS */}
-      <div className="space-y-3">
-
-        {filteredRows.map(
-          (row, index) => {
-
-            const key =
-              String(
-                row.id ||
-                index
-              );
-
-            const fields =
-              getDisplayFields(
-                row,
-                preferredFields
-              );
-
-            const isOpen =
-              expanded === key;
-
-            return (
-              <div
-                key={key}
-                className="rounded-xl bg-black/20 border border-white/10 overflow-hidden"
-              >
-
-                <button
-                  onClick={() =>
-                    setExpanded(
-                      isOpen
-                        ? null
-                        : key
-                    )
-                  }
-                  className="w-full text-left p-4 hover:bg-white/5"
-                >
-
-                  <div className="flex items-start justify-between gap-4">
-
-                    <div className="min-w-0 flex-1">
-
-                      <div className="font-bold truncate">
-                        {getRecordTitle(
-                          row,
-                          index
-                        )}
-                      </div>
-
-                      <div className="text-xs text-slate-500 mt-1">
-                        ID: {row.id || '—'}
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 mt-3">
-
-                        {fields
-                          .slice(
-                            0,
-                            3
-                          )
-                          .map(
-                            ([
-                              label,
-                              value,
-                            ]) => (
-
-                              <span
-                                key={
-                                  label
-                                }
-                                className="text-xs rounded-lg bg-white/5 px-2 py-1 text-slate-300"
-                              >
-                                {label}:{' '}
-                                {formatValue(
-                                  value
-                                )}
-                              </span>
-
-                            )
-                          )}
-
-                      </div>
-
-                    </div>
-
-                    <span className="text-xl">
-                      {isOpen
-                        ? '🔼'
-                        : '🔽'}
-                    </span>
-
+          {activeTab !== 'info' &&
+            activeTab !== 'teachers' &&
+            activeTab !== 'notices' &&
+            activeTab !== 'events' &&
+            activeTab !== 'staff' &&
+            activeTab !== 'subscription' &&
+            collectionTab && (
+              <div className="relative">
+                {collectionLoading && (
+                  <div className="absolute right-5 top-5 z-10 rounded-full bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow">
+                    Loading...
                   </div>
-
-                </button>
-
-                {isOpen && (
-
-                  <div className="border-t border-white/10 p-4">
-
-                    <div className="flex items-center justify-between mb-4">
-
-                      <h3 className="font-bold text-lg">
-                        Complete Record
-                      </h3>
-
-                      <span className="text-xs text-green-400">
-                        All available fields
-                      </span>
-
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-3">
-
-                      {fields.map(
-                        ([
-                          label,
-                          value,
-                        ]) => (
-
-                          <DataBox
-                            key={
-                              label
-                            }
-                            label={
-                              label
-                            }
-                            value={
-                              value
-                            }
-                          />
-
-                        )
-                      )}
-
-                    </div>
-
-                  </div>
-
                 )}
 
+                <CollectionSection
+                  title={collectionTab.title}
+                  icon={collectionTab.icon}
+                  rows={
+                    schoolData[activeTab] || []
+                  }
+                />
               </div>
-            );
-          }
-        )}
-
-        {!filteredRows.length && (
-
-          <div className="text-center py-10 text-slate-400">
-            🔎 कोई matching record नहीं मिला।
-          </div>
-
-        )}
-
-      </div>
-
-    </section>
-  );
-}
-
-/* =========================================================
-   FIELD DISPLAY
-========================================================= */
-
-function getDisplayFields(
-  row: RecordMap,
-  preferredFields: string[]
-): [string, any][] {
-
-  const entries =
-    Object.entries(row)
-      .filter(
-        ([key]) =>
-          key !== 'schoolId'
-      );
-
-  const preferred =
-    preferredFields
-      .filter(
-        (field) =>
-          Object.prototype.hasOwnProperty.call(
-            row,
-            field
-          )
-      )
-      .map(
-        (field) =>
-          [
-            humanize(field),
-            row[field],
-          ] as [
-            string,
-            any
-          ]
-      );
-
-  const used =
-    new Set(
-      preferredFields
-    );
-
-  const rest =
-    entries
-      .filter(
-        ([key]) =>
-          !used.has(key)
-      )
-      .map(
-        ([key, value]) =>
-          [
-            humanize(key),
-            value,
-          ] as [
-            string,
-            any
-          ]
-      );
-
-  return [
-    ...preferred,
-    ...rest,
-  ];
-}
-
-/* =========================================================
-   RECORD TITLE
-========================================================= */
-
-function getRecordTitle(
-  row: RecordMap,
-  index: number
-) {
-
-  return (
-    row.name ||
-    row.title ||
-    row.studentName ||
-    row.teacherName ||
-    row.displayName ||
-    row.subject ||
-    row.className ||
-    row.class ||
-    row.email ||
-    `Record ${index + 1}`
-  );
-}
-
-/* =========================================================
-   HUMANIZE FIELD NAME
-========================================================= */
-
-function humanize(
-  value: string
-) {
-
-  return value
-    .replace(
-      /([a-z])([A-Z])/g,
-      '$1 $2'
-    )
-    .replace(
-      /[_-]+/g,
-      ' '
-    )
-    .replace(
-      /\b\w/g,
-      (c) =>
-        c.toUpperCase()
-    );
-}
-
-/* =========================================================
-   DATA BOX
-========================================================= */
-
-function DataBox({
-  label,
-  value,
-}: {
-  label: string;
-  value: any;
-}) {
-
-  return (
-    <div className="rounded-xl bg-black/20 border border-white/5 p-4 min-w-0">
-
-      <div className="text-sm text-slate-400">
-        {label}
-      </div>
-
-      <div className="font-bold mt-1 break-words whitespace-pre-wrap">
-        {formatValue(
-          value
-        )}
-      </div>
-
+            )}
+        </div>
+      </main>
     </div>
   );
 }
 
-/* =========================================================
-   SUBSCRIPTION
-========================================================= */
 
-function SubscriptionSection({
-  school,
-}: {
-  school: any;
-}) {
-
-  const values = [
-
-    [
-      'Subscription Status',
-      school.subscriptionStatus,
-    ],
-
-    [
-      'Payment Status',
-      school.paymentStatus,
-    ],
-
-    [
-      'Approval Type',
-      school.paymentApprovalType ||
-      school.approvalType,
-    ],
-
-    [
-      'Plan',
-      school.subscriptionPlan,
-    ],
-
-    [
-      'Amount',
-      school.paymentAmount ??
-      school.subscriptionAmount,
-    ],
-
-    [
-      'Days',
-      school.subscriptionDays,
-    ],
-
-    [
-      'Start',
-      school.subscriptionStartDate ||
-      school.subscriptionStart,
-    ],
-
-    [
-      'Expiry',
-      school.subscriptionExpiryDate ||
-      school.subscriptionExpiry,
-    ],
-
-    [
-      'Payment ID / UTR',
-      school.paymentId,
-    ],
-
-    [
-      'Payment Date',
-      school.paymentDate,
-    ],
-
-    [
-      'Approved By UID',
-      school.approvedByUid,
-    ],
-
-    [
-      'Approved At',
-      school.approvedAt,
-    ],
-
-    [
-      'Suspended At',
-      school.suspendedAt,
-    ],
-
-    [
-      'Suspension Reason',
-      school.suspensionReason,
-    ],
-
-  ];
-
-  return (
-    <section className="rounded-2xl bg-white/5 border border-white/10 p-5">
-
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-
-        <div>
-
-          <h2 className="text-2xl font-bold">
-            💳 Complete Subscription & Payment
-          </h2>
-
-          <p className="text-sm text-slate-400 mt-1">
-            इस school की subscription और payment information
-          </p>
-
-        </div>
-
-        <span className="rounded-full bg-purple-500/10 text-purple-300 px-3 py-1 text-xs font-bold">
-          SUPER ADMIN
-        </span>
-
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-
-        {values.map(
-          ([
-            label,
-            value,
-          ]) => (
-
-            <DataBox
-              key={label}
-              label={label}
-              value={value}
-            />
-
-          )
-        )}
-
-      </div>
-
-    </section>
-  );
-}
-
-/* =========================================================
-   FORMAT VALUE
-========================================================= */
-
-function formatValue(
-  value: any
-): string {
-
-  if (
-    value === null ||
-    value === undefined ||
-    value === ''
-  ) {
-    return '—';
-  }
-
-  if (
-    typeof value?.toDate ===
-    'function'
-  ) {
-
-    return value
-      .toDate()
-      .toLocaleString(
-        'en-IN'
-      );
-  }
-
-  if (
-    value instanceof Date
-  ) {
-
-    return value.toLocaleString(
-      'en-IN'
-    );
-  }
-
-  if (
-    Array.isArray(value)
-  ) {
-
-    return value
-      .map(
-        (item) =>
-          formatValue(
-            item
-          )
-      )
-      .join(', ');
-  }
-
-  if (
-    typeof value ===
-    'object'
-  ) {
-
-    try {
-
-      return JSON.stringify(
-        value,
-        null,
-        2
-      );
-
-    } catch {
-
-      return '[Object]';
-
-    }
-  }
-
-  return String(value);
-}
-```
