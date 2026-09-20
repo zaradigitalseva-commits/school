@@ -724,8 +724,16 @@ export default function TeacherDashboardPage() {
       <header className="border-b bg-white/95 shadow-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-2xl shadow-lg">
-              👨‍🏫
+            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
+              {teacherProfile?.photoDataUrl ? (
+                <img
+                  src={teacherProfile.photoDataUrl}
+                  alt={teacherProfile.name || 'Teacher'}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-2xl">👨‍🏫</div>
+              )}
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-black text-slate-900">{school.name}</h1>
@@ -751,17 +759,30 @@ export default function TeacherDashboardPage() {
         ) : null}
 
         <section className="rounded-3xl bg-white p-6 shadow-xl">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-wide text-blue-600">
-                👨‍🏫 Teacher Work Area
-              </p>
-              <h2 className="mt-1 text-2xl font-black text-slate-900">
-                Welcome, Teacher
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Aap sirf <strong>{school.name}</strong> ke assigned class data par kaam karte hain.
-              </p>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 shadow-md">
+                {teacherProfile?.photoDataUrl ? (
+                  <img
+                    src={teacherProfile.photoDataUrl}
+                    alt={teacherProfile.name || 'Teacher'}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-4xl">👨‍🏫</div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black uppercase tracking-wide text-blue-600">
+                  👨‍🏫 Teacher Work Area
+                </p>
+                <h2 className="mt-1 break-words text-2xl font-black text-slate-900">
+                  Welcome, {teacherProfile?.name || 'Teacher'}
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  Aap sirf <strong>{school.name}</strong> ke assigned class data par kaam karte hain.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
