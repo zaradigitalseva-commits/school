@@ -185,7 +185,10 @@ service cloud.firestore {
     }
 
     match /slugReservations/{slug} {
-      allow read: if signedIn();
+      // Registration only needs an exact slug lookup. Do not allow
+      // arbitrary authenticated users to list all ownerUid/schoolId reservations.
+      allow get: if signedIn();
+      allow list: if isPlatformAdmin();
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.schoolId is string
