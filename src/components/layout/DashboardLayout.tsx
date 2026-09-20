@@ -27,7 +27,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, isFaculty, signOut } = useAuth();
+  const { user, role, isAdmin, isFaculty, isPlatformAdmin, isSchoolAdmin, isTeacher, signOut } = useAuth();
+
+  const panelLabel = isPlatformAdmin
+    ? 'Platform Admin'
+    : isSchoolAdmin
+      ? 'School Admin'
+      : isTeacher
+        ? 'Teacher Board'
+        : 'Dashboard';
 
   const navItems: NavItem[] = [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -67,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Bright Future
               </span>
               <span className="block text-xs text-blue-400 leading-tight">
-                Admin Panel
+                {panelLabel}
               </span>
             </div>
           </Link>
@@ -111,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {user?.displayName ?? 'User'}
               </p>
               <p className="text-xs text-gray-500 truncate">
-                {isAdmin ? 'Administrator' : isFaculty ? 'Faculty' : 'User'}
+                {isPlatformAdmin ? 'Platform Administrator' : isSchoolAdmin ? 'School Administrator' : isTeacher ? 'Teacher' : 'User'}
               </p>
             </div>
           </div>
@@ -142,7 +150,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <Menu className="w-6 h-6" />
           </button>
-          <span className="font-semibold text-gray-800">Dashboard</span>
+          <span className="font-semibold text-gray-800">{panelLabel}</span>
           <div className="w-10" />
         </header>
 
