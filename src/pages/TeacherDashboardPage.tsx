@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
   subscribeToMyMembership,
   subscribeToSchool,
   subscribeToSchoolCollection,
+  addHomework,
+  updateHomework,
+  addResult,
+  updateResult,
+  addAttendance,
+  updateAttendance,
 } from '@/firebase/firestore';
 import type { School, SchoolMembership } from '@/firebase/types';
 
@@ -136,7 +143,7 @@ function DataList({
   icon: string;
   rows: SchoolRow[];
   emptyText: string;
-  renderRow: (row: SchoolRow) => React.ReactNode;
+  renderRow: (row: SchoolRow) => ReactNode;
 }) {
   return (
     <section className="rounded-3xl bg-white p-5 shadow-lg">
@@ -162,6 +169,373 @@ function DataList({
           {emptyText}
         </p>
       )}
+    </section>
+  );
+}
+
+function TeacherWorkPanel({
+  schoolId,
+  assignments,
+  students,
+  homework,
+  results,
+  attendance,
+}: {
+  schoolId: string;
+  assignments: string[];
+  students: SchoolRow[];
+  homework: SchoolRow[];
+  results: SchoolRow[];
+  attendance: SchoolRow[];
+}) {
+  const [activeTab, setActiveTab] = useState<'homework' | 'results' | 'attendance'>('homework');
+  const [editingId, setEditingId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const classOptions = useMemo(() => {
+    const base = Array.from({ length: 12 }, (_, index) => `Class ${index + 1}`);
+    const assigned = assignments
+      .map((value) => getAssignmentParts(String(value)).className)
+      .filter(Boolean)
+      .map((value) => /^\\d+$/.test(value) ? `Class ${value}` : value);
+    const fromStudents = students.map((row) => getClassName(row)).filter(Boolean);
+    return Array.from(new Set([...assigned, ...fromStudents, ...base]));
+  }, [assignments, students]);
+
+  const assignmentOptions = useMemo(() => {
+    if (assignments.length) {
+      return assignments.map((value) => {
+        const parts = getAssignmentParts(String(value));
+        const className = /^\\d+$/.test(parts.className) ? `Class ${parts.className}` : parts.className;
+        return { value: String(value), className, section: parts.section.toUpperCase() };
+      });
+    }
+
+    return classOptions.map((className) => ({ value: className, className, section: '' }));
+  }, [assignments, classOptions]);
+
+  const filteredStudents = useMemo(() => {
+    const className = form.className || '';
+    const section = (form.section || '').trim().toLowerCase();
+    return students.filter((row) => {
+      if (!className) return true;
+      const rowClass = normalizeClassPart(getClassName(row));
+      const wantedClass = normalizeClassPart(className);
+      if (rowClass !== wantedClass && !rowClass.includes(wantedClass) && !wantedClass.includes(rowClass)) return false;
+      if (!section) return true;
+      return getRowSection(row) === section;
+    });
+  }, [students, form.className, form.section]);
+
+  const resetForm = () => {
+    setEditingId('');
+    setForm({});
+    setMessage('');
+  };
+
+  const startEdit = (type: 'homework' | 'results' | 'attendance', row: SchoolRow) => {
+    setActiveTab(type);
+    setEditingId(String(row.id || ''));
+    setForm({
+      title: String(row.title || ''),
+      subject: String(row.subject || ''),
+      description: String(row.description || row.content || ''),
+      dueDate: String(row.dueDate || ''),
+      studentName: String(row.studentName || row.name || ''),
+      rollNumber: String(row.rollNumber || ''),
+      className: String(row.className || ''),
+      section: String(row.section || row.sectionName || row.division || ''),
+      exam: String(row.exam || ''),
+      marks: String(row.marks ?? ''),
+      totalMarks: String(row.totalMarks ?? ''),
+      grade: String(row.grade || ''),
+      date: String(row.date || ''),
+      status: String(row.status || row.attendanceStatus || ''),
+    });
+    setMessage('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const applyAssignment = (value: string) => {
+    const selected = assignmentOptions.find((item) => item.value === value);
+    if (!selected) return;
+    setForm((current) => ({
+      ...current,
+      className: selected.className,
+      section: selected.section,
+      studentName: '',
+      rollNumber: '',
+    }));
+  };
+
+  const selectStudent = (student: SchoolRow) => {
+    setForm((current) => ({
+      ...current,
+      studentName: String(student.name || student.studentName || ''),
+      rollNumber: String(student.rollNumber || ''),
+      className: getClassName(student),
+      section: getRowSection(student).toUpperCase(),
+    }));
+  };
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const className = String(form.className || '').trim();
+      const section = String(form.section || '').trim();
+      if (!className) throw new Error('Class select karna zaroori hai.');
+
+      const common = {
+        schoolId,
+        className,
+        section,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (activeTab === 'homework') {
+        if (!String(form.title || '').trim()) throw new Error('Homework title bharna zaroori hai.');
+        const data = {
+          ...common,
+          title: String(form.title || '').trim(),
+          subject: String(form.subject || '').trim(),
+          description: String(form.description || '').trim(),
+          dueDate: String(form.dueDate || ''),
+        };
+        if (editingId) await updateHomework(schoolId, editingId, data);
+        else await addHomework(schoolId, { ...data, createdAt: new Date().toISOString() });
+      }
+
+      if (activeTab === 'results') {
+        if (!String(form.studentName || '').trim()) throw new Error('Student select karna zaroori hai.');
+        const data = {
+          ...common,
+          studentName: String(form.studentName || '').trim(),
+          rollNumber: String(form.rollNumber || '').trim(),
+          exam: String(form.exam || '').trim(),
+          subject: String(form.subject || '').trim(),
+          marks: String(form.marks || '').trim(),
+          totalMarks: String(form.totalMarks || '').trim(),
+          grade: String(form.grade || '').trim(),
+        };
+        if (editingId) await updateResult(schoolId, editingId, data);
+        else await addResult(schoolId, { ...data, createdAt: new Date().toISOString() });
+      }
+
+      if (activeTab === 'attendance') {
+        if (!String(form.studentName || '').trim()) throw new Error('Student select karna zaroori hai.');
+        if (!String(form.date || '').trim()) throw new Error('Attendance date bharna zaroori hai.');
+        const data = {
+          ...common,
+          studentName: String(form.studentName || '').trim(),
+          rollNumber: String(form.rollNumber || '').trim(),
+          date: String(form.date || ''),
+          status: String(form.status || 'Present'),
+        };
+        if (editingId) await updateAttendance(schoolId, editingId, data);
+        else await addAttendance(schoolId, { ...data, createdAt: new Date().toISOString() });
+      }
+
+      setMessage(editingId ? '✅ Record update ho gaya.' : '✅ Record save ho gaya.');
+      resetForm();
+    } catch (error) {
+      console.error('Teacher work save error:', error);
+      setMessage(`❌ ${error instanceof Error ? error.message : 'Save nahi ho paaya.'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const visibleRows =
+    activeTab === 'homework'
+      ? homework.filter((row) => matchesAssignedClass(row, assignments))
+      : activeTab === 'results'
+        ? results.filter((row) => matchesAssignedClass(row, assignments))
+        : attendance.filter((row) => matchesAssignedClass(row, assignments));
+
+  const selectClass = (
+    <select
+      value={form.className || ''}
+      onChange={(event) => {
+        const value = event.target.value;
+        const option = assignmentOptions.find((item) => item.className === value && !item.section);
+        setForm((current) => ({
+          ...current,
+          className: value,
+          section: option?.section || current.section || '',
+          studentName: '',
+          rollNumber: '',
+        }));
+      }}
+      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold outline-none focus:border-blue-500"
+      required
+    >
+      <option value="">Select Class</option>
+      {classOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+    </select>
+  );
+
+  return (
+    <section className="mt-6 rounded-3xl bg-white p-5 shadow-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black text-slate-900">🧑‍🏫 Teacher Add / Edit Work</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            {assignments.length ? `Sirf assigned class/section: ${assignments.join(', ')}` : 'School Admin account: school ki classes available hain.'}
+          </p>
+        </div>
+        {editingId ? (
+          <button type="button" onClick={resetForm} className="rounded-xl bg-slate-200 px-4 py-2 font-black text-slate-800">
+            Cancel Edit
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {(['homework', 'results', 'attendance'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => { setActiveTab(tab); resetForm(); }}
+            className={`rounded-xl px-4 py-3 font-black ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+          >
+            {tab === 'homework' ? '📝 Homework' : tab === 'results' ? '📊 Results' : '📅 Attendance'}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={save} className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-sm font-black text-slate-700">Assigned Class / Section</label>
+          {assignments.length ? (
+            <select
+              value={form.className ? assignmentOptions.find((item) => item.className === form.className && item.section === String(form.section || '').toUpperCase())?.value || '' : ''}
+              onChange={(event) => applyAssignment(event.target.value)}
+              className="w-full rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 font-black text-slate-900"
+              required
+            >
+              <option value="">Select Assigned Class</option>
+              {assignmentOptions.map((item) => <option key={item.value} value={item.value}>{item.value}</option>)}
+            </select>
+          ) : selectClass}
+        </div>
+
+        {!assignments.length && form.className ? (
+          <input
+            value={form.section || ''}
+            onChange={(event) => setForm((current) => ({ ...current, section: event.target.value.toUpperCase() }))}
+            placeholder="Section (A/B/C)"
+            className="rounded-xl border border-slate-300 px-4 py-3 font-semibold outline-none focus:border-blue-500"
+          />
+        ) : null}
+
+        {activeTab === 'homework' ? (
+          <>
+            <input value={form.title || ''} onChange={(e) => setForm((x) => ({ ...x, title: e.target.value }))} placeholder="Homework Title" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" required />
+            <input value={form.subject || ''} onChange={(e) => setForm((x) => ({ ...x, subject: e.target.value }))} placeholder="Subject" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+            <textarea value={form.description || ''} onChange={(e) => setForm((x) => ({ ...x, description: e.target.value }))} placeholder="Homework Details" className="min-h-28 rounded-xl border border-slate-300 px-4 py-3 font-semibold md:col-span-2" />
+            <input type="date" value={form.dueDate || ''} onChange={(e) => setForm((x) => ({ ...x, dueDate: e.target.value }))} className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+          </>
+        ) : null}
+
+        {activeTab === 'results' || activeTab === 'attendance' ? (
+          <>
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-black text-slate-700">Student</label>
+              <select
+                value={form.rollNumber || form.studentName || ''}
+                onChange={(event) => {
+                  const student = filteredStudents.find((row) => String(row.rollNumber || row.name || row.studentName || '') === event.target.value);
+                  if (student) selectStudent(student);
+                }}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold"
+                required
+              >
+                <option value="">Select Student</option>
+                {filteredStudents.map((student) => {
+                  const key = String(student.rollNumber || student.name || student.studentName || student.id);
+                  return <option key={String(student.id)} value={key}>{student.name || student.studentName || 'Student'}{student.rollNumber ? ` • Roll ${student.rollNumber}` : ''}</option>;
+                })}
+              </select>
+            </div>
+            <input value={form.studentName || ''} readOnly placeholder="Student Name" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold" />
+            <input value={form.rollNumber || ''} readOnly placeholder="Roll Number" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold" />
+
+            {activeTab === 'results' ? (
+              <>
+                <input value={form.exam || ''} onChange={(e) => setForm((x) => ({ ...x, exam: e.target.value }))} placeholder="Exam" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+                <input value={form.subject || ''} onChange={(e) => setForm((x) => ({ ...x, subject: e.target.value }))} placeholder="Subject" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+                <input value={form.marks || ''} onChange={(e) => setForm((x) => ({ ...x, marks: e.target.value }))} placeholder="Marks" inputMode="decimal" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+                <input value={form.totalMarks || ''} onChange={(e) => setForm((x) => ({ ...x, totalMarks: e.target.value }))} placeholder="Total Marks" inputMode="decimal" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+                <input value={form.grade || ''} onChange={(e) => setForm((x) => ({ ...x, grade: e.target.value }))} placeholder="Grade" className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" />
+              </>
+            ) : (
+              <>
+                <input type="date" value={form.date || ''} onChange={(e) => setForm((x) => ({ ...x, date: e.target.value }))} className="rounded-xl border border-slate-300 px-4 py-3 font-semibold" required />
+                <select value={form.status || 'Present'} onChange={(e) => setForm((x) => ({ ...x, status: e.target.value }))} className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold">
+                  <option>Present</option>
+                  <option>Absent</option>
+                  <option>Late</option>
+                  <option>Leave</option>
+                </select>
+              </>
+            )}
+          </>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl bg-emerald-600 px-5 py-3 font-black text-white shadow-[0_4px_0_rgb(4,120,87)] disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
+        >
+          {saving ? 'Saving...' : editingId ? '💾 Update Record' : '➕ Add Record'}
+        </button>
+
+        {message ? <div className="rounded-xl bg-slate-100 p-3 text-sm font-bold text-slate-700 md:col-span-2">{message}</div> : null}
+      </form>
+
+      <div className="mt-6">
+        <h3 className="mb-3 text-lg font-black text-slate-900">
+          {activeTab === 'homework' ? '📝 My Homework' : activeTab === 'results' ? '📊 My Results' : '📅 My Attendance'}
+        </h3>
+        {visibleRows.length ? (
+          <div className="space-y-3">
+            {visibleRows.slice(0, 20).map((row) => (
+              <div key={String(row.id)} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900">
+                    {activeTab === 'homework'
+                      ? row.title || 'Homework'
+                      : activeTab === 'results'
+                        ? row.studentName || 'Result'
+                        : row.studentName || 'Attendance'}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {getClassName(row)}{row.section ? ` - ${row.section}` : ''}
+                    {row.subject ? ` • ${row.subject}` : ''}
+                    {row.rollNumber ? ` • Roll ${row.rollNumber}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startEdit(activeTab, row)}
+                  className="rounded-xl bg-amber-500 px-4 py-2 font-black text-white"
+                >
+                  ✏️ Edit
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-500">
+            Is assigned area mein abhi koi record nahi hai.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -372,6 +746,15 @@ export default function TeacherDashboardPage() {
             </div>
           </div>
         </section>
+
+        <TeacherWorkPanel
+          schoolId={school.id}
+          assignments={assignments}
+          students={myStudents}
+          homework={myHomework}
+          results={myResults}
+          attendance={myAttendance}
+        />
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard icon="👨‍🎓" label="My Students" value={myStudents.length} />
