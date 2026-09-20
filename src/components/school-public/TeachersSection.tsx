@@ -6,11 +6,7 @@ type Props = {
 };
 
 export default function TeachersSection({ teachers }: Props) {
-  return (
-{/* =========================================================
-          TEACHERS
-      ========================================================== */}
-      <section id="teachers" className="bg-gray-50 py-20">
+  return (<section id="teachers" className="bg-gray-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mb-10">
             <span className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-emerald-600">
