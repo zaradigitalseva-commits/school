@@ -7,11 +7,7 @@ type Props = {
 };
 
 export default function StatsSection({ totalStudents, totalTeachers, foundedYear }: Props) {
-  return (
-{/* =========================================================
-          STATS
-      ========================================================== */}
-      <section className="relative -mt-8 z-20 px-4">
+  return (<section className="relative -mt-8 z-20 px-4">
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
