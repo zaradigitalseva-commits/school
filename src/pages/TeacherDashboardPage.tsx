@@ -6,6 +6,7 @@ import {
   subscribeToMyMembership,
   subscribeToSchool,
   subscribeToSchoolCollection,
+  subscribeToTeacherScopedCollection,
   addHomework,
   updateHomework,
   addResult,
@@ -611,13 +612,16 @@ export default function TeacherDashboardPage() {
           collectionName: string,
           setter: (rows: SchoolRow[]) => void
         ) => {
+          // Teacher dashboard never loads the complete school collection.
+          // It subscribes only to the class/section assignments in the active membership.
           collectionUnsubscribers.push(
-            subscribeToSchoolCollection(
+            subscribeToTeacherScopedCollection(
               current.schoolId,
               collectionName,
+              current.assignments || [],
               setter,
               (listenerError) => {
-                console.error(`Teacher ${collectionName} listener error:`, listenerError);
+                console.error(`Teacher ${collectionName} scoped listener error:`, listenerError);
               }
             )
           );
@@ -627,9 +631,22 @@ export default function TeacherDashboardPage() {
         subscribe('homework', setHomework);
         subscribe('results', setResults);
         subscribe('attendance', setAttendance);
-        subscribe('announcements', setNotices);
-        subscribe('events', setEvents);
-        subscribe('gallery', setGallery);
+        // Notices/events/gallery are school-wide information, so they remain visible to the teacher.
+        collectionUnsubscribers.push(
+          subscribeToSchoolCollection(current.schoolId, 'announcements', setNotices, (e) =>
+            console.error('Teacher announcements listener error:', e)
+          )
+        );
+        collectionUnsubscribers.push(
+          subscribeToSchoolCollection(current.schoolId, 'events', setEvents, (e) =>
+            console.error('Teacher events listener error:', e)
+          )
+        );
+        collectionUnsubscribers.push(
+          subscribeToSchoolCollection(current.schoolId, 'gallery', setGallery, (e) =>
+            console.error('Teacher gallery listener error:', e)
+          )
+        );
       },
       (listenerError) => {
         console.error('Live teacher membership error:', listenerError);
