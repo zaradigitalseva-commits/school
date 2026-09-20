@@ -724,8 +724,10 @@ export default function SchoolAdminPage() {
 
       if (activeSection === 'notices') {
         const noticeData = {
-          ...form,
           schoolId,
+          title: String(form.title || '').trim(),
+          content: String(form.description || form.content || '').trim(),
+          date: String(form.date || '').trim(),
         };
 
         if (editingId) {
