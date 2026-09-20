@@ -1,4 +1,4 @@
-import type { Teacher[] } from '@/firebase/types';
+import type { Teacher } from '@/firebase/types';
 import { Users } from 'lucide-react';
 
 type Props = {
