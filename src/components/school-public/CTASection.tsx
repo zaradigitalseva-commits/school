@@ -9,9 +9,6 @@ type Props = {
 
 export default function CTASection({ school, teachers }: Props) {
   return (
-{/* =========================================================
-          CTA
-      ========================================================== */}
       <section className="bg-gradient-to-br from-blue-700 via-purple-700 to-pink-600 py-20">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <div className="text-5xl">🎓</div>
