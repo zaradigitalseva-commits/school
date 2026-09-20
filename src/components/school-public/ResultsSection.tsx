@@ -10,11 +10,7 @@ type Props = {
 };
 
 export default function ResultsSection({ school, rollNumber, setRollNumber, resultSearchLoading, publicResults, searchPublicResults }: Props) {
-  return (
-{/* =========================================================
-          RESULT CHECK
-      ========================================================== */}
-      <section id="results" className="bg-white py-20">
+  return (<section id="results" className="bg-white py-20">
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
           <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6 shadow-2xl sm:p-10">
             <div className="text-center">
