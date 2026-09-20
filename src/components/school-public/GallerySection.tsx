@@ -7,11 +7,7 @@ type Props = {
 };
 
 export default function GallerySection({ school, campusImages }: Props) {
-  return (
-{/* =========================================================
-          GALLERY
-      ========================================================== */}
-      <section id="gallery" className="bg-white py-20">
+  return (<section id="gallery" className="bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mb-10">
             <span className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-pink-600">
