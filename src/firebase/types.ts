@@ -196,6 +196,8 @@ export interface Announcement {
 
   title: string;
   content?: string;
+  date?: string;
+  priority?: 'low' | 'medium' | 'high';
 
   createdAt?: string;
   updatedAt?: string;
