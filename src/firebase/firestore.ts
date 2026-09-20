@@ -2584,11 +2584,11 @@ export function subscribeToTeacherScopedCollection(
     const raw = String(value || '')
       .trim()
       .toLowerCase()
-      .replace(/^class\\s*/i, '')
-      .replace(/^standard\\s*/i, '')
-      .replace(/\\s+/g, ' ')
+      .replace(/^class\s*/i, '')
+      .replace(/^standard\s*/i, '')
+      .replace(/\s+/g, ' ')
       .trim();
-    const match = raw.match(/^(.*?)(?:\\s*[-/]\\s*|\\s+)([a-z])$/i);
+    const match = raw.match(/^(.*?)(?:\s*[-/]\s*|\s+)([a-z])$/i);
     return match
       ? { className: match[1].trim(), section: match[2].toLowerCase() }
       : { className: raw, section: '' };
@@ -2601,7 +2601,7 @@ export function subscribeToTeacherScopedCollection(
     if (!parsed.className) return;
     const classNames = Array.from(new Set([
       parsed.className,
-      /^\\d+$/.test(parsed.className) ? `Class ${parsed.className}` : '',
+      /^\d+$/.test(parsed.className) ? `Class ${parsed.className}` : '',
       parsed.className.startsWith('class ') ? parsed.className : '',
     ].filter(Boolean)));
     const key = `${classNames.join('|')}::${parsed.section}`;
