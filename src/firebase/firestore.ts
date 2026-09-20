@@ -2568,6 +2568,83 @@ export function subscribeToSchool(
   );
 }
 
+export function subscribeToTeacherScopedCollection(
+  schoolId: string,
+  collectionName: string,
+  assignments: string[],
+  onData: (rows: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!schoolId || !collectionName || !assignments.length) {
+    onData([]);
+    return () => {};
+  }
+
+  const parseAssignment = (value: string) => {
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^class\\s*/i, '')
+      .replace(/^standard\\s*/i, '')
+      .replace(/\\s+/g, ' ')
+      .trim();
+    const match = raw.match(/^(.*?)(?:\\s*[-/]\\s*|\\s+)([a-z])$/i);
+    return match
+      ? { className: match[1].trim(), section: match[2].toLowerCase() }
+      : { className: raw, section: '' };
+  };
+
+  const querySpecs = new Map<string, { classNames: string[]; section: string }>();
+
+  assignments.forEach((assignment) => {
+    const parsed = parseAssignment(assignment);
+    if (!parsed.className) return;
+    const classNames = Array.from(new Set([
+      parsed.className,
+      /^\\d+$/.test(parsed.className) ? `Class ${parsed.className}` : '',
+      parsed.className.startsWith('class ') ? parsed.className : '',
+    ].filter(Boolean)));
+    const key = `${classNames.join('|')}::${parsed.section}`;
+    querySpecs.set(key, { classNames, section: parsed.section });
+  });
+
+  const rowsById = new Map<string, any>();
+  const unsubscribers: Array<() => void> = [];
+  let activeListeners = 0;
+
+  const emit = () => onData(Array.from(rowsById.values()));
+
+  querySpecs.forEach(({ classNames, section }) => {
+    classNames.forEach((className) => {
+      const constraints = [
+        where('schoolId', '==', schoolId),
+        where('className', '==', className),
+        ...(section ? [where('section', '==', section),] : []),
+      ];
+      const q = query(collection(db, collectionName), ...constraints);
+      activeListeners += 1;
+      unsubscribers.push(onSnapshot(
+        q,
+        (snapshot) => {
+          snapshot.docs.forEach((d) => rowsById.set(d.id, { id: d.id, ...d.data() }));
+          emit();
+        },
+        (error) => {
+          console.error(`Teacher ${collectionName} scoped listener error:`, error);
+          onError?.(error);
+        }
+      ));
+    });
+  });
+
+  if (!activeListeners) onData([]);
+
+  return () => {
+    unsubscribers.forEach((unsubscribe) => unsubscribe());
+    rowsById.clear();
+  };
+}
+
 export function subscribeToSchoolCollection(
   schoolId: string,
   collectionName: string,
