@@ -140,6 +140,9 @@ export default function SchoolAdminPage() {
   const [teacherRecords, setTeacherRecords] =
     useState<AnyRecord[]>([]);
 
+  const [teacherLoadError, setTeacherLoadError] =
+    useState('');
+
   const [loading, setLoading] =
     useState(true);
 
@@ -299,13 +302,19 @@ export default function SchoolAdminPage() {
         membershipData
       );
 
-      const teacherData = await fetchTeachers(
-        currentSchoolId
-      );
-
-      setTeacherRecords(
-        teacherData as AnyRecord[]
-      );
+      try {
+        const teacherData = await fetchTeachers(currentSchoolId);
+        setTeacherRecords(teacherData as AnyRecord[]);
+        setTeacherLoadError('');
+      } catch (teacherError) {
+        console.error('Teacher profiles loading error:', teacherError);
+        setTeacherRecords([]);
+        setTeacherLoadError(
+          teacherError instanceof Error
+            ? teacherError.message
+            : 'Teacher profiles could not be loaded.'
+        );
+      }
 
     } catch (err) {
       console.error(
@@ -338,6 +347,11 @@ export default function SchoolAdminPage() {
       console.error('School Admin realtime listener error:', error);
     };
 
+    const handleTeacherError = (error: Error) => {
+      console.error('Teacher profiles realtime listener error:', error);
+      setTeacherLoadError(error.message || 'Teacher profiles could not be loaded.');
+    };
+
     const unsubSchool = subscribeToSchool(schoolId, (data) => {
       if (data) setSchool(data);
     }, handleError);
@@ -348,7 +362,8 @@ export default function SchoolAdminPage() {
 
     const unsubTeachers = subscribeToTeachers(schoolId, (data) => {
       setTeacherRecords(data as AnyRecord[]);
-    }, handleError);
+      setTeacherLoadError('');
+    }, handleTeacherError);
 
     return () => {
       unsubSchool();
@@ -1463,7 +1478,11 @@ export default function SchoolAdminPage() {
             <TeacherBoardSection
               school={school}
               schoolId={schoolId}
-              assignments={myMemberships.find((membership) => membership.schoolId === schoolId)?.assignments || []}
+              assignments={Array.from(new Set(
+                memberships
+                  .filter((membership) => membership.schoolId === schoolId && membership.role === 'teacher' && membership.status === 'ACTIVE')
+                  .flatMap((membership) => membership.assignments || [])
+              ))}
               onOpenSection={changeSection}
             />
           )}
@@ -3293,8 +3312,14 @@ function TeachersSection({
           <span style={styles.countBadge}>{teacherRecords.length}</span>
         </div>
 
+        {teacherLoadError && (
+          <div style={styles.message}>
+            ⚠️ Teacher profiles load error: {teacherLoadError}
+          </div>
+        )}
+
         {teacherRecords.length === 0 ? (
-          <EmptyState text="No teacher profiles added yet." />
+          <EmptyState text={teacherLoadError ? 'Teacher profiles could not be loaded.' : 'No teacher profiles added yet.'} />
         ) : (
           teacherRecords.map((teacher) => (
             <div key={teacher.id} style={styles.memberRow}>
