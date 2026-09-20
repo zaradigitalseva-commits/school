@@ -1463,7 +1463,7 @@ export default function SchoolAdminPage() {
             <TeacherBoardSection
               school={school}
               schoolId={schoolId}
-              assignments={myMemberships[0]?.assignments || []}
+              assignments={myMemberships.find((membership) => membership.schoolId === schoolId)?.assignments || []}
               onOpenSection={changeSection}
             />
           )}
@@ -3438,9 +3438,64 @@ function TeacherBoardSection({
   assignments: string[];
   onOpenSection: (section: string) => void;
 }) {
+  const [counts, setCounts] = useState({
+    students: 0,
+    homework: 0,
+    results: 0,
+    attendance: 0,
+  });
+
+  const [loadingCounts, setLoadingCounts] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTeacherCounts = async () => {
+      try {
+        setLoadingCounts(true);
+
+        const [
+          students,
+          homework,
+          results,
+          attendance,
+        ] = await Promise.all([
+          fetchStudents(schoolId),
+          fetchHomework(schoolId),
+          fetchResults(schoolId),
+          fetchAttendance(schoolId),
+        ]);
+
+        if (!active) return;
+
+        setCounts({
+          students: students.length,
+          homework: homework.length,
+          results: results.length,
+          attendance: attendance.length,
+        });
+      } catch (error) {
+        console.error('Teacher Board count loading error:', error);
+      } finally {
+        if (active) {
+          setLoadingCounts(false);
+        }
+      }
+    };
+
+    void loadTeacherCounts();
+
+    return () => {
+      active = false;
+    };
+  }, [schoolId]);
+
   const assignedText = assignments.length
     ? assignments.join(', ')
     : 'All classes (School Admin access)';
+
+  const countText = (value: number) =>
+    loadingCounts ? 'Loading…' : String(value);
 
   return (
     <>
@@ -3449,8 +3504,8 @@ function TeacherBoardSection({
       </h2>
 
       <p style={styles.description}>
-        यह उसी Gmail के लिए Teacher Board है। आप इसी school में
-        School Admin और Teacher दोनों काम कर सकते हैं।
+        यह उसी Gmail के लिए पूरा Teacher Work Area है। इसी school में
+        आप School Admin और Teacher दोनों काम कर सकते हैं।
       </p>
 
       <div style={styles.cardGrid}>
@@ -3459,18 +3514,45 @@ function TeacherBoardSection({
           title="School"
           value={school.name}
         />
+
         <StatCard
           icon="📚"
           title="My Classes"
           value={assignedText}
         />
+
+        <StatCard
+          icon="👨‍🎓"
+          title="Students"
+          value={countText(counts.students)}
+        />
+
+        <StatCard
+          icon="📝"
+          title="Homework"
+          value={countText(counts.homework)}
+        />
+
+        <StatCard
+          icon="📊"
+          title="Results"
+          value={countText(counts.results)}
+        />
+
+        <StatCard
+          icon="📅"
+          title="Attendance"
+          value={countText(counts.attendance)}
+        />
       </div>
 
       <div style={styles.infoCard}>
-        <h3>Teacher Work</h3>
+        <h3>👨‍🏫 Teacher Work</h3>
+
         <p style={styles.smallText}>
-          School Admin होने के कारण इस account को इसी school के
-          teacher work पर भी access है।
+          {assignments.length
+            ? 'आपको केवल assigned classes पर teacher work करना चाहिए: ' + assignedText + '।'
+            : 'यह account School Admin भी है, इसलिए इसी school की सभी classes पर access है।'}
         </p>
 
         <div style={styles.formButtons}>
@@ -3478,55 +3560,66 @@ function TeacherBoardSection({
             style={styles.primaryButton}
             onClick={() => onOpenSection('homework')}
           >
-            📝 Homework
+            📝 Homework खोलें
           </button>
 
           <button
             style={styles.primaryButton}
             onClick={() => onOpenSection('results')}
           >
-            📊 Results
+            📊 Results खोलें
           </button>
 
           <button
             style={styles.primaryButton}
             onClick={() => onOpenSection('attendance')}
           >
-            📅 Attendance
+            📅 Attendance खोलें
           </button>
 
           <button
             style={styles.primaryButton}
             onClick={() => onOpenSection('students')}
           >
-            👨‍🎓 Students
+            👨‍🎓 Students खोलें
           </button>
 
           <button
             style={styles.secondaryButton}
             onClick={() => onOpenSection('classes')}
           >
-            📚 Classes
+            📚 Classes खोलें
           </button>
         </div>
       </div>
 
       <div style={styles.infoCard}>
         <h3>🔒 School Isolation</h3>
-        <p style={styles.smallText}>
-          School: <strong>{school.name}</strong>
-        </p>
-        <p style={styles.smallText}>
-          School ID: <strong>{schoolId}</strong>
-        </p>
-        <p style={styles.smallText}>
-          यह Teacher Board केवल इसी school के data के साथ काम करता है।
+
+        <InfoRow
+          label="School"
+          value={school.name}
+        />
+
+        <InfoRow
+          label="School ID"
+          value={schoolId}
+        />
+
+        <InfoRow
+          label="Teacher Classes"
+          value={assignedText}
+        />
+
+        <p style={{ ...styles.smallText, marginTop: 14 }}>
+          Teacher Board में खुलने वाला हर module इसी school ID
+          <strong> {schoolId}</strong> के साथ काम करता है। दूसरे school
+          का data यहाँ नहीं लाया जाता।
         </p>
       </div>
     </>
   );
 }
-
 
 /* =========================================================
    STAFF
