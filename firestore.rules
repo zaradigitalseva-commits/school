@@ -61,6 +61,13 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/schools/$(schoolId)).data.status == 'LIVE';
     }
 
+    // A teacher must never receive the generic LIVE-school read path.
+    // Public visitors (including signed-in non-teachers) may still read LIVE public data.
+    function publicLiveViewer(schoolId) {
+      return liveSchool(schoolId) && !isTeacher(schoolId);
+    }
+
+
     match /users/{uid} {
       allow read: if isPlatformAdmin() || (signedIn() && request.auth.uid == uid);
       allow create: if signedIn() && request.auth.uid == uid
@@ -232,9 +239,12 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
+      // Teachers can read only their assigned class/section.
+      // Public LIVE access remains available to non-teachers.
       allow read: if isPlatformAdmin()
-        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
-        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
+        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
       allow update, delete: if isPlatformAdmin()
@@ -254,9 +264,12 @@ service cloud.firestore {
     }
 
     match /results/{resultId} {
+      // Teachers can read only their assigned class/section.
+      // Public LIVE access remains available to non-teachers.
       allow read: if isPlatformAdmin()
-        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
-        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
+        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
         || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
@@ -271,9 +284,12 @@ service cloud.firestore {
     }
 
     match /homework/{homeworkId} {
+      // Teachers can read only their assigned class/section.
+      // Public LIVE access remains available to non-teachers.
       allow read: if isPlatformAdmin()
-        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
-        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
+        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
         || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
@@ -287,9 +303,12 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
+      // Teachers can read only their assigned class/section.
+      // Public LIVE access remains available to non-teachers.
       allow read: if isPlatformAdmin()
-        || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
-        || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
+        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
         || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
