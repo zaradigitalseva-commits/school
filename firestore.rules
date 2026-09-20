@@ -138,7 +138,22 @@ service cloud.firestore {
           && request.resource.data.schoolId == resource.data.schoolId
           && request.resource.data.uid == resource.data.uid
           && request.resource.data.role == resource.data.role
-          && request.resource.data.role in ['teacher', 'school_admin']);
+          && request.resource.data.role in ['teacher', 'school_admin'])
+        || (signedIn()
+          && resource.data.uid == request.auth.uid
+          && resource.data.schoolId is string
+          && resource.data.role == 'school_admin'
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.role == resource.data.role
+          && resource.data.status != 'ACTIVE'
+          && request.resource.data.status == 'ACTIVE'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'email', 'assignments', 'approvedAt', 'updatedAt'
+          ])
+          && exists(/databases/$(database)/documents/schools/$(resource.data.schoolId))
+          && get(/databases/$(database)/documents/schools/$(resource.data.schoolId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/schools/$(resource.data.schoolId)).data.status == 'LIVE');
 
       allow delete: if isPlatformAdmin();
     }
