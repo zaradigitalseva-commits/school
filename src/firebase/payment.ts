@@ -910,21 +910,18 @@ export async function approveRecharge(
           existingSubscription.expiresAt
         );
 
-      const oldTotalAmount =
-        Number(
-          existingSubscription.totalRechargeAmount ??
-            existingSubscription.planAmount ??
-            school.paymentAmount ??
-            0
-        );
+      // Totals must come from the subscription ledger first.
+      // Do NOT fall back to school.paymentAmount/subscriptionDays here,
+      // because those fields are display snapshots and may contain stale
+      // legacy values. The selected package itself is always validated
+      // by getPackage(amount, days).
+      const oldTotalAmount = Number(
+        existingSubscription.totalRechargeAmount ?? 0
+      );
 
-      const oldTotalDays =
-        Number(
-          existingSubscription.totalRechargeDays ??
-            existingSubscription.planDays ??
-            school.subscriptionDays ??
-            0
-        );
+      const oldTotalDays = Number(
+        existingSubscription.totalRechargeDays ?? 0
+      );
 
       const totalRechargeAmount =
         oldTotalAmount + amount;
@@ -1175,18 +1172,14 @@ export async function adminRechargeSchool(
 
     const oldExpiry = timestampToMillis(existingSubscription.expiresAt);
 
+    // Read cumulative totals only from the subscription ledger.
+    // School-level display fields are not used as calculation fallbacks.
     const oldTotalAmount = Number(
-      existingSubscription.totalRechargeAmount ??
-        existingSubscription.planAmount ??
-        school.paymentAmount ??
-        0
+      existingSubscription.totalRechargeAmount ?? 0
     );
 
     const oldTotalDays = Number(
-      existingSubscription.totalRechargeDays ??
-        existingSubscription.planDays ??
-        school.subscriptionDays ??
-        0
+      existingSubscription.totalRechargeDays ?? 0
     );
 
     const totalRechargeAmount =
