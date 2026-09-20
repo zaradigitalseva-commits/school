@@ -1,4 +1,4 @@
-import type { School, Announcement, SchoolEvent, Teacher } from '@/firebase/types';
+import type { School } from '@/firebase/types';
 import { GraduationCap, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
