@@ -1,4 +1,4 @@
-import type { Announcement[] } from '@/firebase/types';
+import type { Announcement } from '@/firebase/types';
 import { Megaphone } from 'lucide-react';
 import { formatDate } from '@/firebase/firestore';
 
