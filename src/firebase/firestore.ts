@@ -1032,7 +1032,48 @@ export async function deleteTeacher(
     }
   }
 
+  // Remove the teacher profile and revoke any matching login access.
   await deleteDoc(ref);
+
+  const teacherEmail =
+    String(data.email || '').trim().toLowerCase();
+
+  if (teacherEmail) {
+    const membershipQuery = query(
+      collection(db, 'schoolMemberships'),
+      where('schoolId', '==', data.schoolId),
+      where('email', '==', teacherEmail),
+      where('role', '==', 'teacher')
+    );
+
+    const membershipSnapshot =
+      await getDocs(membershipQuery);
+
+    await Promise.all(
+      membershipSnapshot.docs.map((membershipDoc) =>
+        updateDoc(membershipDoc.ref, {
+          status: 'REVOKED',
+          updatedAt: serverTimestamp(),
+        })
+      )
+    );
+
+    const inviteRef = doc(
+      db,
+      'teacherInvites',
+      data.schoolId + '_' + teacherEmail
+    );
+
+    const inviteSnapshot =
+      await getDoc(inviteRef);
+
+    if (inviteSnapshot.exists()) {
+      await updateDoc(inviteRef, {
+        status: 'REVOKED',
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
 }
 
 
