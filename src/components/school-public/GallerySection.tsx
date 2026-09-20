@@ -1,4 +1,4 @@
-import type { School, Announcement, SchoolEvent, Teacher } from '@/firebase/types';
+import type { School } from '@/firebase/types';
 import { Images } from 'lucide-react';
 
 type Props = {
