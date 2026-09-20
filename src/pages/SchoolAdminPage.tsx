@@ -1218,6 +1218,20 @@ export default function SchoolAdminPage() {
           <MenuButton
             active={
               activeSection ===
+              'teacher-board'
+            }
+            onClick={() =>
+              changeSection(
+                'teacher-board'
+              )
+            }
+          >
+            👨‍🏫 My Teacher Board
+          </MenuButton>
+
+          <MenuButton
+            active={
+              activeSection ===
               'school'
             }
             onClick={() =>
@@ -1441,6 +1455,18 @@ export default function SchoolAdminPage() {
             />
           )}
 
+
+          {/* MY TEACHER BOARD */}
+
+          {activeSection ===
+            'teacher-board' && (
+            <TeacherBoardSection
+              school={school}
+              schoolId={schoolId}
+              assignments={myMemberships[0]?.assignments || []}
+              onOpenSection={changeSection}
+            />
+          )}
 
           {/* SCHOOL */}
 
@@ -3396,6 +3422,111 @@ function TeachersSection({
     </>
   );
 }
+
+/* =========================================================
+   MY TEACHER BOARD
+========================================================= */
+
+function TeacherBoardSection({
+  school,
+  schoolId,
+  assignments,
+  onOpenSection,
+}: {
+  school: School;
+  schoolId: string;
+  assignments: string[];
+  onOpenSection: (section: string) => void;
+}) {
+  const assignedText = assignments.length
+    ? assignments.join(', ')
+    : 'All classes (School Admin access)';
+
+  return (
+    <>
+      <h2 style={styles.pageHeading}>
+        👨‍🏫 My Teacher Board
+      </h2>
+
+      <p style={styles.description}>
+        यह उसी Gmail के लिए Teacher Board है। आप इसी school में
+        School Admin और Teacher दोनों काम कर सकते हैं।
+      </p>
+
+      <div style={styles.cardGrid}>
+        <StatCard
+          icon="🏫"
+          title="School"
+          value={school.name}
+        />
+        <StatCard
+          icon="📚"
+          title="My Classes"
+          value={assignedText}
+        />
+      </div>
+
+      <div style={styles.infoCard}>
+        <h3>Teacher Work</h3>
+        <p style={styles.smallText}>
+          School Admin होने के कारण इस account को इसी school के
+          teacher work पर भी access है।
+        </p>
+
+        <div style={styles.formButtons}>
+          <button
+            style={styles.primaryButton}
+            onClick={() => onOpenSection('homework')}
+          >
+            📝 Homework
+          </button>
+
+          <button
+            style={styles.primaryButton}
+            onClick={() => onOpenSection('results')}
+          >
+            📊 Results
+          </button>
+
+          <button
+            style={styles.primaryButton}
+            onClick={() => onOpenSection('attendance')}
+          >
+            📅 Attendance
+          </button>
+
+          <button
+            style={styles.primaryButton}
+            onClick={() => onOpenSection('students')}
+          >
+            👨‍🎓 Students
+          </button>
+
+          <button
+            style={styles.secondaryButton}
+            onClick={() => onOpenSection('classes')}
+          >
+            📚 Classes
+          </button>
+        </div>
+      </div>
+
+      <div style={styles.infoCard}>
+        <h3>🔒 School Isolation</h3>
+        <p style={styles.smallText}>
+          School: <strong>{school.name}</strong>
+        </p>
+        <p style={styles.smallText}>
+          School ID: <strong>{schoolId}</strong>
+        </p>
+        <p style={styles.smallText}>
+          यह Teacher Board केवल इसी school के data के साथ काम करता है।
+        </p>
+      </div>
+    </>
+  );
+}
+
 
 /* =========================================================
    STAFF
