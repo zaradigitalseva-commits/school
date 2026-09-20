@@ -1,4 +1,4 @@
-import type { School, Announcement, SchoolEvent, Teacher } from '@/firebase/types';
+import type { SchoolEvent[] } from '@/firebase/types';
 import { CalendarDays } from 'lucide-react';
 import { formatDate } from '@/firebase/firestore';
 
