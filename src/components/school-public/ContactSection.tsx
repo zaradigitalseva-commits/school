@@ -7,9 +7,6 @@ type Props = {
 
 export default function ContactSection({ school }: Props) {
   return (
-{/* =========================================================
-          CONTACT
-      ========================================================== */}
       <section id="contact" className="bg-gray-50 py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="mb-10 text-center">
