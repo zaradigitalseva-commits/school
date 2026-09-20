@@ -2609,6 +2609,39 @@ export function subscribeToSchool(
   );
 }
 
+export function subscribeToMyTeacherProfile(
+  schoolId: string,
+  email: string,
+  onData: (teacher: Teacher | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const cleanEmail = email?.trim().toLowerCase() || '';
+
+  if (!schoolId || !cleanEmail) {
+    onData(null);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, 'teachers'),
+    where('schoolId', '==', schoolId),
+    where('email', '==', cleanEmail)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const teacherDoc = snapshot.docs[0];
+      onData(
+        teacherDoc
+          ? ({ id: teacherDoc.id, ...teacherDoc.data() } as Teacher)
+          : null
+      );
+    },
+    (error) => onError?.(error)
+  );
+}
+
 export function subscribeToTeacherScopedCollection(
   schoolId: string,
   collectionName: string,
