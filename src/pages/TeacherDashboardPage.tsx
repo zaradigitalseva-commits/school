@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
   subscribeToMyMembership,
+  subscribeToMyTeacherProfile,
   subscribeToSchool,
   subscribeToSchoolCollection,
   subscribeToTeacherScopedCollection,
@@ -545,7 +546,7 @@ export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
-  const [membership, setMembership] = useState<SchoolMembership | null>(null);\n  const [teacherProfile, setTeacherProfile] = useState<any | null>(null);
+  const [membership, setMembership] = useState<SchoolMembership | null>(null);\n  const [teacherProfile, setTeacherProfile] = useState<any | null>(null);\n  const [showProfile, setShowProfile] = useState(false);
   const [school, setSchool] = useState<School | null>(null);
   const [students, setStudents] = useState<SchoolRow[]>([]);
   const [homework, setHomework] = useState<SchoolRow[]>([]);
@@ -662,6 +663,25 @@ export default function TeacherDashboardPage() {
     };
   }, [navigate, user?.uid]);
 
+  useEffect(() => {
+    if (!membership?.schoolId || !user?.email) {
+      setTeacherProfile(null);
+      return;
+    }
+
+    const unsubscribe = subscribeToMyTeacherProfile(
+      membership.schoolId,
+      user.email,
+      (profile) => setTeacherProfile(profile),
+      (listenerError) => {
+        console.error('Teacher profile listener error:', listenerError);
+        setTeacherProfile(null);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [membership?.schoolId, user?.email]);
+
   const assignments = membership?.assignments ?? [];
 
   const myStudents = useMemo(
@@ -744,12 +764,21 @@ export default function TeacherDashboardPage() {
               </p>
             </div>
 
-            <Link
-              to={`/school/${school.slug}`}
-              className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-5 py-3 text-center font-black text-white shadow-[0_5px_0_rgb(67,56,202)]"
-            >
-              🌐 View School Website
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowProfile(true)}
+                className="rounded-xl bg-emerald-600 px-5 py-3 font-black text-white shadow-[0_5px_0_rgb(4,120,87)] active:translate-y-1 active:shadow-none"
+              >
+                👤 My Profile
+              </button>
+              <Link
+                to={`/school/${school.slug}`}
+                className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-5 py-3 text-center font-black text-white shadow-[0_5px_0_rgb(67,56,202)]"
+              >
+                🌐 View School Website
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -763,6 +792,97 @@ export default function TeacherDashboardPage() {
             </div>
           </div>
         </section>
+
+        {showProfile ? (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm">
+            <div className="mx-auto mt-6 max-w-3xl rounded-3xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between gap-4 border-b p-5">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-wide text-emerald-600">
+                    👤 My Profile
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-900">
+                    Teacher Profile
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Admin ne jo information add ki hai, wahi yahan read-only dikhegi.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProfile(false)}
+                  className="rounded-xl bg-slate-200 px-4 py-2 font-black text-slate-800"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {teacherProfile ? (
+                <div className="p-5">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                    <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-slate-100 text-5xl shadow-inner">
+                      {teacherProfile.photoDataUrl ? (
+                        <img
+                          src={teacherProfile.photoDataUrl}
+                          alt={teacherProfile.name || 'Teacher'}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        '👨‍🏫'
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="break-words text-2xl font-black text-slate-900">
+                        {teacherProfile.name || 'Teacher'}
+                      </h3>
+                      <p className="mt-1 break-all text-sm font-bold text-blue-600">
+                        {teacherProfile.email || user.email || '—'}
+                      </p>
+                      <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                        {String(teacherProfile.status || 'ACTIVE')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    {[
+                      ['📧 Google Email', teacherProfile.email || user.email],
+                      ['📱 Phone', teacherProfile.phone],
+                      ['🏠 Address', teacherProfile.address],
+                      ['💰 Salary', teacherProfile.salary],
+                      ['🎓 Qualification', teacherProfile.qualification],
+                      ['📚 Subject', teacherProfile.subject],
+                      ['🏫 Assigned Class', teacherProfile.assignedClass],
+                      ['🔤 Section', teacherProfile.section],
+                      ['📅 Joining Date', formatDate(teacherProfile.joiningDate) || teacherProfile.joiningDate],
+                      ['✅ Profile Status', teacherProfile.status],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
+                        <p className="mt-1 break-words text-base font-black text-slate-900">
+                          {value || '—'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm font-bold leading-6 text-amber-800">
+                      🔒 Profile read-only hai. Teacher khud details edit nahi kar sakta. Changes sirf School Admin karega.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 text-center">
+                  <p className="font-black text-slate-700">Aapka teacher profile abhi load nahi hua.</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                    School Admin se profile details check karne ko kahen.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         <TeacherWorkPanel
           schoolId={school.id}
