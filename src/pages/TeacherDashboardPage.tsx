@@ -21,18 +21,71 @@ function getClassName(row: SchoolRow): string {
   ).trim();
 }
 
+function normalizeClassPart(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^class\\s*/i, '')
+    .replace(/^standard\\s*/i, '')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
+function getRowSection(row: SchoolRow): string {
+  return String(
+    row.section ??
+      row.sectionName ??
+      row.division ??
+      row.divisionName ??
+      ''
+  ).trim().toLowerCase();
+}
+
+function getAssignmentParts(assignment: string): { className: string; section: string } {
+  const raw = normalizeClassPart(assignment);
+
+  // Supports values entered by the admin such as:
+  // "Class 5", "Class 5 - A", "5-A", "5 A", "Class 5 A".
+  const match = raw.match(/^(.*?)(?:\\s*[-/]\\s*|\\s+)([a-z])$/i);
+
+  if (match) {
+    return {
+      className: normalizeClassPart(match[1]),
+      section: match[2].toLowerCase(),
+    };
+  }
+
+  return {
+    className: raw,
+    section: '',
+  };
+}
+
 function matchesAssignedClass(row: SchoolRow, assignments: string[]): boolean {
-  if (!assignments.length) return true;
-  const rowClass = getClassName(row).toLowerCase();
+  if (!assignments.length) return false;
+
+  const rowClass = normalizeClassPart(getClassName(row));
+  const rowSection = getRowSection(row);
+
   if (!rowClass) return false;
 
   return assignments.some((assignment) => {
-    const wanted = String(assignment).trim().toLowerCase();
-    return (
-      rowClass === wanted ||
-      rowClass.includes(wanted) ||
-      wanted.includes(rowClass)
-    );
+    const wanted = getAssignmentParts(String(assignment));
+    if (!wanted.className) return false;
+
+    const classMatches =
+      rowClass === wanted.className ||
+      rowClass.includes(wanted.className) ||
+      wanted.className.includes(rowClass);
+
+    if (!classMatches) return false;
+
+    // If admin assigned a section (A/B/C), the row must have the same section.
+    if (wanted.section) {
+      return rowSection === wanted.section;
+    }
+
+    return true;
   });
 }
 
