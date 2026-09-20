@@ -8,11 +8,7 @@ type Props = {
 };
 
 export default function AboutSection({ school, campusImages, heroImage }: Props) {
-  return (
-{/* =========================================================
-          ABOUT
-      ========================================================== */}
-      <section id="about" className="bg-gray-50 py-20">
+  return (<section id="about" className="bg-gray-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
