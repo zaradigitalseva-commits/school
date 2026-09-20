@@ -38,11 +38,16 @@ service cloud.firestore {
       return isSchoolAdmin(schoolId) || isTeacher(schoolId);
     }
 
-    function teacherAssigned(schoolId, className) {
+    function teacherAssigned(schoolId, className, section) {
       return isTeacher(schoolId)
         && className is string
+        && section is string
         && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments is list
-        && className in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments;
+        && (
+          className in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+          || (className + ' - ' + section) in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+          || (className + '-' + section) in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+        );
     }
 
     function isSchoolOwner(schoolId) {
@@ -251,13 +256,13 @@ service cloud.firestore {
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
-        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
       allow update: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
             && request.resource.data.schoolId == resource.data.schoolId)
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', ''))
             && request.resource.data.schoolId == resource.data.schoolId
-            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
@@ -268,10 +273,10 @@ service cloud.firestore {
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
-        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
       allow update: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', ''))
             && request.resource.data.schoolId == resource.data.schoolId
             && teacherAssigned(request.resource.data.schoolId, resource.data.className));
       allow delete: if isPlatformAdmin()
@@ -284,10 +289,10 @@ service cloud.firestore {
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
-        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className));
+        || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
       allow update: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className)
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', ''))
             && request.resource.data.schoolId == resource.data.schoolId
             && request.resource.data.className == resource.data.className
             && teacherAssigned(resource.data.schoolId, request.resource.data.className));
