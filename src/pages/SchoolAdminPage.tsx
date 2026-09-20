@@ -4535,3 +4535,5 @@ const styles: Record<
       'block',
   },
 };
+
+/* build sync: SchoolAdminPage default export */
