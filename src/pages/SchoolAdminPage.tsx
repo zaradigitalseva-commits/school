@@ -3166,6 +3166,8 @@ function RecordRow({
         name: String(field('name')).trim(),
         email: String(field('email')).trim().toLowerCase(),
         phone: String(field('phone')).trim(),
+        address: String(field('address')).trim(),
+        salary: String(field('salary')).trim(),
         subject: String(field('subject')).trim(),
         assignedClass: String(field('assignedClass')).trim(),
         section: String(field('section')).trim(),
