@@ -1564,6 +1564,8 @@ export default function SchoolAdminPage() {
               schoolId={schoolId}
               teacherRecords={teacherRecords}
               setTeacherRecords={setTeacherRecords}
+teacherLoadError={teacherLoadError}
+              
               teachers={
                 teachers
               }
@@ -3098,19 +3100,31 @@ function RecordRow({
 ========================================================= */
 
 
-function TeachersSection({
+
+ function TeachersSection({
   schoolId,
   teacherRecords,
   setTeacherRecords,
+  teacherLoadError,
   teachers,
+  
   pendingTeachers,
   onActivate,
   onRevoke,
 }: {
   schoolId: string;
   teacherRecords: AnyRecord[];
-  setTeacherRecords: React.Dispatch<React.SetStateAction<AnyRecord[]>>;
+ 
+   
+   setTeacherRecords: React.Dispatch<React.SetStateAction<AnyRecord[]>>;
+
+teacherLoadError: string;
+   
   teachers: SchoolMembership[];
+
+
+
+   
   pendingTeachers: SchoolMembership[];
   onActivate: (member: SchoolMembership) => void;
   onRevoke: (member: SchoolMembership) => void;
