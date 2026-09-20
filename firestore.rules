@@ -304,16 +304,26 @@ service cloud.firestore {
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
-      allow create, update, delete: if isPlatformAdmin()
+      allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
+      allow delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
     match /documents/{documentId} {
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
-      allow create, update, delete: if isPlatformAdmin()
+      allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
+      allow update: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId)
+            && request.resource.data.schoolId == resource.data.schoolId);
+      allow delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
     match /platformSettings/{settingId} {
