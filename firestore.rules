@@ -278,7 +278,7 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
         || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', ''))
             && request.resource.data.schoolId == resource.data.schoolId
-            && teacherAssigned(request.resource.data.schoolId, resource.data.className));
+            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
@@ -295,7 +295,7 @@ service cloud.firestore {
         || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', ''))
             && request.resource.data.schoolId == resource.data.schoolId
             && request.resource.data.className == resource.data.className
-            && teacherAssigned(resource.data.schoolId, request.resource.data.className));
+            && teacherAssigned(resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
       allow delete: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
