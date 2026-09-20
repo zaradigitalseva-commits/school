@@ -2616,14 +2616,19 @@ export function subscribeToTeacherScopedCollection(
 
   querySpecs.forEach(({ classNames, section }) => {
     classNames.forEach((className) => {
-      const constraints = [
-        where('schoolId', '==', schoolId),
-        where('className', '==', className),
-        ...(section ? [where('section', '==', section),] : []),
-      ];
-      const q = query(collection(db, collectionName), ...constraints);
-      activeListeners += 1;
-      unsubscribers.push(onSnapshot(
+      const sectionValues = section
+        ? Array.from(new Set([section, section.toUpperCase()]))
+        : [''];
+
+      sectionValues.forEach((sectionValue) => {
+        const constraints = [
+          where('schoolId', '==', schoolId),
+          where('className', '==', className),
+          ...(sectionValue ? [where('section', '==', sectionValue)] : []),
+        ];
+        const q = query(collection(db, collectionName), ...constraints);
+        activeListeners += 1;
+        unsubscribers.push(onSnapshot(
         q,
         (snapshot) => {
           snapshot.docs.forEach((d) => rowsById.set(d.id, { id: d.id, ...d.data() }));
@@ -2633,7 +2638,8 @@ export function subscribeToTeacherScopedCollection(
           console.error(`Teacher ${collectionName} scoped listener error:`, error);
           onError?.(error);
         }
-      ));
+        ));
+      });
     });
   });
 
