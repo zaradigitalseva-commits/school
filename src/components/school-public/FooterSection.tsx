@@ -8,9 +8,6 @@ type Props = {
 
 export default function FooterSection({ school }: Props) {
   return (
-{/* =========================================================
-          FOOTER
-      ========================================================== */}
       <footer className="bg-gray-950 py-12 text-gray-300">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="grid gap-8 md:grid-cols-3">
