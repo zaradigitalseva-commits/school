@@ -71,6 +71,12 @@ export default function HomePage() {
     };
   }, []);
 
+  const loadSchools = () => {
+    setError('');
+    setLoading(true);
+    window.location.reload();
+  };
+
   /* =========================================================
      SEARCH
   ========================================================= */
