@@ -3124,6 +3124,7 @@ function RecordRow({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingTeacher, setSavingTeacher] = useState(false);
   const [teacherMessage, setTeacherMessage] = useState('');
+  const [selectedTeacher, setSelectedTeacher] = useState<AnyRecord | null>(null);
 
   const field = (key: string) => form[key] ?? '';
 
@@ -3389,6 +3390,211 @@ function RecordRow({
         </div>
       </div>
 
+      {selectedTeacher && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Teacher full profile"
+          onClick={() => setSelectedTeacher(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(15,23,42,0.72)',
+            padding: 14,
+            overflowY: 'auto',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 760,
+              margin: '10px auto 30px',
+              background: '#fff',
+              borderRadius: 24,
+              boxShadow: '0 25px 70px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '18px 20px',
+                background: 'linear-gradient(90deg, #2563eb, #7c3aed)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.9 }}>👨‍🏫 TEACHER PROFILE</div>
+                <h2 style={{ margin: '4px 0 0', fontSize: 24, overflowWrap: 'anywhere' }}>
+                  {selectedTeacher.name || 'Teacher'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTeacher(null)}
+                style={{
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '10px 14px',
+                  background: '#fff',
+                  color: '#1e40af',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 18,
+                  padding: 16,
+                  borderRadius: 18,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                {selectedTeacher.photoDataUrl ? (
+                  <img
+                    src={selectedTeacher.photoDataUrl}
+                    alt={selectedTeacher.name || 'Teacher'}
+                    style={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: 24,
+                      objectFit: 'cover',
+                      border: '4px solid #dbeafe',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: 24,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#eff6ff',
+                      fontSize: 52,
+                      flexShrink: 0,
+                    }}
+                  >
+                    👨‍🏫
+                  </div>
+                )}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{ margin: 0, fontSize: 25, overflowWrap: 'anywhere' }}>
+                    {selectedTeacher.name || 'Teacher'}
+                  </h3>
+                  <p style={{ margin: '7px 0 0', color: '#2563eb', fontWeight: 800, overflowWrap: 'anywhere' }}>
+                    📧 {selectedTeacher.email || 'Email not added'}
+                  </p>
+                  <p style={{ margin: '7px 0 0', color: '#475569', fontWeight: 700 }}>
+                    📚 {selectedTeacher.subject || 'Subject not added'} • {selectedTeacher.assignedClass || 'Class not assigned'}
+                    {selectedTeacher.section ? ' - ' + selectedTeacher.section : ''}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: 12,
+                  marginTop: 18,
+                }}
+              >
+                <InfoRow label="📧 Google Email" value={String(selectedTeacher.email || 'Not added')} />
+                <InfoRow label="📱 Phone" value={String(selectedTeacher.phone || 'Not added')} />
+                <InfoRow label="🏠 Address" value={String(selectedTeacher.address || 'Not added')} />
+                <InfoRow label="💰 Salary" value={selectedTeacher.salary ? '₹' + String(selectedTeacher.salary) : 'Not added'} />
+                <InfoRow label="🎓 Qualification" value={String(selectedTeacher.qualification || 'Not added')} />
+                <InfoRow label="📚 Subject" value={String(selectedTeacher.subject || 'Not added')} />
+                <InfoRow label="🏫 Assigned Class" value={String(selectedTeacher.assignedClass || 'Not assigned')} />
+                <InfoRow label="🔤 Section" value={String(selectedTeacher.section || 'Not added')} />
+                <InfoRow label="📅 Joining Date" value={formatDate(selectedTeacher.joiningDate)} />
+                <InfoRow label="📌 Profile Status" value={String(selectedTeacher.status || 'ACTIVE')} />
+              </div>
+
+              <div style={{ marginTop: 18, padding: 16, borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ marginTop: 0 }}>🔐 Google Teacher Login Access</h3>
+                {(() => {
+                  const membership = getMembership(selectedTeacher);
+                  const loginStatus = membership?.status || 'NOT CREATED';
+                  return (
+                    <>
+                      <InfoRow label="Login Status" value={loginStatus} />
+                      <InfoRow label="Login Email" value={String(membership?.email || selectedTeacher.email || 'Not available')} />
+                      <InfoRow label="Login Role" value={String(membership?.role || 'Not created')} />
+                      <InfoRow
+                        label="Login Classes"
+                        value={membership?.assignments?.length ? membership.assignments.join(', ') : 'Not assigned'}
+                      />
+                      <InfoRow label="Login Subject" value={String(membership?.subject || selectedTeacher.subject || 'Not assigned')} />
+                      <InfoRow label="Membership Created" value={formatDate(membership?.createdAt)} />
+                      <InfoRow label="Membership Updated" value={formatDate(membership?.updatedAt)} />
+                      {membership && (
+                        <div style={{ ...styles.formButtons, marginTop: 14 }}>
+                          {membership.status === 'PENDING' && (
+                            <button style={styles.successButton} onClick={() => onActivate(membership)}>
+                              ✅ Activate Login
+                            </button>
+                          )}
+                          {membership.status === 'ACTIVE' && (
+                            <button style={styles.dangerButton} onClick={() => onRevoke(membership)}>
+                              🚫 Revoke Login
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div style={{ ...styles.formButtons, marginTop: 18 }}>
+                <button
+                  style={styles.editButton}
+                  onClick={() => {
+                    setEditingId(selectedTeacher.id || null);
+                    setForm({ ...selectedTeacher });
+                    setSelectedTeacher(null);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  ✏️ Edit Teacher
+                </button>
+                <button
+                  style={styles.dangerButton}
+                  onClick={async () => {
+                    const id = selectedTeacher.id;
+                    if (!id) return;
+                    await removeTeacherRecord(id);
+                    setSelectedTeacher(null);
+                  }}
+                >
+                  🗑️ Delete Teacher
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={styles.infoCard}>
         <div style={styles.listHeader}>
           <h3>Teacher Profiles — Full Information</h3>
@@ -3510,27 +3716,25 @@ function RecordRow({
                   </div>
                 </div>
 
-                <div
+                <button
+                  type="button"
+                  onClick={() => setSelectedTeacher(teacher)}
                   style={{
-                    ...styles.cardGrid,
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    display: 'block',
+                    width: '100%',
                     marginTop: 18,
-                    marginBottom: 0,
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    border: '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    textAlign: 'center',
                   }}
                 >
-                  <InfoRow label="📱 Phone" value={String(teacher.phone || 'Not added')} />
-                  <InfoRow label="🏠 Address" value={String(teacher.address || 'Not added')} />
-                  <InfoRow label="💰 Salary" value={teacher.salary ? '₹' + String(teacher.salary) : 'Not added'} />
-                  <InfoRow label="🪪 Teacher ID" value={String(teacher.teacherId || 'Not added')} />
-                  <InfoRow label="🎓 Qualification" value={String(teacher.qualification || 'Not added')} />
-                  <InfoRow label="📚 Subject" value={String(teacher.subject || 'Not added')} />
-                  <InfoRow label="🏫 Assigned Class" value={String(teacher.assignedClass || 'Not assigned')} />
-                  <InfoRow label="🔤 Section" value={String(teacher.section || 'Not added')} />
-                  <InfoRow label="📅 Joining Date" value={formatDate(teacher.joiningDate)} />
-                  <InfoRow label="📌 Profile Status" value={String(teacher.status || 'ACTIVE')} />
-                </div>
-
-                <div
+                  👆 Teacher Card par click karke poora data dekhein
+                </button>                <div
                   style={{
                     marginTop: 18,
                     padding: 16,
@@ -3606,66 +3810,6 @@ function RecordRow({
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      <div style={styles.infoCard}>
-        <h3>🔐 Teacher Login Access Summary</h3>
-
-        {teachers.length === 0 && pendingTeachers.length === 0 ? (
-          <EmptyState text="No teacher login memberships." />
-        ) : (
-          <>
-            {teachers.map((teacher) => (
-              <div key={teacher.id} style={styles.memberRow}>
-                <div>
-                  <strong>{teacher.email || teacher.uid}</strong>
-                  <div style={styles.smallText}>
-                    ACTIVE • {teacher.assignments?.length ? teacher.assignments.join(', ') : 'No class assignment'}
-                    {teacher.subject ? ' • ' + teacher.subject : ''}
-                  </div>
-                  <div style={styles.smallText}>UID: {teacher.uid}</div>
-                </div>
-                <button
-                  style={styles.dangerButton}
-                  onClick={() => onRevoke(teacher)}
-                >
-                  Revoke
-                </button>
-              </div>
-            ))}
-
-            {pendingTeachers.map((teacher) => (
-              <div key={teacher.id} style={styles.memberRow}>
-                <div>
-                  <strong>{teacher.email || teacher.uid}</strong>
-                  <div style={styles.smallText}>
-                    PENDING • {teacher.assignments?.length ? teacher.assignments.join(', ') : 'No class assignment'}
-                    {teacher.subject ? ' • ' + teacher.subject : ''}
-                  </div>
-                </div>
-                <button
-                  style={styles.successButton}
-                  onClick={() => onActivate(teacher)}
-                >
-                  Activate
-                </button>
-              </div>
-            ))}
-          </>
-        )}
-
-        <p style={{ ...styles.smallText, marginTop: 14 }}>
-          अब Teacher Profile और Google Login एक ही teacher card में पूरी जानकारी के साथ दिखते हैं।
-          Profile बनाते समय login membership भी बनाई जाती है; अलग से access status यहाँ manage किया जा सकता है।
-        </p>
-      </div>
-    </>
-  );
-}
 
 /* =========================================================
    MY TEACHER BOARD
