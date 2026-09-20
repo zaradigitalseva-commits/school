@@ -15,7 +15,6 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { isPlatformAdminEmail } from '@/firebase/firestore';
 
 const navLinks = [
   { to: '/', label: 'Home', icon: Home },
@@ -32,7 +31,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role, isAdmin, isFaculty } = useAuth();
+  const { user, role, isPlatformAdmin, isSchoolAdmin, isTeacher } = useAuth();
 
   useEffect(() => {
     setOpen(false);
@@ -45,9 +44,9 @@ export default function Navbar() {
   }, []);
 
   const showDashboardLink = Boolean(user) && (
-    isAdmin ||
-    isFaculty ||
-    isPlatformAdminEmail(user?.email)
+    isPlatformAdmin ||
+    isSchoolAdmin ||
+    isTeacher
   );
 
   const openDashboard = () => {
@@ -57,7 +56,7 @@ export default function Navbar() {
     }
 
     // The platform owner must always go to the Platform Admin board.
-    if (isPlatformAdminEmail(user.email) || role === 'platform_admin') {
+    if (isPlatformAdmin || role === 'platform_admin') {
       navigate('/admin');
       return;
     }
@@ -120,7 +119,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2">
           {showDashboardLink && (
-            isPlatformAdminEmail(user?.email) || role === 'platform_admin' ? (
+            isPlatformAdmin || role === 'platform_admin' ? (
               <Link
                 to="/admin"
                 className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold btn-3d hover:bg-purple-700"
@@ -187,7 +186,7 @@ export default function Navbar() {
             })}
 
             {showDashboardLink && (
-              isPlatformAdminEmail(user?.email) || role === 'platform_admin' ? (
+              isPlatformAdmin || role === 'platform_admin' ? (
                 <Link
                   to="/admin"
                   className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-purple-700 bg-purple-50 text-left"
