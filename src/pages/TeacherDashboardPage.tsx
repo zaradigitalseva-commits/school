@@ -32,9 +32,9 @@ function normalizeClassPart(value: unknown): string {
   return String(value ?? '')
     .trim()
     .toLowerCase()
-    .replace(/^class\\s*/i, '')
-    .replace(/^standard\\s*/i, '')
-    .replace(/\\s+/g, ' ')
+    .replace(/^class\s*/i, '')
+    .replace(/^standard\s*/i, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -53,7 +53,7 @@ function getAssignmentParts(assignment: string): { className: string; section: s
 
   // Supports values entered by the admin such as:
   // "Class 5", "Class 5 - A", "5-A", "5 A", "Class 5 A".
-  const match = raw.match(/^(.*?)(?:\\s*[-/]\\s*|\\s+)([a-z])$/i);
+  const match = raw.match(/^(.*?)(?:\s*[-/]\s*|\s+)([a-z])$/i);
 
   if (match) {
     return {
@@ -199,7 +199,7 @@ function TeacherWorkPanel({
     const assigned = assignments
       .map((value) => getAssignmentParts(String(value)).className)
       .filter(Boolean)
-      .map((value) => /^\\d+$/.test(value) ? `Class ${value}` : value);
+      .map((value) => /^\d+$/.test(value) ? `Class ${value}` : value);
     const fromStudents = students.map((row) => getClassName(row)).filter(Boolean);
     return Array.from(new Set([...assigned, ...fromStudents, ...base]));
   }, [assignments, students]);
@@ -208,7 +208,7 @@ function TeacherWorkPanel({
     if (assignments.length) {
       return assignments.map((value) => {
         const parts = getAssignmentParts(String(value));
-        const className = /^\\d+$/.test(parts.className) ? `Class ${parts.className}` : parts.className;
+        const className = /^\d+$/.test(parts.className) ? `Class ${parts.className}` : parts.className;
         return { value: String(value), className, section: parts.section.toUpperCase() };
       });
     }
