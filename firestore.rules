@@ -29,7 +29,7 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'school_admin';
     }
 
-    function isTeacher(schoolId) {
+    function isOwnTeacherProfile(schoolId) {\n      return isTeacher(schoolId)\n        && resource.data.email is string\n        && resource.data.email == request.auth.token.email;\n    }\n\n    function isTeacher(schoolId) {
       return activeMembership(schoolId)
         && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'teacher';
     }
