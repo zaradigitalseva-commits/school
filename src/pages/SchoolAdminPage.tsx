@@ -3291,6 +3291,13 @@ function RecordRow({
         />
 
         <Input
+          label="Salary"
+          type="number"
+          value={field('salary')}
+          onChange={(value) => setField('salary', value)}
+        />
+
+        <Input
           label="Qualification"
           value={field('qualification')}
           onChange={(value) => setField('qualification', value)}
@@ -3504,6 +3511,7 @@ function RecordRow({
                   }}
                 >
                   <InfoRow label="📱 Phone" value={String(teacher.phone || 'Not added')} />
+                  <InfoRow label="💰 Salary" value={teacher.salary ? '₹' + String(teacher.salary) : 'Not added'} />
                   <InfoRow label="🪪 Teacher ID" value={String(teacher.teacherId || 'Not added')} />
                   <InfoRow label="🎓 Qualification" value={String(teacher.qualification || 'Not added')} />
                   <InfoRow label="📚 Subject" value={String(teacher.subject || 'Not added')} />
