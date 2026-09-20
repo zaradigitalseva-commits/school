@@ -6,9 +6,6 @@ type Props = {
 
 export default function PrincipalSection({ school }: Props) {
   return (
-{/* =========================================================
-          PRINCIPAL
-      ========================================================== */}
       {(school.principalName || school.principalMessage) && (
         <section id="principal" className="bg-white py-20">
           <div className="mx-auto max-w-5xl px-4 sm:px-6">
