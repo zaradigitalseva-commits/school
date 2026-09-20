@@ -3107,24 +3107,15 @@ function RecordRow({
   setTeacherRecords,
   teacherLoadError,
   teachers,
-  
   pendingTeachers,
   onActivate,
   onRevoke,
 }: {
   schoolId: string;
   teacherRecords: AnyRecord[];
- 
-   
-   setTeacherRecords: React.Dispatch<React.SetStateAction<AnyRecord[]>>;
-
-teacherLoadError: string;
-   
+  setTeacherRecords: React.Dispatch<React.SetStateAction<AnyRecord[]>>;
+  teacherLoadError: string;
   teachers: SchoolMembership[];
-
-
-
-   
   pendingTeachers: SchoolMembership[];
   onActivate: (member: SchoolMembership) => void;
   onRevoke: (member: SchoolMembership) => void;
@@ -3174,18 +3165,37 @@ teacherLoadError: string;
         schoolId,
         name: String(field('name')).trim(),
         email: String(field('email')).trim().toLowerCase(),
+        phone: String(field('phone')).trim(),
         subject: String(field('subject')).trim(),
         assignedClass: String(field('assignedClass')).trim(),
         section: String(field('section')).trim(),
+        qualification: String(field('qualification')).trim(),
+        teacherId: String(field('teacherId')).trim(),
+        joiningDate: String(field('joiningDate')).trim(),
+        status: String(field('status') || 'ACTIVE').trim(),
         photoDataUrl: String(field('photoDataUrl') || ''),
       };
 
       if (editingId) {
         await updateTeacher(editingId, data);
-        await createTeacherInvite({ schoolId, teacherId: editingId, email: data.email, assignedClass: data.assignedClass, section: data.section, subject: data.subject });
+        await createTeacherInvite({
+          schoolId,
+          teacherId: editingId,
+          email: data.email,
+          assignedClass: data.assignedClass,
+          section: data.section,
+          subject: data.subject,
+        });
       } else {
         const teacherId = await addTeacher(data);
-        await createTeacherInvite({ schoolId, teacherId, email: data.email, assignedClass: data.assignedClass, section: data.section, subject: data.subject });
+        await createTeacherInvite({
+          schoolId,
+          teacherId,
+          email: data.email,
+          assignedClass: data.assignedClass,
+          section: data.section,
+          subject: data.subject,
+        });
       }
 
       const refreshed = await fetchTeachers(schoolId);
@@ -3233,6 +3243,21 @@ teacherLoadError: string;
     }
   };
 
+  const getMembership = (teacher: AnyRecord) => {
+    const email = String(teacher.email || '').trim().toLowerCase();
+    return teachers.find(
+      (member) => String(member.email || '').trim().toLowerCase() === email
+    ) || pendingTeachers.find(
+      (member) => String(member.email || '').trim().toLowerCase() === email
+    );
+  };
+
+  const formatDate = (value: any) => {
+    if (!value) return 'Not available';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('en-IN');
+  };
+
   return (
     <>
       <h2 style={styles.pageHeading}>👨‍🏫 Teachers</h2>
@@ -3256,6 +3281,25 @@ teacherLoadError: string;
           type="email"
           value={field('email')}
           onChange={(value) => setField('email', value)}
+        />
+
+        <Input
+          label="Phone"
+          type="tel"
+          value={field('phone')}
+          onChange={(value) => setField('phone', value)}
+        />
+
+        <Input
+          label="Teacher ID"
+          value={field('teacherId')}
+          onChange={(value) => setField('teacherId', value)}
+        />
+
+        <Input
+          label="Qualification"
+          value={field('qualification')}
+          onChange={(value) => setField('qualification', value)}
         />
 
         <Input
@@ -3288,6 +3332,20 @@ teacherLoadError: string;
           label="Section"
           value={field('section')}
           onChange={(value) => setField('section', value)}
+        />
+
+        <Input
+          label="Joining Date"
+          type="date"
+          value={field('joiningDate')}
+          onChange={(value) => setField('joiningDate', value)}
+        />
+
+        <Input
+          label="Profile Status"
+          options={['ACTIVE', 'INACTIVE']}
+          value={field('status') || 'ACTIVE'}
+          onChange={(value) => setField('status', value)}
         />
 
         {teacherMessage && (
@@ -3324,7 +3382,7 @@ teacherLoadError: string;
 
       <div style={styles.infoCard}>
         <div style={styles.listHeader}>
-          <h3>Teacher Profiles</h3>
+          <h3>Teacher Profiles — Full Information</h3>
           <span style={styles.countBadge}>{teacherRecords.length}</span>
         </div>
 
@@ -3335,113 +3393,250 @@ teacherLoadError: string;
         )}
 
         {teacherRecords.length === 0 ? (
-          <EmptyState text={teacherLoadError ? 'Teacher profiles could not be loaded.' : 'No teacher profiles added yet.'} />
+          <EmptyState
+            text={
+              teacherLoadError
+                ? 'Teacher profiles could not be loaded.'
+                : 'No teacher profiles added yet.'
+            }
+          />
         ) : (
-          teacherRecords.map((teacher) => (
-            <div key={teacher.id} style={styles.memberRow}>
+          teacherRecords.map((teacher) => {
+            const membership = getMembership(teacher);
+            const loginStatus = membership?.status || 'NOT CREATED';
+
+            return (
               <div
+                key={teacher.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  minWidth: 0,
-                  flex: 1,
+                  ...styles.infoCard,
+                  marginBottom: 14,
+                  border: '1px solid #dbeafe',
+                  boxShadow: '0 5px 0 #bfdbfe, 0 10px 22px rgba(0,0,0,0.06)',
                 }}
               >
-                {teacher.photoDataUrl ? (
-                  <img
-                    src={teacher.photoDataUrl}
-                    alt={teacher.name || 'Teacher'}
-                    style={{
-                      width: 58,
-                      height: 58,
-                      borderRadius: 16,
-                      objectFit: 'cover',
-                      border: '2px solid #e2e8f0',
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 18,
+                    flexWrap: 'wrap',
+                  }}
+                >
                   <div
                     style={{
-                      width: 58,
-                      height: 58,
-                      borderRadius: 16,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      background: '#eff6ff',
-                      fontSize: 28,
-                      flexShrink: 0,
+                      gap: 15,
+                      minWidth: 0,
+                      flex: 1,
                     }}
                   >
-                    👨‍🏫
-                  </div>
-                )}
+                    {teacher.photoDataUrl ? (
+                      <img
+                        src={teacher.photoDataUrl}
+                        alt={teacher.name || 'Teacher'}
+                        style={{
+                          width: 82,
+                          height: 82,
+                          borderRadius: 18,
+                          objectFit: 'cover',
+                          border: '3px solid #e2e8f0',
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: 82,
+                          height: 82,
+                          borderRadius: 18,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: '#eff6ff',
+                          fontSize: 38,
+                          flexShrink: 0,
+                        }}
+                      >
+                        👨‍🏫
+                      </div>
+                    )}
 
-                <div style={{ minWidth: 0 }}>
-                  <strong>{teacher.name || 'Teacher'}</strong>
-                  <div style={styles.smallText}>
-                    {teacher.subject || 'Subject not added'}
-                    {' • '}
-                    {teacher.assignedClass || 'Class not assigned'}
-                    {teacher.section ? ' - ' + teacher.section : ''}
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={{ margin: 0, fontSize: 22 }}>
+                        {teacher.name || 'Teacher'}
+                      </h3>
+                      <div style={styles.smallText}>
+                        {teacher.subject || 'Subject not added'} • {teacher.assignedClass || 'Class not assigned'}
+                        {teacher.section ? ' - ' + teacher.section : ''}
+                      </div>
+                      <div style={styles.smallText}>
+                        📧 {teacher.email || 'Email not added'}
+                      </div>
+                    </div>
                   </div>
-                  {teacher.email && (
-                    <div style={styles.smallText}>{teacher.email}</div>
+
+                  <div style={styles.rowButtons}>
+                    <button
+                      style={styles.editButton}
+                      onClick={() => {
+                        setEditingId(teacher.id || null);
+                        setForm({ ...teacher });
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    >
+                      ✏️ Edit
+                    </button>
+
+                    <button
+                      style={styles.dangerButton}
+                      onClick={() =>
+                        teacher.id && removeTeacherRecord(teacher.id)
+                      }
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    ...styles.cardGrid,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    marginTop: 18,
+                    marginBottom: 0,
+                  }}
+                >
+                  <InfoRow label="📱 Phone" value={String(teacher.phone || 'Not added')} />
+                  <InfoRow label="🪪 Teacher ID" value={String(teacher.teacherId || 'Not added')} />
+                  <InfoRow label="🎓 Qualification" value={String(teacher.qualification || 'Not added')} />
+                  <InfoRow label="📚 Subject" value={String(teacher.subject || 'Not added')} />
+                  <InfoRow label="🏫 Assigned Class" value={String(teacher.assignedClass || 'Not assigned')} />
+                  <InfoRow label="🔤 Section" value={String(teacher.section || 'Not added')} />
+                  <InfoRow label="📅 Joining Date" value={formatDate(teacher.joiningDate)} />
+                  <InfoRow label="📌 Profile Status" value={String(teacher.status || 'ACTIVE')} />
+                  <InfoRow label="🆔 Profile ID" value={String(teacher.id || 'Not available')} />
+                  <InfoRow label="🏫 School ID" value={String(teacher.schoolId || schoolId)} />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 16,
+                    borderRadius: 14,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <h4 style={{ marginTop: 0, marginBottom: 10 }}>
+                    🔐 Google Teacher Login Access
+                  </h4>
+
+                  <InfoRow
+                    label="Login Status"
+                    value={loginStatus}
+                  />
+                  <InfoRow
+                    label="Google Email"
+                    value={String(membership?.email || teacher.email || 'Not available')}
+                  />
+                  <InfoRow
+                    label="Firebase UID"
+                    value={String(membership?.uid || 'Not logged in / not linked')}
+                  />
+                  <InfoRow
+                    label="Membership ID"
+                    value={String(membership?.id || 'Not created')}
+                  />
+                  <InfoRow
+                    label="Login Role"
+                    value={String(membership?.role || 'Not created')}
+                  />
+                  <InfoRow
+                    label="Login Classes"
+                    value={
+                      membership?.assignments?.length
+                        ? membership.assignments.join(', ')
+                        : 'Not assigned'
+                    }
+                  />
+                  <InfoRow
+                    label="Login Subject"
+                    value={String(membership?.subject || teacher.subject || 'Not assigned')}
+                  />
+                  <InfoRow
+                    label="Membership Created"
+                    value={formatDate(membership?.createdAt)}
+                  />
+                  <InfoRow
+                    label="Membership Updated"
+                    value={formatDate(membership?.updatedAt)}
+                  />
+
+                  {membership && (
+                    <div style={{ ...styles.formButtons, marginTop: 14 }}>
+                      {membership.status === 'PENDING' && (
+                        <button
+                          style={styles.successButton}
+                          onClick={() => onActivate(membership)}
+                        >
+                          ✅ Activate Login
+                        </button>
+                      )}
+
+                      {membership.status === 'ACTIVE' && (
+                        <button
+                          style={styles.dangerButton}
+                          onClick={() => onRevoke(membership)}
+                        >
+                          🚫 Revoke Login
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
-
-              <div style={styles.rowButtons}>
-                <button
-                  style={styles.editButton}
-                  onClick={() => {
-                    setEditingId(teacher.id || null);
-                    setForm({ ...teacher });
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                >
-                  ✏️ Edit
-                </button>
-
-                <button
-                  style={styles.dangerButton}
-                  onClick={() =>
-                    teacher.id && removeTeacherRecord(teacher.id)
-                  }
-                >
-                  🗑️ Delete
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
       <div style={styles.infoCard}>
-        <h3>🔐 Teacher Login Access</h3>
+        <h3>🔐 Teacher Login Access Summary</h3>
 
-        {teachers.length === 0 ? (
-          <EmptyState text="No active teacher login memberships." />
+        {teachers.length === 0 && pendingTeachers.length === 0 ? (
+          <EmptyState text="No teacher login memberships." />
         ) : (
-          teachers.map((teacher) => (
-            <MemberRow
-              key={teacher.id}
-              member={teacher}
-              onRevoke={() => onRevoke(teacher)}
-            />
-          ))
-        )}
+          <>
+            {teachers.map((teacher) => (
+              <div key={teacher.id} style={styles.memberRow}>
+                <div>
+                  <strong>{teacher.email || teacher.uid}</strong>
+                  <div style={styles.smallText}>
+                    ACTIVE • {teacher.assignments?.length ? teacher.assignments.join(', ') : 'No class assignment'}
+                    {teacher.subject ? ' • ' + teacher.subject : ''}
+                  </div>
+                  <div style={styles.smallText}>UID: {teacher.uid}</div>
+                </div>
+                <button
+                  style={styles.dangerButton}
+                  onClick={() => onRevoke(teacher)}
+                >
+                  Revoke
+                </button>
+              </div>
+            ))}
 
-        {pendingTeachers.length > 0 && (
-          <div style={{ marginTop: 18 }}>
-            <h4 style={{ marginBottom: 10 }}>⏳ Pending Teacher Access</h4>
             {pendingTeachers.map((teacher) => (
               <div key={teacher.id} style={styles.memberRow}>
                 <div>
                   <strong>{teacher.email || teacher.uid}</strong>
-                  <div style={styles.smallText}>Waiting for activation</div>
+                  <div style={styles.smallText}>
+                    PENDING • {teacher.assignments?.length ? teacher.assignments.join(', ') : 'No class assignment'}
+                    {teacher.subject ? ' • ' + teacher.subject : ''}
+                  </div>
                 </div>
                 <button
                   style={styles.successButton}
@@ -3451,13 +3646,12 @@ teacherLoadError: string;
                 </button>
               </div>
             ))}
-          </div>
+          </>
         )}
 
-        <p style={{ ...styles.smallText, marginTop: 12 }}>
-          Teacher profile/photo and Teacher Login Access are separate.
-          Adding a profile does not automatically create a Google login
-          membership.
+        <p style={{ ...styles.smallText, marginTop: 14 }}>
+          अब Teacher Profile और Google Login एक ही teacher card में पूरी जानकारी के साथ दिखते हैं।
+          Profile बनाते समय login membership भी बनाई जाती है; अलग से access status यहाँ manage किया जा सकता है।
         </p>
       </div>
     </>
