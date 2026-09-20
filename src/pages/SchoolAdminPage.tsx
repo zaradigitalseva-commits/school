@@ -3291,12 +3291,6 @@ function RecordRow({
         />
 
         <Input
-          label="Teacher ID"
-          value={field('teacherId')}
-          onChange={(value) => setField('teacherId', value)}
-        />
-
-        <Input
           label="Qualification"
           value={field('qualification')}
           onChange={(value) => setField('qualification', value)}
@@ -3517,8 +3511,6 @@ function RecordRow({
                   <InfoRow label="🔤 Section" value={String(teacher.section || 'Not added')} />
                   <InfoRow label="📅 Joining Date" value={formatDate(teacher.joiningDate)} />
                   <InfoRow label="📌 Profile Status" value={String(teacher.status || 'ACTIVE')} />
-                  <InfoRow label="🆔 Profile ID" value={String(teacher.id || 'Not available')} />
-                  <InfoRow label="🏫 School ID" value={String(teacher.schoolId || schoolId)} />
                 </div>
 
                 <div
