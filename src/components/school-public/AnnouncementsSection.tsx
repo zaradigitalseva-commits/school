@@ -29,7 +29,10 @@ export default function AnnouncementsSection({ announcements, contentLoading }: 
             </div>
           ) : announcements.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-3">
-              {announcements.map((announcement) => (
+              {[...announcements]
+                .sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')))
+                .slice(0, 3)
+                .map((announcement) => (
                 <div
                   key={announcement.id}
                   className="rounded-2xl bg-white p-6 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-2xl"
