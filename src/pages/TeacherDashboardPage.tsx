@@ -545,7 +545,7 @@ export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
-  const [membership, setMembership] = useState<SchoolMembership | null>(null);
+  const [membership, setMembership] = useState<SchoolMembership | null>(null);\n  const [teacherProfile, setTeacherProfile] = useState<any | null>(null);
   const [school, setSchool] = useState<School | null>(null);
   const [students, setStudents] = useState<SchoolRow[]>([]);
   const [homework, setHomework] = useState<SchoolRow[]>([]);
