@@ -7,11 +7,7 @@ type Props = {
 };
 
 export default function SchoolHeader({ school }: Props) {
-  return (
-{/* =========================================================
-          SCHOOL HEADER
-      ========================================================== */}
-      <header className="sticky top-0 z-50 border-b border-white/20 bg-white/95 shadow-lg backdrop-blur-md">
+  return (<header className="sticky top-0 z-50 border-b border-white/20 bg-white/95 shadow-lg backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <Link
             to={`/school/${school.slug}`}
