@@ -9,6 +9,7 @@ import {
   School as SchoolIcon,
   UserPlus,
   LogIn,
+  LogOut,
   ShieldCheck,
   RefreshCw,
   Building2,
@@ -32,7 +33,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { user, role } = useAuth();
+  const { user, role, signOut } = useAuth();
 
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
@@ -286,6 +287,17 @@ export default function HomePage() {
                 </button>
               )}
 
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 px-4 py-2.5 text-sm font-bold text-white"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              )}
+
             </div>
 
             {/* MOBILE BUTTONS */}
@@ -327,6 +339,18 @@ export default function HomePage() {
                   className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-500 text-white"
                 >
                   <LogIn className="h-5 w-5" />
+                </button>
+              )}
+
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  title="Logout"
+                  aria-label="Logout"
+                  className="btn-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white"
+                >
+                  <LogOut className="h-5 w-5" />
                 </button>
               )}
 
