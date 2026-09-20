@@ -7,11 +7,7 @@ type Props = {
 };
 
 export default function HeroSection({ school, heroImage }: Props) {
-  return (
-{/* =========================================================
-          HERO
-      ========================================================== */}
-      <section
+  return (<section
         id="home"
         className="relative flex min-h-[650px] items-center justify-center overflow-hidden"
       >
