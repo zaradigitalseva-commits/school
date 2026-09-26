@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
-import { fetchMyMemberships, fetchSchoolById, isPlatformAdminEmail } from '@/firebase/firestore';
+import { fetchMyMemberships, fetchMyTeacherSchools, fetchSchoolById, isPlatformAdminEmail } from '@/firebase/firestore';
 import type { SchoolMembership } from '@/firebase/types';
 
 type SchoolAccess = {
@@ -29,6 +29,7 @@ export default function DashboardRedirect() {
 
       try {
         const memberships = await fetchMyMemberships();
+        const teacherSchools = await fetchMyTeacherSchools(user.email || '');
         const active = memberships.filter((m) => m.status === 'ACTIVE');
         const bySchool = new Map<string, SchoolAccess>();
 
@@ -44,6 +45,17 @@ export default function DashboardRedirect() {
           if (m.role === 'teacher') current.isTeacher = true;
           bySchool.set(m.schoolId, current);
         });
+
+        for (const schoolId of teacherSchools) {
+          const current = bySchool.get(schoolId) || {
+            schoolId,
+            schoolName: schoolId,
+            isAdmin: false,
+            isTeacher: false,
+          };
+          current.isTeacher = true;
+          bySchool.set(schoolId, current);
+        }
 
         const rows = await Promise.all(
           Array.from(bySchool.values()).map(async (item) => {
