@@ -1745,7 +1745,10 @@ function Dashboard({
           icon="👨‍🏫"
           title="Active Teachers"
           value={String(
-            teachers.length
+            teacherRecords.filter(
+              (teacher) =>
+                String(teacher.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
+            ).length
           )}
         />
 
