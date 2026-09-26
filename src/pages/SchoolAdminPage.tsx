@@ -128,6 +128,9 @@ export default function SchoolAdminPage() {
   const [myMemberships, setMyMemberships] =
     useState<SchoolMembership[]>([]);
 
+  const [hasTeacherRole, setHasTeacherRole] =
+    useState(false);
+
   const [mySchoolOptions, setMySchoolOptions] =
     useState<Array<{ id: string; name: string }>>([]);
 
@@ -192,6 +195,14 @@ export default function SchoolAdminPage() {
 
       setMyMemberships(
         activeAdminMemberships
+      );
+
+      setHasTeacherRole(
+        allMemberships.some(
+          (membership) =>
+            membership.role === 'teacher' &&
+            membership.status === 'ACTIVE'
+        )
       );
 
       const schoolOptions = (
@@ -1192,16 +1203,47 @@ export default function SchoolAdminPage() {
           </select>
         )}
 
-        <button
-          style={
-            styles.logoutButton
-          }
-          onClick={() =>
-            navigate('/')
-          }
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+          }}
         >
-          🏠 Home
-        </button>
+          {hasTeacherRole && (
+            <button
+              type="button"
+              style={{
+                ...styles.roleButton,
+                ...styles.teacherRoleButton,
+              }}
+              onClick={() => navigate('/dashboard/teacher')}
+            >
+              👨‍🏫 Teacher Dashboard
+            </button>
+          )}
+
+          <button
+            type="button"
+            style={{
+              ...styles.roleButton,
+              ...styles.adminRoleButton,
+            }}
+            onClick={() => navigate('/school-admin')}
+          >
+            🏫 School Admin
+          </button>
+
+          <button
+            type="button"
+            style={styles.logoutButton}
+            onClick={() => navigate('/')}
+          >
+            🏠 Home
+          </button>
+        </div>
 
       </header>
 
@@ -4486,6 +4528,25 @@ const styles: Record<
     color:
       '#4f46e5',
     fontWeight: 800,
+  },
+
+  roleButton: {
+    border: 0,
+    borderRadius: 12,
+    padding: '10px 13px',
+    fontWeight: 800,
+    cursor: 'pointer',
+    color: '#fff',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.16)',
+    whiteSpace: 'nowrap',
+  },
+
+  teacherRoleButton: {
+    background: 'linear-gradient(135deg, #059669, #0d9488)',
+  },
+
+  adminRoleButton: {
+    background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
   },
 
   logoutButton: {
