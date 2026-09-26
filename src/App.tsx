@@ -134,13 +134,12 @@ function App() {
           />
 
           {/* Teacher's actual dashboard */}
+          {/* Teacher Dashboard checks the logged-in user's teacher
+              profile itself, so teacher-only accounts without a
+              schoolMemberships record can also enter. */}
           <Route
             path="/dashboard/teacher"
-            element={
-              <ProtectedRoute allowedRoles={['teacher', 'school_admin']}>
-                <TeacherDashboardPage />
-              </ProtectedRoute>
-            }
+            element={<TeacherDashboardPage />}
           />
 
           <Route
