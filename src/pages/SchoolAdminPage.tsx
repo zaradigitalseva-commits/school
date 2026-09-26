@@ -3534,7 +3534,7 @@ function RecordRow({
                 <h3 style={{ marginTop: 0 }}>🔐 Google Teacher Login Access</h3>
                 {(() => {
                   const membership = getMembership(selectedTeacher);
-                  const loginStatus = membership?.status || 'NOT CREATED';
+                  const loginStatus = membership?.status || 'INVITE READY';
                   return (
                     <>
                       <InfoRow label="Login Status" value={loginStatus} />
@@ -3618,7 +3618,7 @@ function RecordRow({
         ) : (
           teacherRecords.map((teacher) => {
             const membership = getMembership(teacher);
-            const loginStatus = membership?.status || 'NOT CREATED';
+            const loginStatus = membership?.status || 'INVITE READY';
 
             return (
               <div
