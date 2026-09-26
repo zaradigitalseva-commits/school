@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   subscribeToMyTeacherMembership,
   fetchMyMemberships,
+  fetchMyTeacherProfile,
   subscribeToMyTeacherProfile,
   subscribeToSchool,
   subscribeToSchoolCollection,
@@ -588,13 +589,105 @@ export default function TeacherDashboardPage() {
       requestedSchoolId,
       (current) => {
         if (!current || current.status !== 'ACTIVE' || current.role !== 'teacher') {
-          setMembership(null);
-          setHasSchoolAdminRole(false);
-          setSchool(null);
-          setLoading(false);
-          unsubscribeSchool();
-          collectionUnsubscribers.forEach((unsubscribe) => unsubscribe());
-          navigate('/', { replace: true });
+          // A teacher may be stored in the teachers collection without a
+          // schoolMemberships teacher record (for example when the same
+          // Google account is already the School Admin). In that case the
+          // teacher profile itself is the source of teacher access.
+          void fetchMyTeacherProfile(requestedSchoolId, user.email || '')
+            .then((teacher) => {
+              if (!teacher) {
+                setMembership(null);
+                setHasSchoolAdminRole(false);
+                setSchool(null);
+                setLoading(false);
+                unsubscribeSchool();
+                collectionUnsubscribers.forEach((unsubscribe) => unsubscribe());
+                navigate('/', { replace: true });
+                return;
+              }
+
+              const fallbackMembership: SchoolMembership = {
+                id: 'teacher-profile-' + String(teacher.id || requestedSchoolId),
+                schoolId: requestedSchoolId,
+                uid: user.uid,
+                email: user.email || String(teacher.email || ''),
+                role: 'teacher',
+                status: 'ACTIVE',
+                assignments: Array.isArray(teacher.assignments)
+                  ? teacher.assignments.map((value: unknown) => String(value))
+                  : teacher.assignedClass
+                    ? [String(teacher.assignedClass)]
+                    : [],
+                subject: String(teacher.subject || ''),
+                createdAt: String(teacher.createdAt || ''),
+                updatedAt: String(teacher.updatedAt || ''),
+              };
+              setMembership(fallbackMembership);
+              setTeacherProfile(teacher);
+
+              fetchMyMemberships()
+                .then((allMemberships) => {
+                  setHasSchoolAdminRole(
+                    allMemberships.some(
+                      (item) =>
+                        item.schoolId === requestedSchoolId &&
+                        item.role === 'school_admin' &&
+                        item.status === 'ACTIVE'
+                    )
+                  );
+                })
+                .catch(() => setHasSchoolAdminRole(false));
+
+              unsubscribeSchool();
+              unsubscribeSchool = subscribeToSchool(
+                requestedSchoolId,
+                (schoolData) => {
+                  if (!schoolData || schoolData.status !== 'LIVE') {
+                    setSchool(null);
+                    setLoading(false);
+                    navigate('/', { replace: true });
+                    return;
+                  }
+                  setSchool(schoolData);
+                  setLoading(false);
+                },
+                (listenerError) => {
+                  console.error('Teacher school listener error:', listenerError);
+                  setError('School information load nahi ho paayi.');
+                  setLoading(false);
+                }
+              );
+
+              collectionUnsubscribers.forEach((unsubscribe) => unsubscribe());
+              collectionUnsubscribers.length = 0;
+              const subscribe = (collectionName: string, setter: (rows: SchoolRow[]) => void) => {
+                collectionUnsubscribers.push(
+                  subscribeToTeacherScopedCollection(
+                    requestedSchoolId,
+                    collectionName,
+                    fallbackMembership.assignments || [],
+                    setter,
+                    (listenerError) => console.error(`Teacher ${collectionName} scoped listener error:`, listenerError)
+                  )
+                );
+              };
+              subscribe('students', setStudents);
+              subscribe('homework', setHomework);
+              subscribe('results', setResults);
+              subscribe('attendance', setAttendance);
+              collectionUnsubscribers.push(
+                subscribeToSchoolCollection(requestedSchoolId, 'announcements', setNotices, (e) => console.error('Teacher announcements listener error:', e)),
+                subscribeToSchoolCollection(requestedSchoolId, 'events', setEvents, (e) => console.error('Teacher events listener error:', e)),
+                subscribeToSchoolCollection(requestedSchoolId, 'gallery', setGallery, (e) => console.error('Teacher gallery listener error:', e)),
+                subscribeToSchoolCollection(requestedSchoolId, 'documents', setDocuments, (e) => console.error('Teacher documents listener error:', e))
+              );
+            })
+            .catch((profileError) => {
+              console.error('Teacher profile fallback error:', profileError);
+              setMembership(null);
+              setLoading(false);
+              navigate('/', { replace: true });
+            });
           return;
         }
 
