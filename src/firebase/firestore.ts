@@ -1092,22 +1092,78 @@ export async function createTeacherInvite(data: { schoolId: string; teacherId: s
 
 export async function claimTeacherInvite(uid: string, email: string): Promise<void> {
   if (!uid || !email) return;
+
   const normalizedEmail = email.trim().toLowerCase();
-  const q = query(collection(db, 'teacherInvites'), where('email', '==', normalizedEmail));
-  const snapshot = await getDocs(q);
+  if (!normalizedEmail) return;
+
+  // Teacher access is created only after the teacher signs in with the
+  // exact Google email saved by the School Admin.
+  const invitesQuery = query(
+    collection(db, 'teacherInvites'),
+    where('email', '==', normalizedEmail)
+  );
+
+  const snapshot = await getDocs(invitesQuery);
+
   for (const inviteDoc of snapshot.docs) {
     const inviteRef = doc(db, 'teacherInvites', inviteDoc.id);
     const invite = inviteDoc.data();
-    if (!invite.schoolId || !invite.assignedClass) continue;
+
+    if (
+      !invite.schoolId ||
+      !invite.assignedClass ||
+      String(invite.email || '').trim().toLowerCase() !== normalizedEmail
+    ) {
+      continue;
+    }
+
     const membershipId = uid + '_' + invite.schoolId;
     const membershipRef = doc(db, 'schoolMemberships', membershipId);
+
     await runTransaction(db, async (transaction) => {
       const inviteSnap = await transaction.get(inviteRef);
       if (!inviteSnap.exists()) return;
+
       const current = inviteSnap.data();
-      if (current.status !== 'PENDING' || current.email !== normalizedEmail) return;
-      transaction.set(membershipRef, { id: membershipId, schoolId: current.schoolId, uid, email: normalizedEmail, role: 'teacher', status: 'ACTIVE', assignments: [current.section ? current.assignedClass + ' - ' + current.section : current.assignedClass], subject: current.subject || '', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
-      transaction.update(inviteRef, { status: 'CLAIMED', uid, updatedAt: serverTimestamp() });
+      const currentEmail = String(current.email || '').trim().toLowerCase();
+
+      if (
+        current.status !== 'PENDING' ||
+        currentEmail !== normalizedEmail
+      ) {
+        return;
+      }
+
+      const assignment = current.section
+        ? String(current.assignedClass).trim() + ' - ' + String(current.section).trim()
+        : String(current.assignedClass).trim();
+
+      transaction.set(
+        membershipRef,
+        {
+          id: membershipId,
+          schoolId: current.schoolId,
+          uid,
+          email: normalizedEmail,
+          role: 'teacher',
+          status: 'ACTIVE',
+          assignments: [assignment],
+          subject: String(current.subject || '').trim(),
+          teacherId: current.teacherId || '',
+          inviteId: inviteDoc.id,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      transaction.update(inviteRef, {
+        status: 'CLAIMED',
+        uid,
+        membershipId,
+        claimedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
     });
   }
 }
