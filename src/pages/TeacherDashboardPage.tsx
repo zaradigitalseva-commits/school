@@ -616,7 +616,10 @@ export default function TeacherDashboardPage() {
                 assignments: Array.isArray(teacher.assignments)
                   ? teacher.assignments.map((value: unknown) => String(value))
                   : teacher.assignedClass
-                    ? [String(teacher.assignedClass)]
+                    ? [
+                        String(teacher.assignedClass) +
+                          (teacher.section ? '-' + String(teacher.section) : ''),
+                      ]
                     : [],
                 subject: String(teacher.subject || ''),
                 createdAt: String(teacher.createdAt || ''),
@@ -1265,7 +1268,7 @@ export default function TeacherDashboardPage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/dashboard/teacher')}
+            onClick={() => navigate('/dashboard/teacher?schoolId=' + encodeURIComponent(membership?.schoolId || ''))}
             className="rounded-xl bg-slate-900 px-5 py-3 font-black text-white"
           >
             🔄 Refresh Board
