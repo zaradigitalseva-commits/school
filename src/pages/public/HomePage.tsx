@@ -131,16 +131,11 @@ export default function HomePage() {
       return;
     }
 
-    // All school management roles go through the universal dashboard.
-    // DashboardRedirect checks the active school memberships and, when the
-    // same email has both roles, shows both Admin and Teacher options.
-    if (role === 'school_admin' || role === 'teacher') {
-      navigate('/dashboard');
-      return;
-    }
-
-    // A normal user has no management dashboard.
-    navigate('/');
+    // Do not decide from AuthContext's single role.
+    // One Google account can have BOTH School Admin and Teacher access.
+    // DashboardRedirect independently checks both access sources and
+    // shows both choices when both roles are available.
+    navigate('/dashboard');
   };
 
   /* =========================================================
