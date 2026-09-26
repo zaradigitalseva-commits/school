@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
-import { fetchMyMemberships, fetchMyTeacherSchools, fetchMyAdminSchools, fetchSchoolById, isPlatformAdminEmail } from '@/firebase/firestore';
+import { fetchMyMemberships, fetchMyTeacherSchools, fetchMyAdminSchools, fetchSchoolById, fetchMyTeacherProfile, createTeacherInvite, claimTeacherInvite, isPlatformAdminEmail } from '@/firebase/firestore';
 import type { SchoolMembership } from '@/firebase/types';
 
 type SchoolAccess = {
@@ -80,6 +80,28 @@ export default function DashboardRedirect() {
         }
 
         for (const schoolId of teacherSchools) {
+          // If this same Google account is also the School Admin, repair the
+          // old profile-only teacher access by creating/claiming a separate
+          // teacher membership. This keeps Admin and Teacher roles independent.
+          if (adminSchools.includes(schoolId)) {
+            try {
+              const teacher = await fetchMyTeacherProfile(schoolId, user.email || '');
+              if (teacher?.assignedClass) {
+                await createTeacherInvite({
+                  schoolId,
+                  teacherId: String(teacher.id || ''),
+                  email: String(teacher.email || user.email || ''),
+                  assignedClass: String(teacher.assignedClass),
+                  section: String(teacher.section || ''),
+                  subject: String(teacher.subject || ''),
+                });
+                await claimTeacherInvite(user.uid, user.email || '');
+              }
+            } catch (repairError) {
+              console.error('Dual-role teacher access repair failed:', repairError);
+            }
+          }
+
           const current = bySchool.get(schoolId) || {
             schoolId,
             schoolName: schoolId,
