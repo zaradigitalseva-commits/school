@@ -1661,6 +1661,7 @@ function Dashboard({
   school,
   schoolId,
   teachers,
+  teacherRecords,
   schoolAdmins,
   pendingTeachers,
   pendingAdmins,
