@@ -495,10 +495,28 @@ export async function fetchMyMemberships(): Promise<SchoolMembership[]> {
 export async function fetchMyTeacherSchools(email: string): Promise<string[]> {
   const cleanEmail = email?.trim().toLowerCase() || '';
   if (!cleanEmail) return [];
-  const snapshot = await getDocs(query(collection(db, 'teachers'), where('email', '==', cleanEmail)));
-  return Array.from(new Set(snapshot.docs.map((d) => d.data().schoolId).filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  const snapshot = await getDocs(
+    query(collection(db, 'teachers'), where('email', '==', cleanEmail))
+  );
+  return Array.from(
+    new Set(
+      snapshot.docs
+        .map((d) => d.data().schoolId)
+        .filter(
+          (id): id is string =>
+            typeof id === 'string' && id.length > 0
+        )
+    )
+  );
 }
 
+export async function fetchMyAdminSchools(uid: string): Promise<string[]> {
+  if (!uid) return [];
+  const snapshot = await getDocs(
+    query(collection(db, 'schools'), where('ownerUid', '==', uid))
+  );
+  return snapshot.docs.map((d) => d.id);
+}
 export async function fetchMyMembership(
   preferredSchoolId?: string
 ): Promise<SchoolMembership | null> {
