@@ -16,6 +16,10 @@ service cloud.firestore {
       return uid + '_' + schoolId;
     }
 
+    function teacherMembershipId(uid, schoolId) {
+      return uid + '_' + schoolId + '_teacher';
+    }
+
     function activeMembership(schoolId) {
       return signedIn()
         && exists(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId)))
@@ -29,9 +33,25 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'school_admin';
     }
 
-    function isOwnTeacherProfile(schoolId) {\n      return isTeacher(schoolId)\n        && resource.data.email is string\n        && resource.data.email == request.auth.token.email;\n    }\n\n    function isTeacher(schoolId) {
-      return activeMembership(schoolId)
-        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'teacher';
+    function isTeacher(schoolId) {
+      return signedIn()
+        && (
+          (
+            exists(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId)))
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.uid == request.auth.uid
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.schoolId == schoolId
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.status == 'ACTIVE'
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'teacher'
+          )
+          ||
+          (
+            exists(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId)))
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.uid == request.auth.uid
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.schoolId == schoolId
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.status == 'ACTIVE'
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.role == 'teacher'
+          )
+        );
     }
 
     function schoolMember(schoolId) {
