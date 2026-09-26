@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
   subscribeToMyTeacherMembership,
+  fetchMyMemberships,
   subscribeToMyTeacherProfile,
   subscribeToSchool,
   subscribeToSchoolCollection,
@@ -545,9 +546,10 @@ function TeacherWorkPanel({
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, role, signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   const [membership, setMembership] = useState<SchoolMembership | null>(null);
+  const [hasSchoolAdminRole, setHasSchoolAdminRole] = useState(false);
   const [teacherProfile, setTeacherProfile] = useState<any | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [school, setSchool] = useState<School | null>(null);
@@ -570,7 +572,7 @@ export default function TeacherDashboardPage() {
     setLoading(true);
     setError('');
 
-    const requestedSchoolId = searchParams.get('schoolId') || undefined;
+    const requestedSchoolId = searchParams.get('schoolId') || '';
     if (!requestedSchoolId) {
       setError('Teacher Dashboard ke liye school select nahi hua. Dashboard page se school choose karein.');
       setLoading(false);
@@ -586,6 +588,7 @@ export default function TeacherDashboardPage() {
       (current) => {
         if (!current || current.status !== 'ACTIVE' || current.role !== 'teacher') {
           setMembership(null);
+          setHasSchoolAdminRole(false);
           setSchool(null);
           setLoading(false);
           unsubscribeSchool();
@@ -595,6 +598,22 @@ export default function TeacherDashboardPage() {
         }
 
         setMembership(current);
+
+        fetchMyMemberships()
+          .then((allMemberships) => {
+            setHasSchoolAdminRole(
+              allMemberships.some(
+                (item) =>
+                  item.schoolId === current.schoolId &&
+                  item.role === 'school_admin' &&
+                  item.status === 'ACTIVE'
+              )
+            );
+          })
+          .catch((membershipError) => {
+            console.error('School admin membership check error:', membershipError);
+            setHasSchoolAdminRole(false);
+          });
 
         unsubscribeSchool();
         unsubscribeSchool = subscribeToSchool(
@@ -672,7 +691,7 @@ export default function TeacherDashboardPage() {
       unsubscribeSchool();
       collectionUnsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [navigate, user?.uid]);
+  }, [navigate, user?.uid, requestedSchoolId]);
 
   useEffect(() => {
     if (!membership?.schoolId || !user?.email) {
@@ -753,7 +772,7 @@ export default function TeacherDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {role === 'school_admin' && membership?.schoolId ? (
+            {hasSchoolAdminRole && membership?.schoolId ? (
               <button
                 type="button"
                 onClick={() => navigate('/school-admin?schoolId=' + encodeURIComponent(membership.schoolId))}
