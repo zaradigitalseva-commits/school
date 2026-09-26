@@ -525,6 +525,34 @@ export async function fetchMyMembership(
 }
 
 
+export function subscribeToMyTeacherMembership(
+  uid: string,
+  onData: (membership: SchoolMembership | null) => void,
+  onError?: (error: Error) => void
+): () => void {
+  if (!uid) return () => {};
+
+  const q = query(
+    collection(db, 'schoolMemberships'),
+    where('uid', '==', uid),
+    where('role', '==', 'teacher')
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const memberships = snapshot.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as SchoolMembership)
+      );
+      const activeTeacher =
+        memberships.find((m) => m.status === 'ACTIVE') || null;
+      onData(activeTeacher);
+    },
+    (error) => onError?.(error)
+  );
+}
+
+
 /* =========================================================
    FETCH SCHOOL MEMBERSHIPS
 ========================================================= */
