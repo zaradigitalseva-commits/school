@@ -131,12 +131,10 @@ export default function HomePage() {
       return;
     }
 
-    if (role === 'school_admin') {
-      navigate('/school-admin');
-      return;
-    }
-
-    if (role === 'teacher') {
+    // All school management roles go through the universal dashboard.
+    // DashboardRedirect checks the active school memberships and, when the
+    // same email has both roles, shows both Admin and Teacher options.
+    if (role === 'school_admin' || role === 'teacher') {
       navigate('/dashboard');
       return;
     }
