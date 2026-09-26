@@ -197,14 +197,6 @@ export default function SchoolAdminPage() {
         activeAdminMemberships
       );
 
-      setHasTeacherRole(
-        allMemberships.some(
-          (membership) =>
-            membership.role === 'teacher' &&
-            membership.status === 'ACTIVE'
-        )
-      );
-
       const schoolOptions = (
         await Promise.all(
           activeAdminMemberships.map(
@@ -279,6 +271,15 @@ export default function SchoolAdminPage() {
       }
 
       setSchoolId(currentSchoolId);
+
+      setHasTeacherRole(
+        allMemberships.some(
+          (membership) =>
+            membership.schoolId === currentSchoolId &&
+            membership.role === 'teacher' &&
+            membership.status === 'ACTIVE'
+        )
+      );
 
       if (
         searchParams.get('schoolId') !==
@@ -1219,7 +1220,7 @@ export default function SchoolAdminPage() {
                 ...styles.roleButton,
                 ...styles.teacherRoleButton,
               }}
-              onClick={() => navigate('/dashboard/teacher')}
+              onClick={() => navigate('/dashboard/teacher?schoolId=' + encodeURIComponent(schoolId || ''))}
             >
               👨‍🏫 Teacher Dashboard
             </button>
@@ -1231,7 +1232,7 @@ export default function SchoolAdminPage() {
               ...styles.roleButton,
               ...styles.adminRoleButton,
             }}
-            onClick={() => navigate('/school-admin')}
+            onClick={() => navigate('/school-admin?schoolId=' + encodeURIComponent(schoolId || ''))}
           >
             🏫 School Admin
           </button>
