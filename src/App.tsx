@@ -130,13 +130,7 @@ function App() {
               It sends each role to its correct dashboard. */}
           <Route
             path="/dashboard"
-            element={
-              <ProtectedRoute
-                allowedRoles={['platform_admin', 'school_admin', 'teacher']}
-              >
-                <DashboardRedirect />
-              </ProtectedRoute>
-            }
+            element={<DashboardRedirect />}
           />
 
           {/* Teacher's actual dashboard */}
