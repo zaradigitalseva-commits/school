@@ -560,6 +560,7 @@ export default function TeacherDashboardPage() {
   const [notices, setNotices] = useState<SchoolRow[]>([]);
   const [events, setEvents] = useState<SchoolRow[]>([]);
   const [gallery, setGallery] = useState<SchoolRow[]>([]);
+  const [documents, setDocuments] = useState<SchoolRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -676,6 +677,11 @@ export default function TeacherDashboardPage() {
         collectionUnsubscribers.push(
           subscribeToSchoolCollection(current.schoolId, 'gallery', setGallery, (e) =>
             console.error('Teacher gallery listener error:', e)
+          )
+        );
+        collectionUnsubscribers.push(
+          subscribeToSchoolCollection(current.schoolId, 'documents', setDocuments, (e) =>
+            console.error('Teacher documents listener error:', e)
           )
         );
       },
@@ -1097,6 +1103,54 @@ export default function TeacherDashboardPage() {
               </div>
             )}
           />
+        </section>
+
+        <section className="mt-6 grid gap-6 lg:grid-cols-2">
+          <DataList
+            title="School Documents"
+            icon="📄"
+            rows={documents}
+            emptyText="School ke documents abhi available nahi hain."
+            renderRow={(row) => (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900">
+                    {row.title || row.name || row.fileName || 'Document'}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {row.description || row.category || 'School document'}
+                  </p>
+                </div>
+                {row.url || row.fileUrl || row.documentUrl ? (
+                  <a
+                    href={String(row.url || row.fileUrl || row.documentUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl bg-blue-600 px-4 py-2 font-black text-white"
+                  >
+                    📄 Open
+                  </a>
+                ) : null}
+              </div>
+            )}
+          />
+          <section className="rounded-3xl bg-white p-5 shadow-lg">
+            <h2 className="text-lg font-black text-slate-900">🔐 My Teacher Access</h2>
+            <div className="mt-4 space-y-2">
+              <div className="rounded-2xl bg-blue-50 p-4">
+                <p className="text-xs font-black text-blue-600">ASSIGNED CLASS / SECTION</p>
+                <p className="mt-1 break-words font-black text-slate-900">{assignedText}</p>
+              </div>
+              <div className="rounded-2xl bg-emerald-50 p-4">
+                <p className="text-xs font-black text-emerald-600">LOGIN EMAIL</p>
+                <p className="mt-1 break-all font-black text-slate-900">{teacherProfile?.email || user.email || '—'}</p>
+              </div>
+              <div className="rounded-2xl bg-purple-50 p-4">
+                <p className="text-xs font-black text-purple-600">SCHOOL</p>
+                <p className="mt-1 font-black text-slate-900">{school.name}</p>
+              </div>
+            </div>
+          </section>
         </section>
 
         <section className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5">
