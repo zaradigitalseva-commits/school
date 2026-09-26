@@ -1172,7 +1172,9 @@ export async function claimTeacherInvite(uid: string, email: string): Promise<vo
       continue;
     }
 
-    const membershipId = uid + '_' + invite.schoolId;
+    // Keep teacher access separate from a same-school admin membership.
+    // This allows one Google account to be both School Admin and Teacher.
+    const membershipId = uid + '_' + invite.schoolId + '_teacher';
     const membershipRef = doc(db, 'schoolMemberships', membershipId);
 
     await runTransaction(db, async (transaction) => {
