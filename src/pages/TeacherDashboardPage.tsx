@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
   subscribeToMyTeacherMembership,
@@ -544,6 +544,7 @@ function TeacherWorkPanel({
 
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, signOut } = useAuth();
 
   const [membership, setMembership] = useState<SchoolMembership | null>(null);
@@ -569,11 +570,19 @@ export default function TeacherDashboardPage() {
     setLoading(true);
     setError('');
 
+    const requestedSchoolId = searchParams.get('schoolId') || undefined;
+    if (!requestedSchoolId) {
+      setError('Teacher Dashboard ke liye school select nahi hua. Dashboard page se school choose karein.');
+      setLoading(false);
+      return;
+    }
+
     let unsubscribeSchool = () => {};
     const collectionUnsubscribers: Array<() => void> = [];
 
     const unsubscribeMembership = subscribeToMyTeacherMembership(
       user.uid,
+      requestedSchoolId,
       (current) => {
         if (!current || current.status !== 'ACTIVE' || current.role !== 'teacher') {
           setMembership(null);
@@ -743,13 +752,31 @@ export default function TeacherDashboardPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => signOut()}
-            className="rounded-xl bg-red-600 px-4 py-2 font-black text-white shadow-[0_4px_0_rgb(153,27,27)] active:translate-y-1 active:shadow-none"
-          >
-            Logout
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {membership?.schoolId ? (
+              <button
+                type="button"
+                onClick={() => navigate('/school-admin?schoolId=' + encodeURIComponent(membership.schoolId))}
+                className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-sm font-black text-white shadow-md"
+              >
+                🏫 School Admin
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/teacher?schoolId=' + encodeURIComponent(membership?.schoolId || ''))}
+              className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-sm font-black text-white shadow-md"
+            >
+              👨‍🏫 Teacher Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="rounded-xl bg-red-600 px-3 py-2 text-sm font-black text-white shadow-md"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
