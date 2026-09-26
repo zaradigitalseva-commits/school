@@ -2702,6 +2702,23 @@ export function subscribeToSchool(
   );
 }
 
+export async function fetchMyTeacherProfile(
+  schoolId: string,
+  email: string
+): Promise<any | null> {
+  const cleanEmail = email?.trim().toLowerCase() || '';
+  if (!schoolId || !cleanEmail) return null;
+
+  const q = query(
+    collection(db, 'teachers'),
+    where('schoolId', '==', schoolId),
+    where('email', '==', cleanEmail)
+  );
+  const snapshot = await getDocs(q);
+  const teacherDoc = snapshot.docs[0];
+  return teacherDoc ? ({ id: teacherDoc.id, ...teacherDoc.data() } as any) : null;
+}
+
 export function subscribeToMyTeacherProfile(
   schoolId: string,
   email: string,
