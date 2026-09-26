@@ -2,160 +2,133 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
-import {
-  fetchMyMemberships,
-  isPlatformAdminEmail,
-} from '@/firebase/firestore';
+import { fetchMyMemberships, fetchSchoolById, isPlatformAdminEmail } from '@/firebase/firestore';
+import type { SchoolMembership } from '@/firebase/types';
+
+type SchoolAccess = {
+  schoolId: string;
+  schoolName: string;
+  isAdmin: boolean;
+  isTeacher: boolean;
+};
 
 export default function DashboardRedirect() {
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
-  const [checkingRoles, setCheckingRoles] = useState(true);
-  const [hasSchoolAdminRole, setHasSchoolAdminRole] = useState(false);
-  const [hasTeacherRole, setHasTeacherRole] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [access, setAccess] = useState<SchoolAccess[]>([]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function checkRoles() {
       if (!user) {
-        if (!cancelled) setCheckingRoles(false);
+        if (!cancelled) setChecking(false);
         return;
       }
 
       try {
         const memberships = await fetchMyMemberships();
-        const active = memberships.filter(
-          (membership) => membership.status === 'ACTIVE'
+        const active = memberships.filter((m) => m.status === 'ACTIVE');
+        const bySchool = new Map<string, SchoolAccess>();
+
+        active.forEach((m: SchoolMembership) => {
+          if (m.role !== 'school_admin' && m.role !== 'teacher') return;
+          const current = bySchool.get(m.schoolId) || {
+            schoolId: m.schoolId,
+            schoolName: m.schoolId,
+            isAdmin: false,
+            isTeacher: false,
+          };
+          if (m.role === 'school_admin') current.isAdmin = true;
+          if (m.role === 'teacher') current.isTeacher = true;
+          bySchool.set(m.schoolId, current);
+        });
+
+        const rows = await Promise.all(
+          Array.from(bySchool.values()).map(async (item) => {
+            const school = await fetchSchoolById(item.schoolId);
+            return { ...item, schoolName: school?.name || item.schoolId };
+          })
         );
 
-        if (!cancelled) {
-          setHasSchoolAdminRole(
-            active.some((membership) => membership.role === 'school_admin')
-          );
-          setHasTeacherRole(
-            active.some((membership) => membership.role === 'teacher')
-          );
-        }
+        if (!cancelled) setAccess(rows);
       } catch (error) {
         console.error('Dashboard role check failed:', error);
+        if (!cancelled) setAccess([]);
       } finally {
-        if (!cancelled) setCheckingRoles(false);
+        if (!cancelled) setChecking(false);
       }
     }
 
-    checkRoles();
-
-    return () => {
-      cancelled = true;
-    };
+    void checkRoles();
+    return () => { cancelled = true; };
   }, [user]);
 
-  if (loading || checkingRoles) {
+  if (loading || checking) {
     return <LoadingSpinner fullScreen label="Opening dashboard..." />;
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!user) return <Navigate to="/login" replace />;
   if (isPlatformAdminEmail(user.email) || role === 'platform_admin') {
     return <Navigate to="/admin" replace />;
   }
 
-  const bothRoles =
-    hasSchoolAdminRole && hasTeacherRole;
+  if (access.length === 1) {
+    const a = access[0];
+    if (a.isAdmin && a.isTeacher) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-pink-50 to-cyan-50 p-4 sm:p-6">
+          <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-xl items-center justify-center">
+            <div className="w-full rounded-3xl bg-white p-5 text-center shadow-2xl sm:p-8">
+              <div className="mb-2 text-5xl">🎓</div>
+              <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">Choose Your Dashboard</h1>
+              <p className="mt-2 mb-6 text-sm font-semibold text-slate-500">
+                {a.schoolName} में आपके पास School Admin और Teacher दोनों access हैं।
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <button onClick={() => navigate('/school-admin?schoolId=' + encodeURIComponent(a.schoolId))}
+                  className="min-h-28 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 p-4 text-left font-black text-white shadow-lg">
+                  🏫 School Admin
+                  <span className="mt-1 block text-xs font-semibold opacity-90">इसी school का Admin</span>
+                </button>
+                <button onClick={() => navigate('/dashboard/teacher?schoolId=' + encodeURIComponent(a.schoolId))}
+                  className="min-h-28 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-4 text-left font-black text-white shadow-lg">
+                  👨‍🏫 Teacher Dashboard
+                  <span className="mt-1 block text-xs font-semibold opacity-90">इसी school की Teacher access</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (a.isAdmin) return <Navigate to={'/school-admin?schoolId=' + encodeURIComponent(a.schoolId)} replace />;
+    if (a.isTeacher) return <Navigate to={'/dashboard/teacher?schoolId=' + encodeURIComponent(a.schoolId)} replace />;
+  }
 
-  if (bothRoles) {
+  if (access.length > 1) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 20,
-          background:
-            'linear-gradient(135deg, #eef2ff 0%, #fdf2f8 50%, #ecfeff 100%)',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: 560,
-            padding: 28,
-            borderRadius: 24,
-            background: '#fff',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.12)',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>
-            Choose Your Dashboard
-          </h1>
-          <p style={{ color: '#64748b', margin: '10px 0 24px' }}>
-            इस Google account में दोनों access हैं। नीचे से School Admin या Teacher Dashboard चुनें।
-          </p>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: 16,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => navigate('/school-admin')}
-              style={{
-                padding: '18px 16px',
-                border: 0,
-                borderRadius: 18,
-                background: 'linear-gradient(135deg,#2563eb,#4f46e5)',
-                color: '#fff',
-                fontSize: 17,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              🏫 School Admin
-              <div style={{ fontSize: 12, fontWeight: 400, marginTop: 5 }}>
-                School settings, students, teachers & all school management
+      <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+        <div className="mx-auto max-w-2xl">
+          <h1 className="mb-2 text-2xl font-black text-slate-900">Select School</h1>
+          <p className="mb-5 text-sm font-semibold text-slate-500">हर school के लिए केवल उसी school के active roles दिखाए गए हैं।</p>
+          <div className="grid gap-4">
+            {access.map((a) => (
+              <div key={a.schoolId} className="rounded-2xl bg-white p-4 shadow-lg">
+                <h2 className="font-black text-slate-900">{a.schoolName}</h2>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {a.isAdmin && <button onClick={() => navigate('/school-admin?schoolId=' + encodeURIComponent(a.schoolId))}
+                    className="rounded-xl bg-blue-600 px-4 py-3 font-black text-white">🏫 School Admin</button>}
+                  {a.isTeacher && <button onClick={() => navigate('/dashboard/teacher?schoolId=' + encodeURIComponent(a.schoolId))}
+                    className="rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">👨‍🏫 Teacher Dashboard</button>}
+                </div>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard/teacher')}
-              style={{
-                padding: '18px 16px',
-                border: 0,
-                borderRadius: 18,
-                background: 'linear-gradient(135deg,#059669,#0d9488)',
-                color: '#fff',
-                fontSize: 17,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              👨‍🏫 Teacher Dashboard
-              <div style={{ fontSize: 12, fontWeight: 400, marginTop: 5 }}>
-                Assigned classes, students, homework, results & attendance
-              </div>
-            </button>
+            ))}
           </div>
         </div>
       </div>
     );
-  }
-
-  if (role === 'school_admin' || hasSchoolAdminRole) {
-    return <Navigate to="/school-admin" replace />;
-  }
-
-  if (role === 'teacher' || hasTeacherRole) {
-    return <Navigate to="/dashboard/teacher" replace />;
   }
 
   return <Navigate to="/" replace />;
