@@ -527,16 +527,19 @@ export async function fetchMyMembership(
 
 export function subscribeToMyTeacherMembership(
   uid: string,
+  schoolId: string | undefined,
   onData: (membership: SchoolMembership | null) => void,
   onError?: (error: Error) => void
 ): () => void {
   if (!uid) return () => {};
 
-  const q = query(
-    collection(db, 'schoolMemberships'),
+  const constraints = [
     where('uid', '==', uid),
-    where('role', '==', 'teacher')
-  );
+    where('role', '==', 'teacher'),
+    ...(schoolId ? [where('schoolId', '==', schoolId)] : []),
+  ];
+
+  const q = query(collection(db, 'schoolMemberships'), ...constraints);
 
   return onSnapshot(
     q,
@@ -551,7 +554,6 @@ export function subscribeToMyTeacherMembership(
     (error) => onError?.(error)
   );
 }
-
 
 /* =========================================================
    FETCH SCHOOL MEMBERSHIPS
