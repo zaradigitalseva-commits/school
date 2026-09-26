@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/context/AuthContext';
-import { fetchMyMemberships, fetchMyTeacherSchools, fetchSchoolById, isPlatformAdminEmail } from '@/firebase/firestore';
+import { fetchMyMemberships, fetchMyTeacherSchools, fetchMyAdminSchools, fetchSchoolById, isPlatformAdminEmail } from '@/firebase/firestore';
 import type { SchoolMembership } from '@/firebase/types';
 
 type SchoolAccess = {
@@ -28,8 +28,28 @@ export default function DashboardRedirect() {
       }
 
       try {
-        const memberships = await fetchMyMemberships();
-        const teacherSchools = await fetchMyTeacherSchools(user.email || '');
+        // Read each role source independently. If one Firestore query is
+        // denied, it must not hide the other valid dashboard role.
+        const [membershipsResult, teacherSchoolsResult, adminSchoolsResult] =
+          await Promise.allSettled([
+            fetchMyMemberships(),
+            fetchMyTeacherSchools(user.email || ''),
+            fetchMyAdminSchools(user.uid),
+          ]);
+
+        const memberships =
+          membershipsResult.status === 'fulfilled'
+            ? membershipsResult.value
+            : [];
+        const teacherSchools =
+          teacherSchoolsResult.status === 'fulfilled'
+            ? teacherSchoolsResult.value
+            : [];
+        const adminSchools =
+          adminSchoolsResult.status === 'fulfilled'
+            ? adminSchoolsResult.value
+            : [];
+
         const active = memberships.filter((m) => m.status === 'ACTIVE');
         const bySchool = new Map<string, SchoolAccess>();
 
@@ -45,6 +65,19 @@ export default function DashboardRedirect() {
           if (m.role === 'teacher') current.isTeacher = true;
           bySchool.set(m.schoolId, current);
         });
+
+        // School owners are School Admins even if the membership document
+        // has not been created yet.
+        for (const schoolId of adminSchools) {
+          const current = bySchool.get(schoolId) || {
+            schoolId,
+            schoolName: schoolId,
+            isAdmin: false,
+            isTeacher: false,
+          };
+          current.isAdmin = true;
+          bySchool.set(schoolId, current);
+        }
 
         for (const schoolId of teacherSchools) {
           const current = bySchool.get(schoolId) || {
