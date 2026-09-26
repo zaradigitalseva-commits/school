@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
-  subscribeToMyTeacherMembership,
+  subscribeToMyMembership,
   subscribeToMyTeacherProfile,
   subscribeToSchool,
   subscribeToSchoolCollection,
@@ -572,7 +572,7 @@ export default function TeacherDashboardPage() {
     let unsubscribeSchool = () => {};
     const collectionUnsubscribers: Array<() => void> = [];
 
-    const unsubscribeMembership = subscribeToMyTeacherMembership(
+    const unsubscribeMembership = subscribeToMyMembership(
       user.uid,
       (current) => {
         if (!current || current.status !== 'ACTIVE' || current.role !== 'teacher') {
