@@ -1460,6 +1460,7 @@ export default function SchoolAdminPage() {
               teachers={
                 teachers
               }
+              teacherRecords={teacherRecords}
               schoolAdmins={
                 schoolAdmins
               }
@@ -1667,6 +1668,7 @@ function Dashboard({
   school: School;
   schoolId: string;
   teachers: SchoolMembership[];
+  teacherRecords: AnyRecord[];
   schoolAdmins: SchoolMembership[];
   pendingTeachers: SchoolMembership[];
   pendingAdmins: SchoolMembership[];
@@ -1745,7 +1747,10 @@ function Dashboard({
           icon="👨‍🏫"
           title="Active Teachers"
           value={String(
-            teachers.length
+            teacherRecords.filter(
+              (teacher) =>
+                String(teacher.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
+            ).length
           )}
         />
 
