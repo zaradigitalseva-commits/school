@@ -545,7 +545,7 @@ function TeacherWorkPanel({
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
 
   const [membership, setMembership] = useState<SchoolMembership | null>(null);
   const [teacherProfile, setTeacherProfile] = useState<any | null>(null);
@@ -753,7 +753,7 @@ export default function TeacherDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {membership?.schoolId ? (
+            {role === 'school_admin' && membership?.schoolId ? (
               <button
                 type="button"
                 onClick={() => navigate('/school-admin?schoolId=' + encodeURIComponent(membership.schoolId))}
