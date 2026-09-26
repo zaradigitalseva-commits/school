@@ -204,7 +204,11 @@ service cloud.firestore {
     }
 
     match /teachers/{teacherId} {
+      // A teacher must be able to read their own profile even when the
+      // same Google account is also a School Admin and has no teacher
+      // membership document.
       allow read: if isPlatformAdmin()
+        || (signedIn() && request.auth.token.email == resource.data.email)
         || (resource.data.schoolId is string && schoolMember(resource.data.schoolId))
         || (resource.data.schoolId is string && liveSchool(resource.data.schoolId));
       allow create: if isPlatformAdmin()
