@@ -92,11 +92,10 @@ export default function DashboardRedirect() {
         >
           <div style={{ fontSize: 48, marginBottom: 8 }}>🎓</div>
           <h1 style={{ margin: 0, fontSize: 28 }}>
-            Select Dashboard
+            Choose Your Dashboard
           </h1>
           <p style={{ color: '#64748b', margin: '10px 0 24px' }}>
-            इस Google account में School Admin और Teacher दोनों access हैं।
-            आप जिस dashboard में जाना चाहते हैं, उसे चुनें।
+            इस Google account में दोनों access हैं। नीचे से School Admin या Teacher Dashboard चुनें।
           </p>
 
           <div
@@ -122,7 +121,7 @@ export default function DashboardRedirect() {
             >
               🏫 School Admin
               <div style={{ fontSize: 12, fontWeight: 400, marginTop: 5 }}>
-                School management
+                School settings, students, teachers & all school management
               </div>
             </button>
 
@@ -142,7 +141,7 @@ export default function DashboardRedirect() {
             >
               👨‍🏫 Teacher Dashboard
               <div style={{ fontSize: 12, fontWeight: 400, marginTop: 5 }}>
-                Teacher work
+                Assigned classes, students, homework, results & attendance
               </div>
             </button>
           </div>
