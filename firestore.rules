@@ -29,8 +29,16 @@ service cloud.firestore {
     }
 
     function isSchoolAdmin(schoolId) {
-      return activeMembership(schoolId)
-        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'school_admin';
+      return isPlatformAdmin()
+        || (
+          activeMembership(schoolId)
+          && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'school_admin'
+          && exists(/databases/$(database)/documents/schoolOwnerRegistrations/$(request.auth.uid))
+          && get(/databases/$(database)/documents/schoolOwnerRegistrations/$(request.auth.uid)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/schoolOwnerRegistrations/$(request.auth.uid)).data.schoolId == schoolId
+          && exists(/databases/$(database)/documents/schools/$(schoolId))
+          && get(/databases/$(database)/documents/schools/$(schoolId)).data.ownerUid == request.auth.uid
+        );
     }
 
     function isTeacher(schoolId) {
