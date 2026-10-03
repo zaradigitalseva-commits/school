@@ -466,8 +466,19 @@ function TeacherWorkPanel({
                 })}
               </select>
             </div>
-            <input value={form.studentName || ''} readOnly placeholder="Student Name" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold" />
-            <input value={form.rollNumber || ''} readOnly placeholder="Roll Number" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-semibold" />
+            <input
+              value={form.studentName || ''}
+              onChange={(event) => setForm((current) => ({ ...current, studentName: event.target.value }))}
+              placeholder="Student Name"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold outline-none focus:border-blue-500"
+              required
+            />
+            <input
+              value={form.rollNumber || ''}
+              onChange={(event) => setForm((current) => ({ ...current, rollNumber: event.target.value }))}
+              placeholder="Roll Number"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold outline-none focus:border-blue-500"
+            />
 
             {activeTab === 'results' ? (
               <>
