@@ -652,32 +652,11 @@ export async function fetchMyAdminSchools(
     return [schoolId];
   }
 
-  // Backward compatibility for accounts registered before the canonical
-  // owner-registration record was introduced.
-  const snapshot = await getDocs(
-    query(collection(db, 'schools'), where('ownerUid', '==', uid))
-  );
-
-  return snapshot.docs
-    .filter((d) => {
-      const data = d.data() as {
-        ownerUid?: string;
-        ownerEmail?: string;
-      };
-
-      if (data.ownerUid !== uid) return false;
-
-      if (
-        cleanEmail &&
-        typeof data.ownerEmail === 'string' &&
-        data.ownerEmail.trim()
-      ) {
-        return data.ownerEmail.trim().toLowerCase() === cleanEmail;
-      }
-
-      return true;
-    })
-    .map((d) => d.id);
+  // No owner-registration record means there is no verified School Admin
+  // relationship. Do NOT fall back to querying schools by ownerUid: old/duplicate
+  // school documents could otherwise make one Google account appear as Admin
+  // for multiple schools.
+  return [];
 }
 export async function fetchMyMembership(
   preferredSchoolId?: string
