@@ -67,17 +67,38 @@ service cloud.firestore {
     }
 
     function teacherAssigned(schoolId, className, section) {
-      return isTeacher(schoolId)
-        && className is string
+      return className is string
         && section is string
-        && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments is list
         && (
-          className in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
-          || (className + ' - ' + section) in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
-          || (className + '-' + section) in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+          (
+            exists(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId)))
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.uid == request.auth.uid
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.schoolId == schoolId
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.status == 'ACTIVE'
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.role == 'teacher'
+            && get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments is list
+            && (
+              className in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+              || (className + ' - ' + section) in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+              || (className + '-' + section) in get(/databases/$(database)/documents/schoolMemberships/$(membershipId(request.auth.uid, schoolId))).data.assignments
+            )
+          )
+          ||
+          (
+            exists(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId)))
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.uid == request.auth.uid
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.schoolId == schoolId
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.status == 'ACTIVE'
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.role == 'teacher'
+            && get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.assignments is list
+            && (
+              className in get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.assignments
+              || (className + ' - ' + section) in get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.assignments
+              || (className + '-' + section) in get(/databases/$(database)/documents/schoolMemberships/$(teacherMembershipId(request.auth.uid, schoolId))).data.assignments
+            )
+          )
         );
     }
-
     function isSchoolOwner(schoolId) {
       return signedIn()
         && exists(/databases/$(database)/documents/schools/$(schoolId))
