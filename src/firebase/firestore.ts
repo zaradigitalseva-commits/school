@@ -517,18 +517,95 @@ export async function fetchMyAdminSchools(
   if (!uid) return [];
 
   const cleanEmail = email?.trim().toLowerCase() || '';
+
+  // The registration record is the canonical one-email/one-school
+  // relationship. Prefer it so legacy duplicate ownerUid values cannot
+  // grant Admin access to unrelated schools.
+  const ownerRegistrationSnap = await getDoc(
+    doc(db, 'schoolOwnerRegistrations', uid)
+  );
+
+  if (ownerRegistrationSnap.exists()) {
+    const registration = ownerRegistrationSnap.data() as {
+      ownerUid?: string;
+      ownerEmail?: string;
+      schoolId?: string;
+    };
+
+    const schoolId =
+      typeof registration.schoolId === 'string'
+        ? registration.schoolId.trim()
+        : '';
+
+    const ownerUid =
+      typeof registration.ownerUid === 'string'
+        ? registration.ownerUid.trim()
+        : '';
+
+    const ownerEmail =
+      typeof registration.ownerEmail === 'string'
+        ? registration.ownerEmail.trim().toLowerCase()
+        : '';
+
+    if (
+      !schoolId ||
+      ownerUid !== uid ||
+      (cleanEmail && ownerEmail && ownerEmail !== cleanEmail)
+    ) {
+      return [];
+    }
+
+    const schoolSnap = await getDoc(
+      doc(db, 'schools', schoolId)
+    );
+
+    if (!schoolSnap.exists()) return [];
+
+    const school = schoolSnap.data() as {
+      ownerUid?: string;
+      ownerEmail?: string;
+    };
+
+    const schoolOwnerUid =
+      typeof school.ownerUid === 'string'
+        ? school.ownerUid.trim()
+        : '';
+
+    const schoolOwnerEmail =
+      typeof school.ownerEmail === 'string'
+        ? school.ownerEmail.trim().toLowerCase()
+        : '';
+
+    if (
+      schoolOwnerUid !== uid ||
+      (cleanEmail && schoolOwnerEmail && schoolOwnerEmail !== cleanEmail)
+    ) {
+      return [];
+    }
+
+    return [schoolId];
+  }
+
+  // Backward compatibility for accounts registered before the canonical
+  // owner-registration record was introduced.
   const snapshot = await getDocs(
     query(collection(db, 'schools'), where('ownerUid', '==', uid))
   );
 
   return snapshot.docs
     .filter((d) => {
-      const data = d.data() as { ownerUid?: string; ownerEmail?: string };
+      const data = d.data() as {
+        ownerUid?: string;
+        ownerEmail?: string;
+      };
+
       if (data.ownerUid !== uid) return false;
 
-      // When the school has an owner email, require it to match the
-      // currently logged-in Google account as an additional safeguard.
-      if (cleanEmail && typeof data.ownerEmail === 'string' && data.ownerEmail.trim()) {
+      if (
+        cleanEmail &&
+        typeof data.ownerEmail === 'string' &&
+        data.ownerEmail.trim()
+      ) {
         return data.ownerEmail.trim().toLowerCase() === cleanEmail;
       }
 
