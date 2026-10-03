@@ -3845,9 +3845,6 @@ function RecordRow({
                     label="Login Subject"
                     value={String(membership?.subject || teacher.subject || 'Not assigned')}
                   />
-                  <InfoRow
-                  <InfoRow
-
                   {membership && (
                     <div style={{ ...styles.formButtons, marginTop: 14 }}>
                       {membership.status === 'PENDING' && (
