@@ -966,8 +966,8 @@ export default function TeacherDashboardPage() {
 
         {showProfile ? (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-sm">
-            <div className="mx-auto mt-6 max-w-3xl rounded-3xl bg-white shadow-2xl">
-              <div className="flex items-center justify-between gap-4 border-b p-5">
+            <div className="mx-auto mt-6 flex max-h-[calc(100vh-2rem)] max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl sm:mt-6">
+              <div className="flex shrink-0 items-center justify-between gap-4 border-b bg-white p-5">
                 <div>
                   <p className="text-sm font-black uppercase tracking-wide text-emerald-600">
                     👤 My Profile
@@ -989,7 +989,7 @@ export default function TeacherDashboardPage() {
               </div>
 
               {teacherProfile ? (
-                <div className="p-5">
+                <div className="min-h-0 overflow-y-auto p-5">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
                     <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-slate-100 text-5xl shadow-inner">
                       {teacherProfile.photoDataUrl ? (
