@@ -3613,8 +3613,6 @@ function RecordRow({
                         value={membership?.assignments?.length ? membership.assignments.join(', ') : 'Not assigned'}
                       />
                       <InfoRow label="Login Subject" value={String(membership?.subject || selectedTeacher.subject || 'Not assigned')} />
-                      <InfoRow label="Membership Created" value={formatDate(membership?.createdAt)} />
-                      <InfoRow label="Membership Updated" value={formatDate(membership?.updatedAt)} />
                       {membership && (
                         <div style={{ ...styles.formButtons, marginTop: 14 }}>
                           {membership.status === 'PENDING' && (
@@ -3848,13 +3846,7 @@ function RecordRow({
                     value={String(membership?.subject || teacher.subject || 'Not assigned')}
                   />
                   <InfoRow
-                    label="Membership Created"
-                    value={formatDate(membership?.createdAt)}
-                  />
                   <InfoRow
-                    label="Membership Updated"
-                    value={formatDate(membership?.updatedAt)}
-                  />
 
                   {membership && (
                     <div style={{ ...styles.formButtons, marginTop: 14 }}>
