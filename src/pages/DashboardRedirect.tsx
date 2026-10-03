@@ -53,16 +53,19 @@ export default function DashboardRedirect() {
         const active = memberships.filter((m) => m.status === 'ACTIVE');
         const bySchool = new Map<string, SchoolAccess>();
 
+        // Only the actual school owner receives School Admin access here.
+        // A stale/incorrect school_admin membership must not make one account
+        // appear as admin for unrelated schools. Teacher memberships remain
+        // independently available below.
         active.forEach((m: SchoolMembership) => {
-          if (m.role !== 'school_admin' && m.role !== 'teacher') return;
+          if (m.role !== 'teacher') return;
           const current = bySchool.get(m.schoolId) || {
             schoolId: m.schoolId,
             schoolName: m.schoolId,
             isAdmin: false,
             isTeacher: false,
           };
-          if (m.role === 'school_admin') current.isAdmin = true;
-          if (m.role === 'teacher') current.isTeacher = true;
+          current.isTeacher = true;
           bySchool.set(m.schoolId, current);
         });
 
