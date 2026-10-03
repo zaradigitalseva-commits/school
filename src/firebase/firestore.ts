@@ -446,27 +446,93 @@ export async function fetchSchoolBySlug(
 
 export async function ensureSchoolOwnerMembership(uid: string, email: string): Promise<SchoolMembership | null> {
   if (!uid) return null;
-  const q = query(collection(db, 'schools'), where('ownerUid', '==', uid), where('status', '==', 'LIVE'));
-  const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
-  const schoolDoc = snapshot.docs[0];
-  const school = schoolDoc.data();
-  const membershipId = uid + '_' + schoolDoc.id;
+
+  // Never pick the first school matching ownerUid. The canonical
+  // schoolOwnerRegistrations/{uid} document identifies the one school
+  // this Google account registered.
+  const registrationSnap = await getDoc(
+    doc(db, 'schoolOwnerRegistrations', uid)
+  );
+
+  if (!registrationSnap.exists()) return null;
+
+  const registration = registrationSnap.data() as {
+    ownerUid?: string;
+    ownerEmail?: string;
+    schoolId?: string;
+  };
+
+  const schoolId =
+    typeof registration.schoolId === 'string'
+      ? registration.schoolId.trim()
+      : '';
+
+  if (
+    registration.ownerUid !== uid ||
+    !schoolId ||
+    (
+      email &&
+      registration.ownerEmail &&
+      registration.ownerEmail.trim().toLowerCase() !== email.trim().toLowerCase()
+    )
+  ) {
+    return null;
+  }
+
+  const schoolSnap = await getDoc(doc(db, 'schools', schoolId));
+  if (!schoolSnap.exists()) return null;
+
+  const school = schoolSnap.data();
+  if (
+    school.ownerUid !== uid ||
+    (
+      email &&
+      school.ownerEmail &&
+      school.ownerEmail.trim().toLowerCase() !== email.trim().toLowerCase()
+    ) ||
+    school.status !== 'LIVE'
+  ) {
+    return null;
+  }
+
+  const membershipId = uid + '_' + schoolId;
   const membershipRef = doc(db, 'schoolMemberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
-  if (membershipSnap.exists() && membershipSnap.data().status === 'ACTIVE') {
+
+  if (
+    membershipSnap.exists() &&
+    membershipSnap.data().uid === uid &&
+    membershipSnap.data().schoolId === schoolId &&
+    membershipSnap.data().role === 'school_admin' &&
+    membershipSnap.data().status === 'ACTIVE'
+  ) {
     return { id: membershipSnap.id, ...membershipSnap.data() } as SchoolMembership;
   }
-  await setDoc(membershipRef, {
-    id: membershipId, uid, schoolId: schoolDoc.id,
-    email: (email || school.ownerEmail || '').trim().toLowerCase(),
-    role: 'school_admin', status: 'ACTIVE', assignments: [],
-    approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
-  }, { merge: true });
+
+  await setDoc(
+    membershipRef,
+    {
+      id: membershipId,
+      uid,
+      schoolId,
+      email: (email || school.ownerEmail || '').trim().toLowerCase(),
+      role: 'school_admin',
+      status: 'ACTIVE',
+      assignments: [],
+      approvedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
   return {
-    id: membershipId, uid, schoolId: schoolDoc.id,
+    id: membershipId,
+    uid,
+    schoolId,
     email: (email || school.ownerEmail || '').trim().toLowerCase(),
-    role: 'school_admin', status: 'ACTIVE', assignments: [],
+    role: 'school_admin',
+    status: 'ACTIVE',
+    assignments: [],
   } as SchoolMembership;
 }
 
