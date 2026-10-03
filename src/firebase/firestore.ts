@@ -510,12 +510,31 @@ export async function fetchMyTeacherSchools(email: string): Promise<string[]> {
   );
 }
 
-export async function fetchMyAdminSchools(uid: string): Promise<string[]> {
+export async function fetchMyAdminSchools(
+  uid: string,
+  email?: string
+): Promise<string[]> {
   if (!uid) return [];
+
+  const cleanEmail = email?.trim().toLowerCase() || '';
   const snapshot = await getDocs(
     query(collection(db, 'schools'), where('ownerUid', '==', uid))
   );
-  return snapshot.docs.map((d) => d.id);
+
+  return snapshot.docs
+    .filter((d) => {
+      const data = d.data() as { ownerUid?: string; ownerEmail?: string };
+      if (data.ownerUid !== uid) return false;
+
+      // When the school has an owner email, require it to match the
+      // currently logged-in Google account as an additional safeguard.
+      if (cleanEmail && typeof data.ownerEmail === 'string' && data.ownerEmail.trim()) {
+        return data.ownerEmail.trim().toLowerCase() === cleanEmail;
+      }
+
+      return true;
+    })
+    .map((d) => d.id);
 }
 export async function fetchMyMembership(
   preferredSchoolId?: string
