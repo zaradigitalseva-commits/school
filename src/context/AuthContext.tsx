@@ -18,10 +18,10 @@ import { auth, googleProvider } from '@/firebase/config';
 
 import {
   ensureUserRecord,
-  fetchMyMembership,
+  fetchMyMemberships,
+  fetchMyAdminSchools,
   ensureSchoolOwnerMembership,
   isPlatformAdminEmail,
-  subscribeToMyMembership,
   claimTeacherInvite,
 } from '@/firebase/firestore';
 
@@ -101,40 +101,30 @@ export function AuthProvider({
             console.error('Teacher invite claim failed:', error);
           }
 
-          let membership = await fetchMyMembership();
+          // The registered-owner record is the only source for the
+          // School Admin role. A stale school_admin membership must not
+          // elevate this Google account.
+          const adminSchools = await fetchMyAdminSchools(
+            firebaseUser.uid,
+            email
+          );
 
-          // Repair older/live schools whose owner membership was never activated.
-          if (!membership || membership.role !== 'school_admin' || membership.status !== 'ACTIVE') {
+          if (adminSchools.length > 0) {
             try {
-              const repaired = await ensureSchoolOwnerMembership(firebaseUser.uid, email);
-              if (repaired) membership = repaired;
+              await ensureSchoolOwnerMembership(firebaseUser.uid, email);
             } catch (error) {
               console.error('School owner membership repair failed:', error);
             }
-          }
-          if (membership?.status === 'ACTIVE' && membership.role === 'school_admin') {
             setRole('school_admin');
-          } else if (membership?.status === 'ACTIVE' && membership.role === 'teacher') {
-            setRole('teacher');
           } else {
-            setRole('user');
+            const memberships = await fetchMyMemberships();
+            const hasTeacherRole = memberships.some(
+              (membership) =>
+                membership.role === 'teacher' &&
+                membership.status === 'ACTIVE'
+            );
+            setRole(hasTeacherRole ? 'teacher' : 'user');
           }
-
-          // Keep role live. If platform admin approves/suspends the membership,
-          // this account changes role without requiring a browser refresh.
-          unsubscribeMembership = subscribeToMyMembership(
-            firebaseUser.uid,
-            (liveMembership) => {
-              if (liveMembership?.status === 'ACTIVE' && liveMembership.role === 'school_admin') {
-                setRole('school_admin');
-              } else if (liveMembership?.status === 'ACTIVE' && liveMembership.role === 'teacher') {
-                setRole('teacher');
-              } else {
-                setRole('user');
-              }
-            },
-            (error) => console.error('Realtime membership listener failed:', error)
-          );
 
         } catch (error) {
           console.error(
