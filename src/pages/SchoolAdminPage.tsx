@@ -5,6 +5,7 @@ import {
   fetchSchoolById,
   fetchMyMembership,
   fetchMyMemberships,
+  fetchMyAdminSchools,
   fetchSchoolMemberships,
   updateSchoolMembership,
   saveSchoolInfo,
@@ -186,11 +187,20 @@ export default function SchoolAdminPage() {
       const allMemberships =
         await fetchMyMemberships();
 
+      // Do not use every active school_admin membership as authorization.
+      // The canonical owner record determines which school this account
+      // actually registered and therefore which School Admin page it may open.
+      const ownedSchoolIds = await fetchMyAdminSchools(
+        user?.uid || '',
+        user?.email || ''
+      );
+
       const activeAdminMemberships =
         allMemberships.filter(
           (membership) =>
             membership.role === 'school_admin' &&
-            membership.status === 'ACTIVE'
+            membership.status === 'ACTIVE' &&
+            ownedSchoolIds.includes(membership.schoolId)
         );
 
       setMyMemberships(
@@ -199,18 +209,16 @@ export default function SchoolAdminPage() {
 
       const schoolOptions = (
         await Promise.all(
-          activeAdminMemberships.map(
-            async (membership) => {
+          ownedSchoolIds.map(
+            async (schoolId) => {
               const data =
-                await fetchSchoolById(
-                  membership.schoolId
-                );
+                await fetchSchoolById(schoolId);
 
               return {
-                id: membership.schoolId,
+                id: schoolId,
                 name:
                   data?.name ||
-                  membership.schoolId,
+                  schoolId,
               };
             }
           )
@@ -226,9 +234,19 @@ export default function SchoolAdminPage() {
         searchParams.get('schoolId') ||
         '';
 
+      if (
+        requestedSchoolId &&
+        !ownedSchoolIds.includes(requestedSchoolId)
+      ) {
+        setError(
+          'You do not have School Admin access to this school.'
+        );
+        return;
+      }
+
       const myMembership =
         await fetchMyMembership(
-          requestedSchoolId || undefined
+          requestedSchoolId || ownedSchoolIds[0]
         );
 
       if (!myMembership) {
