@@ -34,7 +34,7 @@ export default function DashboardRedirect() {
           await Promise.allSettled([
             fetchMyMemberships(),
             fetchMyTeacherSchools(user.email || ''),
-            fetchMyAdminSchools(user.uid),
+            fetchMyAdminSchools(user.uid, user.email || ''),
           ]);
 
         const memberships =
