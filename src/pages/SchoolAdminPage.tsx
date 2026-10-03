@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { auth } from '@/firebase/config';
 
 import {
   fetchSchoolById,
@@ -191,8 +192,8 @@ export default function SchoolAdminPage() {
       // The canonical owner record determines which school this account
       // actually registered and therefore which School Admin page it may open.
       const ownedSchoolIds = await fetchMyAdminSchools(
-        user?.uid || '',
-        user?.email || ''
+        auth.currentUser?.uid || '',
+        auth.currentUser?.email || ''
       );
 
       const activeAdminMemberships =
