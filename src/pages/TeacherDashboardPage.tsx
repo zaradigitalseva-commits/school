@@ -548,6 +548,7 @@ export default function TeacherDashboardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, signOut } = useAuth();
+  const requestedSchoolId = searchParams.get('schoolId') || '';
 
   const [membership, setMembership] = useState<SchoolMembership | null>(null);
   const [hasSchoolAdminRole, setHasSchoolAdminRole] = useState(false);
@@ -574,7 +575,6 @@ export default function TeacherDashboardPage() {
     setLoading(true);
     setError('');
 
-    const requestedSchoolId = searchParams.get('schoolId') || '';
     if (!requestedSchoolId) {
       setError('Teacher Dashboard ke liye school select nahi hua. Dashboard page se school choose karein.');
       setLoading(false);
