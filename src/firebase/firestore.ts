@@ -1847,58 +1847,125 @@ function buildPublicResultProjection(schoolId: string, data: any): Record<string
 export async function backfillPublicResults(schoolId: string): Promise<number> {
   if (!schoolId) throw new Error('School ID is required.');
 
-  // Read directly so permission/network errors are surfaced to the admin.
-  // fetchResults() uses a shared helper that intentionally converts read errors
-  // into an empty list, which could otherwise make a failed migration look successful.
-  const legacyQuery = query(
-    collection(db, 'results'),
-    where('schoolId', '==', schoolId)
-  );
+  // Migrate full private results into one limited, directly-addressable
+  // public lookup document per school + roll number. Public clients can GET
+  // one known lookup document but cannot list the collection.
+  const legacyQuery = query(collection(db, 'results'), where('schoolId', '==', schoolId));
   const legacySnapshot = await getDocs(legacyQuery);
-  const eligibleResults = legacySnapshot.docs.map((resultDoc) => ({
-    id: resultDoc.id,
-    ...resultDoc.data(),
-  }));
-  let migrated = 0;
+  const grouped = new Map<string, { rollNumber: string; rows: any[] }>();
 
-  for (let offset = 0; offset < eligibleResults.length; offset += 450) {
+  legacySnapshot.docs.forEach((resultDoc) => {
+    const row = { id: resultDoc.id, ...resultDoc.data() };
+    const rollNumber = typeof row.rollNumber === 'string' ? row.rollNumber.trim() : '';
+    if (!rollNumber) return;
+    const key = publicResultLookupId(schoolId, rollNumber);
+    const group = grouped.get(key) || { rollNumber, rows: [] };
+    group.rows.push(buildPublicResultProjection(schoolId, row));
+    grouped.set(key, group);
+  });
+
+  const groups = Array.from(grouped.entries());
+  for (let offset = 0; offset < groups.length; offset += 450) {
     const batch = writeBatch(db);
-    const chunk = eligibleResults.slice(offset, offset + 450);
-
-    chunk.forEach((row) => {
-      batch.set(
-        doc(db, 'publicResults', String(row.id)),
-        buildPublicResultProjection(schoolId, row)
-      );
+    groups.slice(offset, offset + 450).forEach(([lookupId, group]) => {
+      const first = group.rows[0];
+      batch.set(doc(db, 'publicResultLookups', lookupId), {
+        schoolId,
+        rollNumber: group.rollNumber,
+        studentName: first.studentName || '',
+        className: first.className || '',
+        section: first.section || '',
+        results: group.rows.map((row) => ({
+          id: row.id,
+          exam: row.exam || '',
+          subject: row.subject || '',
+          marks: row.marks ?? null,
+          score: row.score ?? null,
+        })),
+        updatedAt: serverTimestamp(),
+      });
     });
-
     await batch.commit();
-    migrated += chunk.length;
   }
 
-  return migrated;
+  return legacySnapshot.size;
 }
 
-
-export async function fetchPublicResults(
+async function syncPublicResultLookup(
   schoolId: string,
-  rollNumber: string
-): Promise<any[]> {
-  if (!schoolId || !rollNumber?.trim()) {
-    return [];
-  }
+  resultId: string,
+  previous: Record<string, any> | null,
+  next: Record<string, any> | null
+): Promise<void> {
+  const oldRoll = typeof previous?.rollNumber === 'string' ? previous.rollNumber.trim() : '';
+  const newRoll = typeof next?.rollNumber === 'string' ? next.rollNumber.trim() : '';
+  const oldRef = oldRoll ? doc(db, 'publicResultLookups', publicResultLookupId(schoolId, oldRoll)) : null;
+  const newRef = newRoll ? doc(db, 'publicResultLookups', publicResultLookupId(schoolId, newRoll)) : null;
+  if (!oldRef && !newRef) return;
 
-  const resultsQuery = query(
-    collection(db, 'publicResults'),
-    where('schoolId', '==', schoolId),
-    where('rollNumber', '==', rollNumber.trim())
-  );
+  await runTransaction(db, async (transaction) => {
+    const oldSnapshot = oldRef ? await transaction.get(oldRef) : null;
+    const sameLookup = Boolean(oldRef && newRef && oldRef.path === newRef.path);
+    const newSnapshot = newRef && !sameLookup ? await transaction.get(newRef) : oldSnapshot;
+    const entry = next ? {
+      id: resultId,
+      exam: next.exam || '',
+      subject: next.subject || '',
+      marks: next.marks ?? null,
+      score: next.score ?? null,
+    } : null;
 
-  const snapshot = await getDocs(resultsQuery);
+    const writeLookup = (ref: any, snapshot: any, rows: any[], profile: any) => {
+      if (!rows.length) {
+        transaction.delete(ref);
+        return;
+      }
+      transaction.set(ref, {
+        schoolId,
+        rollNumber: profile.rollNumber,
+        studentName: profile.studentName || '',
+        className: profile.className || '',
+        section: profile.section || '',
+        results: rows,
+        updatedAt: serverTimestamp(),
+      });
+    };
 
-  return snapshot.docs.map((resultDoc) => ({
-    id: resultDoc.id,
-    ...resultDoc.data(),
+    if (sameLookup && oldRef) {
+      const existing = oldSnapshot?.exists() ? oldSnapshot.data() : {};
+      const rows = (Array.isArray(existing.results) ? existing.results : []).filter((row: any) => row.id !== resultId);
+      if (entry) rows.push(entry);
+      writeLookup(oldRef, oldSnapshot, rows, next || existing);
+      return;
+    }
+
+    if (oldRef) {
+      const existing = oldSnapshot?.exists() ? oldSnapshot.data() : {};
+      const rows = (Array.isArray(existing.results) ? existing.results : []).filter((row: any) => row.id !== resultId);
+      if (rows.length) writeLookup(oldRef, oldSnapshot, rows, existing);
+      else if (oldSnapshot?.exists()) transaction.delete(oldRef);
+    }
+
+    if (newRef && next) {
+      const existing = newSnapshot?.exists() ? newSnapshot.data() : {};
+      const rows = (Array.isArray(existing.results) ? existing.results : []).filter((row: any) => row.id !== resultId);
+      rows.push(entry);
+      writeLookup(newRef, newSnapshot, rows, next);
+    }
+  });
+}
+
+export async function fetchPublicResults(schoolId: string, rollNumber: string): Promise<any[]> {
+  const cleanRoll = rollNumber?.trim() || '';
+  if (!schoolId || !cleanRoll) return [];
+  const snapshot = await getDoc(doc(db, 'publicResultLookups', publicResultLookupId(schoolId, cleanRoll)));
+  if (!snapshot.exists()) return [];
+  const data = snapshot.data();
+  return (Array.isArray(data.results) ? data.results : []).map((entry: any) => ({
+    ...entry,
+    studentName: data.studentName || '',
+    className: data.className || '',
+    section: data.section || '',
   }));
 }
 
@@ -1926,20 +1993,30 @@ export async function addResult(
     ...rawData
   } = data;
   const safeData = cleanData(rawData);
-  const batch = writeBatch(db);
-
-  batch.set(resultRef, {
-    ...safeData,
-    schoolId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  await runTransaction(db, async (transaction) => {
+    const projection = buildPublicResultProjection(schoolId, safeData);
+    const rollNumber = projection.rollNumber;
+    const lookupRef = rollNumber
+      ? doc(db, 'publicResultLookups', publicResultLookupId(schoolId, rollNumber))
+      : null;
+    const lookupSnapshot = lookupRef ? await transaction.get(lookupRef) : null;
+    transaction.set(resultRef, {
+      ...safeData,
+      schoolId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    if (lookupRef) {
+      const existing = lookupSnapshot?.exists() ? lookupSnapshot.data() : {};
+      const rows = Array.isArray(existing.results) ? [...existing.results] : [];
+      rows.push({ id: resultRef.id, exam: projection.exam || '', subject: projection.subject || '', marks: projection.marks ?? null, score: projection.score ?? null });
+      transaction.set(lookupRef, {
+        schoolId, rollNumber, studentName: projection.studentName || '',
+        className: projection.className || '', section: projection.section || '',
+        results: rows, updatedAt: serverTimestamp(),
+      });
+    }
   });
-  batch.set(
-    doc(db, 'publicResults', resultRef.id),
-    buildPublicResultProjection(schoolId, safeData)
-  );
-
-  await batch.commit();
   return resultRef.id;
 }
 
@@ -1968,19 +2045,19 @@ export async function updateResult(
   } = data || {};
   const safeData = cleanData(rawData);
   const mergedData = { ...existing, ...safeData, schoolId };
-  const batch = writeBatch(db);
-
-  batch.update(resultRef, {
-    ...safeData,
-    schoolId,
-    updatedAt: serverTimestamp(),
+  await runTransaction(db, async (transaction) => {
+    transaction.update(resultRef, {
+      ...safeData,
+      schoolId,
+      updatedAt: serverTimestamp(),
+    });
   });
-  batch.set(
-    doc(db, 'publicResults', id),
+  await syncPublicResultLookup(
+    schoolId,
+    id,
+    buildPublicResultProjection(schoolId, existing),
     buildPublicResultProjection(schoolId, mergedData)
   );
-
-  await batch.commit();
 }
 
 
@@ -1997,10 +2074,13 @@ export async function deleteResult(
     throw new Error('You are not allowed to delete this school result.');
   }
 
-  const batch = writeBatch(db);
-  batch.delete(resultRef);
-  batch.delete(doc(db, 'publicResults', id));
-  await batch.commit();
+  await deleteDoc(resultRef);
+  await syncPublicResultLookup(
+    schoolId,
+    id,
+    buildPublicResultProjection(schoolId, snapshot.data()),
+    null
+  );
 }
 
 
@@ -3012,6 +3092,10 @@ export function subscribeToSchoolPublicCollection(
   );
 }
 
+function publicResultLookupId(schoolId: string, rollNumber: string): string {
+  return `${schoolId}__${encodeURIComponent(rollNumber.trim())}`;
+}
+
 export function subscribeToPublicResults(
   schoolId: string,
   rollNumber: string,
@@ -3024,21 +3108,13 @@ export function subscribeToPublicResults(
     return () => {};
   }
 
-  const q = query(
-    collection(db, 'publicResults'),
-    where('schoolId', '==', schoolId),
-    where('rollNumber', '==', cleanRollNumber)
-  );
-
+  const lookupRef = doc(db, 'publicResultLookups', publicResultLookupId(schoolId, cleanRollNumber));
   return onSnapshot(
-    q,
+    lookupRef,
     (snapshot) => {
-      onData(
-        snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }))
-      );
+      const data = snapshot.exists() ? snapshot.data() : null;
+      const entries = Array.isArray(data?.results) ? data.results : [];
+      onData(entries.map((entry: any) => ({ ...entry, studentName: data?.studentName || '', className: data?.className || '', section: data?.section || '' })));
     },
     (error) => onError?.(error)
   );
