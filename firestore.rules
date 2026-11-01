@@ -291,6 +291,49 @@ service cloud.firestore {
             && request.resource.data.schoolId == resource.data.schoolId);
     }
 
+    // Private, school-scoped cash/offline student fee receipts.
+    // This collection is separate from platform subscription/recharge payments.
+    match /feePayments/{paymentId} {
+      allow read: if resource.data.schoolId is string
+        && isSchoolAdmin(resource.data.schoolId);
+
+      allow create: if request.resource.data.schoolId is string
+        && isSchoolAdmin(request.resource.data.schoolId)
+        && request.resource.data.recordedByUid == request.auth.uid
+        && request.resource.data.paymentMode == 'CASH_OFFLINE'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.studentName is string
+        && request.resource.data.rollNumber is string
+        && request.resource.data.className is string
+        && request.resource.data.feeHead is string
+        && request.resource.data.paymentDate is string
+        && request.resource.data.keys().hasOnly([
+          'schoolId', 'studentName', 'rollNumber', 'className', 'feeHead',
+          'amount', 'paymentDate', 'receiptNumber', 'remarks', 'paymentMode',
+          'recordedByUid', 'createdAt', 'updatedAt'
+        ]);
+
+      allow update: if resource.data.schoolId is string
+        && isSchoolAdmin(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId
+        && request.resource.data.recordedByUid == resource.data.recordedByUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.paymentMode == 'CASH_OFFLINE'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.keys().hasOnly([
+          'schoolId', 'studentName', 'rollNumber', 'className', 'feeHead',
+          'amount', 'paymentDate', 'receiptNumber', 'remarks', 'paymentMode',
+          'recordedByUid', 'createdAt', 'updatedAt'
+        ]);
+
+      allow delete: if resource.data.schoolId is string
+        && isSchoolAdmin(resource.data.schoolId);
+    }
+
     match /students/{studentId} {
       // Student records are private: only the owning School Admin,
       // platform administrators and the student's assigned teacher may read them.
