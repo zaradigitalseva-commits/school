@@ -32,7 +32,8 @@ const schoolB = {
 };
 
 async function seedFixtures() {
-  await testEnv.withSecurityRulesDisabled(async ({ firestore }) => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const firestore = context.firestore();
     const docs = [
       ['schools/school-a', schoolA],
       ['schools/school-b', schoolB],
