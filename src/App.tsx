@@ -54,6 +54,7 @@ import AdvertisementManagerPage from '@/pages/admin/AdvertisementManagerPage';
 // SUPER ADMIN SCHOOL DATA VIEWER
 // =====================================================
 import SchoolSuperAdminViewPage from '@/pages/SchoolSuperAdminViewPage';
+import HomePostsAdminPage from '@/pages/HomePostsAdminPage';
 
 function App() {
   return (
@@ -78,6 +79,7 @@ function App() {
             <Route path="/register-school" element={<RegisterSchoolPage />} />
             <Route path="/schools" element={<SchoolsPage />} />
             <Route path="/school/:slug" element={<SchoolPublicPage />} />
+            <Route path="/home-posts-admin" element={<ProtectedRoute allowedRoles={['school_admin', 'platform_admin']}><HomePostsAdminPage /></ProtectedRoute>} />
           </Route>
 
           <Route
