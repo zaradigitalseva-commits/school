@@ -25,6 +25,7 @@ import type {
   Teacher,
   Announcement,
   SchoolEvent,
+  HomePost,
 } from './types';
 
 
