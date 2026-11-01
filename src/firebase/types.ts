@@ -8,6 +8,19 @@ export type UserRole =
   | 'school_admin'
   | 'platform_admin';
 
+export interface AppUser {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  photoURL?: string;
+  role?: UserRole;
+  schoolId?: string;
+  status?: string;
+  createdAt?: any;
+  updatedAt?: any;
+  [key: string]: any;
+}
+
 
 // ============================================================
 // SCHOOL STATUS
@@ -103,6 +116,8 @@ export interface School {
 
 export interface SchoolInfo extends School {
   schoolId?: string;
+  campusImages?: string[];
+  totalCourses?: number | string;
 }
 
 
@@ -116,6 +131,7 @@ export interface SchoolMembership {
   schoolId: string;
   uid: string;
   email: string;
+  invitedByEmail?: string;
 
   role: 'school_admin' | 'teacher';
 
@@ -172,6 +188,10 @@ export interface Teacher {
   photoDataUrl?: string;
 
   subject?: string;
+  designation?: string;
+  bio?: string;
+  imageUrl?: string;
+  order?: number;
   assignedClass?: string;
   section?: string;
   qualification?: string;
@@ -222,6 +242,8 @@ export interface SchoolEvent {
   description?: string;
 
   eventDate?: string;
+  date?: string;
+  location?: string;
   imageUrl?: string;
 
   createdAt?: string;
