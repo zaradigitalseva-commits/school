@@ -2047,8 +2047,13 @@ function normalizeFeePayment(data: any, schoolId: string): Record<string, any> {
 }
 
 export async function addFeePayment(schoolId: string, data: any): Promise<string> {
-  const payment = normalizeFeePayment(data, schoolId);
-  const ref = await addDoc(collection(db, 'feePayments'), {
+  const ref = doc(collection(db, 'feePayments'));
+  const payment = normalizeFeePayment({
+    ...data,
+    receiptNumber: String(data?.receiptNumber || '').trim()
+      || 'FEE-' + ref.id.slice(0, 8).toUpperCase(),
+  }, schoolId);
+  await setDoc(ref, {
     ...payment,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -2064,8 +2069,12 @@ export async function updateFeePayment(schoolId: string, id: string, data: any):
     throw new Error('Fee receipt not found for this school.');
   }
   await updateDoc(ref, {
-    ...normalizeFeePayment(data, schoolId),
-    // Preserve the original recorder for the immutable audit field in Rules.
+    ...normalizeFeePayment({
+      ...data,
+      receiptNumber: String(data?.receiptNumber || '').trim()
+        || String(snapshot.data().receiptNumber || ''),
+    }, schoolId),
+    // Preserve immutable audit fields when another School Admin edits the receipt.
     recordedByUid: snapshot.data().recordedByUid,
     updatedAt: serverTimestamp(),
   });
