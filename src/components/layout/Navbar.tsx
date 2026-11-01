@@ -31,7 +31,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role, isPlatformAdmin, isSchoolAdmin, isTeacher } = useAuth();
+  const { user, role, loading, isPlatformAdmin, isSchoolAdmin } = useAuth();
 
   useEffect(() => {
     setOpen(false);
@@ -43,15 +43,22 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
-  const showDashboardLink = Boolean(user) && (
+  const showDashboardLink = !loading && Boolean(user) && (
     isPlatformAdmin ||
+    role === 'platform_admin' ||
     isSchoolAdmin ||
-    isTeacher
+    role === 'school_admin'
   );
 
   const openDashboard = () => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    // Dashboard access is limited to registered School Admins and Super Admins.
+    if (!isPlatformAdmin && role !== 'platform_admin' && !isSchoolAdmin && role !== 'school_admin') {
+      navigate('/');
       return;
     }
 
