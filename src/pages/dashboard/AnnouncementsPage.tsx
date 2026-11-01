@@ -41,7 +41,7 @@ export default function AnnouncementsPage() {
 
   const openEdit = (item: Announcement) => {
     setEditing(item);
-    setForm({ title: item.title, content: item.content, date: item.date.slice(0, 10), priority: item.priority });
+    setForm({ title: item.title || '', content: item.content || '', date: item.date?.slice(0, 10) || '', priority: item.priority || 'medium' });
     setModalOpen(true);
   };
 
