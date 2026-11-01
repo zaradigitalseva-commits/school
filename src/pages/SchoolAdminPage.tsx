@@ -1985,6 +1985,14 @@ function SchoolInformation({
         🏫 School Information
       </h2>
 
+      {section === 'fees' && (
+        <div style={{ ...styles.cardGrid, marginBottom: 18 }}>
+          <StatCard icon="💰" title="Cash Collected / नकद जमा" value={'₹' + items.reduce((sum, item) => sum + Number(item.amount || 0), 0).toLocaleString('en-IN')} />
+          <StatCard icon="🧾" title="Receipts / रसीदें" value={String(items.length)} />
+          <StatCard icon="🏫" title="Payment Mode / भुगतान" value="Cash / Offline only" />
+        </div>
+      )}
+
       <div
         style={
           styles.formCard
@@ -2527,6 +2535,23 @@ const moduleConfig: Record<
       },
     ],
   },
+
+  fees: {
+    title: 'Student Fee Payments / छात्र फीस रसीदें',
+    icon: '💵',
+    fields: [
+      { key: 'studentName', label: 'Student Name / विद्यार्थी का नाम' },
+      { key: 'rollNumber', label: 'Roll Number / रोल नंबर' },
+      { key: 'className', label: 'Class / कक्षा', type: 'select', options: ['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'] },
+      { key: 'feeHead', label: 'Fee Type / फीस का प्रकार', type: 'select', options: ['Admission Fee','Tuition Fee','Exam Fee','Transport Fee','Library Fee','Other'] },
+      { key: 'amount', label: 'Amount (₹) / राशि', type: 'number' },
+      { key: 'paymentDate', label: 'Payment Date / भुगतान तारीख', type: 'date' },
+      { key: 'receiptNumber', label: 'Receipt Number / रसीद नंबर' },
+      { key: 'remarks', label: 'Remarks / टिप्पणी', type: 'textarea' },
+    ],
+  },
+
+
 
 
   homework: {
@@ -3116,6 +3141,8 @@ function RecordRow({
       ? `Roll No: ${item.rollNumber}`
       : item.subject
       ? `Subject: ${item.subject}`
+      : item.paymentDate
+      ? `Roll No: ${item.rollNumber} • ${item.className} • ${item.feeHead} • ${item.paymentDate}`
       : item.date
       ? `Date: ${item.date}`
       : item.description
@@ -3166,6 +3193,15 @@ function RecordRow({
             Grade:{' '}
             {item.grade ||
               '-'}
+          </div>
+        )}
+
+        {section === 'fees' && (
+          <div style={styles.smallText}>
+            <strong>₹{Number(item.amount || 0).toLocaleString('en-IN')}</strong>
+            {' • Cash / Offline'}
+            {item.receiptNumber ? ' • Receipt: ' + item.receiptNumber : ''}
+            {item.remarks ? ' • ' + item.remarks : ''}
           </div>
         )}
 
