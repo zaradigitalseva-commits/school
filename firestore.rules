@@ -337,12 +337,10 @@ service cloud.firestore {
     match /publicResults/{resultId} {
       // Only a deliberately limited result projection is publicly searchable
       // for LIVE schools. No phone, DOB, address, attendance or internal IDs.
+      // Query-compatible public read: all client writes to this isolated
+      // collection are restricted by the create/update allowlists below.
       allow read: if resource.data.schoolId is string
-        && liveSchool(resource.data.schoolId)
-        && resource.data.keys().hasOnly([
-          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
-          'exam', 'subject', 'marks', 'score'
-        ]);
+        && liveSchool(resource.data.schoolId);
 
       allow create: if request.resource.data.schoolId is string
         && request.resource.data.rollNumber is string
