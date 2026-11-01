@@ -205,6 +205,11 @@ export interface Announcement {
 
 
 // ============================================================
+// HOMEPAGE POST
+// ============================================================
+export interface HomePost { id:string; title:string; content:string; imageUrl?:string; schoolId?:string|null; schoolName?:string; authorUid:string; authorName?:string; authorEmail?:string; status:'PENDING'|'APPROVED'|'REJECTED'; createdAt?:any; updatedAt?:any; }
+
+// ============================================================
 // SCHOOL EVENT
 // ============================================================
 
