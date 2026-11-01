@@ -304,7 +304,7 @@ export async function fetchSchoolById(
 ========================================================= */
 
 export async function fetchSchoolInfo(
-  schoolId: string
+  schoolId?: string
 ): Promise<SchoolInfo | null> {
   if (!schoolId) {
     return null;
