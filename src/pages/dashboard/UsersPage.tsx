@@ -108,7 +108,7 @@ export default function UsersPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-900 truncate">{u.displayName || 'Unknown'}</p>
                   <p className="text-xs text-gray-500 truncate">{u.email}</p>
-                  <div className="mt-1">{roleBadge(u.role)}</div>
+                  <div className="mt-1">{roleBadge(u.role || 'user')}</div>
                 </div>
               </div>
             ))}
