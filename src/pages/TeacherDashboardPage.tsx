@@ -604,7 +604,7 @@ export default function TeacherDashboardPage() {
           // schoolMemberships teacher record (for example when the same
           // Google account is already the School Admin). In that case the
           // teacher profile itself is the source of teacher access.
-          void fetchMyTeacherProfile(requestedSchoolId, user.email || '')
+          void fetchMyTeacherProfile(requestedSchoolId, user?.email || '')
             .then((teacher) => {
               if (!teacher) {
                 setMembership(null);
@@ -621,7 +621,7 @@ export default function TeacherDashboardPage() {
                 id: 'teacher-profile-' + String(teacher.id || requestedSchoolId),
                 schoolId: requestedSchoolId,
                 uid: user.uid,
-                email: user.email || String(teacher.email || ''),
+                email: user?.email || String(teacher.email || ''),
                 role: 'teacher',
                 status: 'ACTIVE',
                 assignments: Array.isArray(teacher.assignments)
@@ -814,7 +814,7 @@ export default function TeacherDashboardPage() {
 
     const unsubscribe = subscribeToMyTeacherProfile(
       membership.schoolId,
-      user.email,
+      user?.email,
       (profile) => setTeacherProfile(profile),
       (listenerError) => {
         console.error('Teacher profile listener error:', listenerError);
@@ -1018,7 +1018,7 @@ export default function TeacherDashboardPage() {
                         {teacherProfile.name || 'Teacher'}
                       </h3>
                       <p className="mt-1 break-all text-sm font-bold text-blue-600">
-                        {teacherProfile.email || user.email || '—'}
+                        {teacherProfile.email || user?.email || '—'}
                       </p>
                       <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
                         {String(teacherProfile.status || 'ACTIVE')}
@@ -1028,7 +1028,7 @@ export default function TeacherDashboardPage() {
 
                   <div className="mt-6 grid gap-3 sm:grid-cols-2">
                     {[
-                      ['📧 Google Email', teacherProfile.email || user.email],
+                      ['📧 Google Email', teacherProfile.email || user?.email],
                       ['📱 Phone', teacherProfile.phone],
                       ['🏠 Address', teacherProfile.address],
                       ['💰 Salary', teacherProfile.salary],
@@ -1250,7 +1250,7 @@ export default function TeacherDashboardPage() {
               </div>
               <div className="rounded-2xl bg-emerald-50 p-4">
                 <p className="text-xs font-black text-emerald-600">LOGIN EMAIL</p>
-                <p className="mt-1 break-all font-black text-slate-900">{teacherProfile?.email || user.email || '—'}</p>
+                <p className="mt-1 break-all font-black text-slate-900">{teacherProfile?.email || user?.email || '—'}</p>
               </div>
               <div className="rounded-2xl bg-purple-50 p-4">
                 <p className="text-xs font-black text-purple-600">SCHOOL</p>
