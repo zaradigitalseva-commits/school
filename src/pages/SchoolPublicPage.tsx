@@ -42,6 +42,8 @@ export default function SchoolPublicPage() {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(true);
   const [error, setError] = useState('');
+  const [contentError, setContentError] = useState('');
+  const [resultError, setResultError] = useState('');
   const [searchedRollNumber, setSearchedRollNumber] = useState('');
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function SchoolPublicPage() {
     setLoading(true);
     setContentLoading(true);
     setError('');
+    setContentError('');
 
     let schoolId = '';
     let unsubAnnouncements = () => {};
@@ -87,21 +90,30 @@ export default function SchoolPublicPage() {
           schoolId,
           'announcements',
           (rows) => setAnnouncements((rows as Announcement[]).slice(0, 3)),
-          (err) => console.error('Live notices error:', err)
+          (err) => {
+            console.error('Live notices error:', err);
+            setContentError('Some school information could not be loaded. Please refresh the page.');
+          }
         );
 
         unsubEvents = subscribeToSchoolPublicCollection(
           schoolId,
           'events',
           (rows) => setEvents((rows as SchoolEvent[]).slice(0, 3)),
-          (err) => console.error('Live events error:', err)
+          (err) => {
+            console.error('Live events error:', err);
+            setContentError('Some school information could not be loaded. Please refresh the page.');
+          }
         );
 
         unsubTeachers = subscribeToSchoolPublicCollection(
           schoolId,
           'teachers',
           (rows) => setTeachers((rows as Teacher[]).slice(0, 4)),
-          (err) => console.error('Live teachers error:', err)
+          (err) => {
+            console.error('Live teachers error:', err);
+            setContentError('Some school information could not be loaded. Please refresh the page.');
+          }
         );
       },
       (err) => {
@@ -129,6 +141,7 @@ export default function SchoolPublicPage() {
     }
 
     setResultSearchLoading(true);
+    setResultError('');
 
     const unsubscribe = subscribeToPublicResults(
       school.id,
@@ -140,6 +153,7 @@ export default function SchoolPublicPage() {
       (err) => {
         console.error('Live public result lookup failed:', err);
         setPublicResults([]);
+        setResultError('Result could not be loaded. Please try again.');
         setResultSearchLoading(false);
       }
     );
@@ -209,6 +223,13 @@ export default function SchoolPublicPage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <SchoolHeader school={school} />
+      {contentError && (
+        <div role="alert" className="mx-auto mt-4 max-w-7xl px-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+            {contentError}
+          </div>
+        </div>
+      )}
       <HeroSection school={school} heroImage={heroImage} />
       <StatsSection
         totalStudents={totalStudents}
@@ -225,6 +246,8 @@ export default function SchoolPublicPage() {
         setRollNumber={setRollNumber}
         resultSearchLoading={resultSearchLoading}
         publicResults={publicResults}
+        resultError={resultError}
+        searchedRollNumber={searchedRollNumber}
         searchPublicResults={searchPublicResults}
       />
       <TeachersSection teachers={teachers} />

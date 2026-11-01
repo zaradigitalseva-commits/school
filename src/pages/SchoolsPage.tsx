@@ -30,33 +30,28 @@ export default function SchoolsPage() {
 
   const filteredSchools = useMemo(() => {
     const term = search.trim().toLowerCase();
-
-    if (!term) {
-      return schools;
-    }
+    const getTime = (value: unknown) => {
+      if (typeof value === 'string') return Date.parse(value) || 0;
+      if (value && typeof value === 'object' && 'toMillis' in value &&
+          typeof (value as { toMillis?: unknown }).toMillis === 'function') {
+        return (value as { toMillis: () => number }).toMillis();
+      }
+      return 0;
+    };
 
     return [...schools]
       .filter((school) => {
-        return (
-          (school.name ?? '').toLowerCase().includes(term) ||
-          (school.slug ?? '').toLowerCase().includes(term) ||
-          (school.tagline ?? '').toLowerCase().includes(term) ||
-          (school.address ?? '').toLowerCase().includes(term) ||
-          (school.city ?? '').toLowerCase().includes(term) ||
-          (school.state ?? '').toLowerCase().includes(term)
-        );
+        if (!term) return true;
+        return [
+          school.name,
+          school.slug,
+          school.tagline,
+          school.address,
+          school.city,
+          school.state,
+        ].some((value) => String(value || '').toLowerCase().includes(term));
       })
-      .sort((a, b) => {
-        const getTime = (value: unknown) => {
-          if (typeof value === 'string') return Date.parse(value) || 0;
-          if (value && typeof value === 'object' && 'toMillis' in value &&
-              typeof (value as { toMillis?: unknown }).toMillis === 'function') {
-            return (value as { toMillis: () => number }).toMillis();
-          }
-          return 0;
-        };
-        return getTime(b.createdAt) - getTime(a.createdAt);
-      });
+      .sort((a, b) => getTime(b.createdAt) - getTime(a.createdAt));
   }, [schools, search]);
 
   return (
@@ -86,7 +81,7 @@ export default function SchoolsPage() {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by school name, city, address or URL..."
+            placeholder="Search by school name, city, district, state or URL..."
             className="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 outline-none transition focus:border-blue-500"
           />
         </div>
@@ -134,7 +129,7 @@ export default function SchoolsPage() {
 
             <p className="mt-2 text-gray-600">
               {schools.length === 0
-                ? 'Live schools will appear here after Platform Admin approval.'
+                ? 'LIVE schools will appear here after approval.'
                 : 'Try another school name or search term.'}
             </p>
           </div>

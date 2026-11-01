@@ -378,21 +378,29 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
+    // Legacy per-result projection is retained only for compatibility during
+    // migration. It is no longer publicly readable or writable.
     match /publicResults/{resultId} {
-      // Only a deliberately limited result projection is publicly searchable
-      // for LIVE schools. No phone, DOB, address, attendance or internal IDs.
-      // Query-compatible public read: all client writes to this isolated
-      // collection are restricted by the create/update allowlists below.
-      allow read: if resource.data.schoolId is string
+      allow read, write: if false;
+    }
+
+    // One limited document per school + roll number. Public visitors may GET
+    // a specific lookup document but cannot LIST the collection, preventing
+    // bulk downloads of every student's results.
+    match /publicResultLookups/{lookupId} {
+      allow get: if resource.data.schoolId is string
+        && resource.data.rollNumber is string
         && liveSchool(resource.data.schoolId);
+      allow list: if false;
 
       allow create: if request.resource.data.schoolId is string
         && request.resource.data.rollNumber is string
         && request.resource.data.studentName is string
         && request.resource.data.className is string
+        && request.resource.data.results is list
         && request.resource.data.keys().hasOnly([
-          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
-          'exam', 'subject', 'marks', 'score'
+          'schoolId', 'rollNumber', 'studentName', 'className',
+          'section', 'results', 'updatedAt'
         ])
         && (
           isSchoolAdmin(request.resource.data.schoolId)
@@ -400,9 +408,11 @@ service cloud.firestore {
         );
 
       allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && request.resource.data.rollNumber == resource.data.rollNumber
+        && request.resource.data.results is list
         && request.resource.data.keys().hasOnly([
-          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
-          'exam', 'subject', 'marks', 'score'
+          'schoolId', 'rollNumber', 'studentName', 'className',
+          'section', 'results', 'updatedAt'
         ])
         && (
           isSchoolAdmin(resource.data.schoolId)
@@ -410,7 +420,8 @@ service cloud.firestore {
         );
 
       allow delete: if isPlatformAdmin()
-        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')));
     }
 
     match /homework/{homeworkId} {

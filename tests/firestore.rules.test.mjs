@@ -75,6 +75,11 @@ async function seedFixtures() {
         schoolId: 'school-a', studentName: 'Student A',
         rollNumber: '05', className: 'Class 5', section: 'A', marks: 80,
       }],
+      ['publicResultLookups/school-a__05', {
+        schoolId: 'school-a', rollNumber: '05', studentName: 'Student A',
+        className: 'Class 5', section: 'A',
+        results: [{ id: 'result-a', exam: 'Unit Test', subject: 'Maths', marks: 80 }],
+      }],
       ['attendance/attendance-a', {
         schoolId: 'school-a', className: 'Class 5', section: 'A', status: 'PRESENT',
       }],
@@ -113,9 +118,11 @@ after(async () => {
   await testEnv?.cleanup();
 });
 
-test('public visitors can read only the limited public result projection', async () => {
+test('public visitors can GET one roll-number result but cannot list or read legacy projections', async () => {
   const db = testEnv.unauthenticatedContext().firestore();
-  await assertSucceeds(getDoc(doc(db, 'publicResults/result-a')));
+  await assertSucceeds(getDoc(doc(db, 'publicResultLookups/school-a__05')));
+  await assertFails(getDocs(collection(db, 'publicResultLookups')));
+  await assertFails(getDoc(doc(db, 'publicResults/result-a')));
   await assertFails(getDoc(doc(db, 'results/result-a')));
   await assertFails(getDoc(doc(db, 'students/student-a')));
 });
