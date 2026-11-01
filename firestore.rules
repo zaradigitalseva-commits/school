@@ -349,7 +349,7 @@ service cloud.firestore {
         && request.resource.data.studentName is string
         && request.resource.data.className is string
         && request.resource.data.keys().hasOnly([
-          'schoolId', 'rollNumber', 'studentName', 'className',
+          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
           'exam', 'subject', 'marks', 'score'
         ])
         && (
@@ -359,7 +359,7 @@ service cloud.firestore {
 
       allow update: if resource.data.schoolId == request.resource.data.schoolId
         && request.resource.data.keys().hasOnly([
-          'schoolId', 'rollNumber', 'studentName', 'className',
+          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
           'exam', 'subject', 'marks', 'score'
         ])
         && (
