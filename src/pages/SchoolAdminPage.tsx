@@ -642,7 +642,7 @@ export default function SchoolAdminPage() {
       const ok =
         window.confirm(
           'Are you sure you want to revoke access for ' +
-            (membership.invitedByEmail ||
+            ((membership as any).invitedByEmail ||
               membership.uid) +
             '?'
         );
@@ -1137,9 +1137,7 @@ export default function SchoolAdminPage() {
               style={
                 styles.primaryButton
               }
-              onClick={
-                loadSchool
-              }
+              onClick={() => loadSchool()}
             >
               🔄 Try Again
             </button>
@@ -4308,7 +4306,7 @@ function StaffSection({
               >
                 <div>
                   <strong>
-                    {member.invitedByEmail ||
+                    {(member as any).invitedByEmail ||
                       member.uid}
                   </strong>
                 </div>
@@ -4436,7 +4434,7 @@ function MemberRow({
     >
       <div>
         <strong>
-          {member.invitedByEmail ||
+          {(member as any).invitedByEmail ||
             member.uid}
         </strong>
 
