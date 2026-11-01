@@ -1895,13 +1895,14 @@ async function syncPublicResultLookup(
   schoolId: string,
   resultId: string,
   previous: Record<string, any> | null,
-  next: Record<string, any> | null
+  next: Record<string, any> | null,
+  privateMutation?: { type: 'update' | 'delete'; ref: any; data?: Record<string, any> }
 ): Promise<void> {
   const oldRoll = typeof previous?.rollNumber === 'string' ? previous.rollNumber.trim() : '';
   const newRoll = typeof next?.rollNumber === 'string' ? next.rollNumber.trim() : '';
   const oldRef = oldRoll ? doc(db, 'publicResultLookups', publicResultLookupId(schoolId, oldRoll)) : null;
   const newRef = newRoll ? doc(db, 'publicResultLookups', publicResultLookupId(schoolId, newRoll)) : null;
-  if (!oldRef && !newRef) return;
+  if (!oldRef && !newRef && !privateMutation) return;
 
   await runTransaction(db, async (transaction) => {
     const oldSnapshot = oldRef ? await transaction.get(oldRef) : null;
@@ -1914,6 +1915,12 @@ async function syncPublicResultLookup(
       marks: next.marks ?? null,
       score: next.score ?? null,
     } : null;
+
+    if (privateMutation?.type === 'update') {
+      transaction.update(privateMutation.ref, privateMutation.data || {});
+    } else if (privateMutation?.type === 'delete') {
+      transaction.delete(privateMutation.ref);
+    }
 
     const writeLookup = (ref: any, snapshot: any, rows: any[], profile: any) => {
       if (!rows.length) {
@@ -2045,18 +2052,16 @@ export async function updateResult(
   } = data || {};
   const safeData = cleanData(rawData);
   const mergedData = { ...existing, ...safeData, schoolId };
-  await runTransaction(db, async (transaction) => {
-    transaction.update(resultRef, {
-      ...safeData,
-      schoolId,
-      updatedAt: serverTimestamp(),
-    });
-  });
   await syncPublicResultLookup(
     schoolId,
     id,
     buildPublicResultProjection(schoolId, existing),
-    buildPublicResultProjection(schoolId, mergedData)
+    buildPublicResultProjection(schoolId, mergedData),
+    {
+      type: 'update',
+      ref: resultRef,
+      data: { ...safeData, schoolId, updatedAt: serverTimestamp() },
+    }
   );
 }
 
@@ -2074,12 +2079,12 @@ export async function deleteResult(
     throw new Error('You are not allowed to delete this school result.');
   }
 
-  await deleteDoc(resultRef);
   await syncPublicResultLookup(
     schoolId,
     id,
     buildPublicResultProjection(schoolId, snapshot.data()),
-    null
+    null,
+    { type: 'delete', ref: resultRef }
   );
 }
 
