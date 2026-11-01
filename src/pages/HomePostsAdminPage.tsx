@@ -190,7 +190,6 @@ export default function HomePostsAdminPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             {canEdit && <button onClick={() => startEdit(post)} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm font-bold"><Pencil className="h-4 w-4"/>Edit</button>}
             {platform && post.status === 'PENDING' && <><button onClick={() => void moderate(post, 'APPROVED')} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-4 py-2 font-bold text-white"><CheckCircle className="h-4 w-4"/>Approve</button><button onClick={() => void moderate(post, 'REJECTED')} className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-4 py-2 font-bold text-white"><XCircle className="h-4 w-4"/>Reject</button></>}
-            {platform && post.status === 'REJECTED' && <button onClick={() => void moderate(post, 'PENDING' as 'REJECTED')} className="rounded-lg border px-3 py-2 text-sm font-bold">Review again</button>}
             {canDelete && <button onClick={() => void remove(post)} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-bold text-red-600"><Trash2 className="h-4 w-4"/>Delete</button>}
           </div>
         </article>;
