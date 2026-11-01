@@ -9,7 +9,7 @@ service cloud.firestore {
 
     function isPlatformAdmin() {
       return signedIn()
-        && request.auth.token.email == 'ngogrant454@gmail.com';
+        && request.auth.token.email in ['ngogrant454@gmail.com', 'zaradigitalseva@gmail.com'];
     }
 
     function membershipId(uid, schoolId) {
