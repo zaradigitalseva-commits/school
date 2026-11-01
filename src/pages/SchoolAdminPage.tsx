@@ -22,6 +22,7 @@ import {
   deleteClass,
 
   fetchResults,
+  backfillPublicResults,
   addResult,
   updateResult,
   deleteResult,
@@ -857,6 +858,27 @@ export default function SchoolAdminPage() {
   };
 
 
+  const migrateLegacyPublicResults = async () => {
+    if (!schoolId || activeSection !== 'results') return;
+    const confirmed = window.confirm(
+      'पुराने रिजल्ट को सार्वजनिक रोल नंबर खोज में उपलब्ध कराने के लिए केवल सीमित जानकारी कॉपी होगी। क्या आगे बढ़ें?'
+    );
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setMessage('');
+      const count = await backfillPublicResults(schoolId);
+      setMessage('✅ पुराने ' + count + ' रिजल्ट सुरक्षित सार्वजनिक सूची में तैयार किए गए।');
+    } catch (err) {
+      console.error('Public results migration error:', err);
+      setMessage(err instanceof Error ? err.message : 'पुराने रिजल्ट migrate नहीं हो सके।');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
   /* =========================================================
      DELETE CURRENT MODULE ITEM
   ========================================================= */
@@ -1616,6 +1638,7 @@ export default function SchoolAdminPage() {
                 sectionLoading ||
                 saving
               }
+              onBackfillPublicResults={migrateLegacyPublicResults}
             />
           )}
 
@@ -2048,6 +2071,7 @@ function CrudModule({
   onSave,
   onDelete,
   loading,
+  onBackfillPublicResults,
 }: {
   section: string;
   items: AnyRecord[];
@@ -2064,6 +2088,7 @@ function CrudModule({
     id: string
   ) => void;
   loading: boolean;
+  onBackfillPublicResults: () => void;
 }) {
   const config =
     moduleConfig[section];
@@ -2097,6 +2122,18 @@ function CrudModule({
         {config.icon}{' '}
         {config.title}
       </h2>
+
+      {section === 'results' && (
+        <div style={{ ...styles.infoCard, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div>
+            <strong>पुराने रिजल्ट सुरक्षित करें / Keep existing results</strong>
+            <div style={styles.smallText}>यह केवल सीमित रिजल्ट जानकारी public lookup में कॉपी करेगा। इसे एक बार चलाएँ।</div>
+          </div>
+          <button type="button" style={styles.primaryButton} onClick={onBackfillPublicResults} disabled={loading}>
+            पुराने रिजल्ट migrate करें
+          </button>
+        </div>
+      )}
 
       <div
         style={
