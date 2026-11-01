@@ -1,4 +1,4 @@
-name: SchoolConnect final validation
+name: SchoolConnect final validation (type fixes)
 
 on:
   pull_request:
