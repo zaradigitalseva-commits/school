@@ -2056,6 +2056,8 @@ export async function updateFeePayment(schoolId: string, id: string, data: any):
   }
   await updateDoc(ref, {
     ...normalizeFeePayment(data, schoolId),
+    // Preserve the original recorder for the immutable audit field in Rules.
+    recordedByUid: snapshot.data().recordedByUid,
     updatedAt: serverTimestamp(),
   });
 }
