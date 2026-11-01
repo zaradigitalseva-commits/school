@@ -787,7 +787,7 @@ export default function PaymentRechargePage() {
                             </span>
                           </div>
 
-                          {item.approvedAt && (
+                          {Boolean(item.approvedAt) && (
                             <div className="flex justify-between gap-4">
                               <span className="font-bold text-slate-400">
                                 Approved
