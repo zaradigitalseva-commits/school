@@ -35,14 +35,28 @@ export default function SchoolsPage() {
       return schools;
     }
 
-    return schools.filter((school) => {
-      return (
-        school.name.toLowerCase().includes(term) ||
-        school.slug.toLowerCase().includes(term) ||
-        (school.tagline ?? '').toLowerCase().includes(term) ||
-        (school.address ?? '').toLowerCase().includes(term)
-      );
-    });
+    return [...schools]
+      .filter((school) => {
+        return (
+          (school.name ?? '').toLowerCase().includes(term) ||
+          (school.slug ?? '').toLowerCase().includes(term) ||
+          (school.tagline ?? '').toLowerCase().includes(term) ||
+          (school.address ?? '').toLowerCase().includes(term) ||
+          (school.city ?? '').toLowerCase().includes(term) ||
+          (school.state ?? '').toLowerCase().includes(term)
+        );
+      })
+      .sort((a, b) => {
+        const getTime = (value: unknown) => {
+          if (typeof value === 'string') return Date.parse(value) || 0;
+          if (value && typeof value === 'object' && 'toMillis' in value &&
+              typeof (value as { toMillis?: unknown }).toMillis === 'function') {
+            return (value as { toMillis: () => number }).toMillis();
+          }
+          return 0;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
   }, [schools, search]);
 
   return (
