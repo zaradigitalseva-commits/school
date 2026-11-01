@@ -2009,7 +2009,16 @@ export async function deleteResult(
 ========================================================= */
 
 export async function fetchFeePayments(schoolId: string): Promise<any[]> {
-  return fetchSchoolCollection(schoolId, 'feePayments');
+  if (!schoolId) return [];
+  const paymentsQuery = query(
+    collection(db, 'feePayments'),
+    where('schoolId', '==', schoolId)
+  );
+  const snapshot = await getDocs(paymentsQuery);
+  return snapshot.docs.map((paymentDoc) => ({
+    id: paymentDoc.id,
+    ...paymentDoc.data(),
+  }));
 }
 
 function normalizeFeePayment(data: any, schoolId: string): Record<string, any> {
