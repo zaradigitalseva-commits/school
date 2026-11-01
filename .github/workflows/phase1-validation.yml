@@ -40,4 +40,4 @@ jobs:
         if: always()
         run: |
           printf '%s\n' '{"firestore":{"rules":"firestore.rules"},"emulators":{"firestore":{"port":8080}}}' > firebase.json
-          npx --yes firebase-tools emulators:exec --only firestore --project demo-schoolconnect "echo Firestore rules compiled successfully"
+          npx --yes firebase-tools emulators:exec --only firestore --project demo-schoolconnect "node --test tests/firestore.rules.test.mjs"
