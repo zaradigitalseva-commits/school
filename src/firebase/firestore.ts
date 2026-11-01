@@ -538,7 +538,7 @@ export async function ensureSchoolOwnerMembership(uid: string, email: string): P
     role: 'school_admin',
     status: 'ACTIVE',
     assignments: [],
-  } as SchoolMembership;
+  } as unknown as SchoolMembership;
 }
 
 export async function fetchMyMemberships(): Promise<SchoolMembership[]> {
