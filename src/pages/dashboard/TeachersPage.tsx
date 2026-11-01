@@ -41,7 +41,7 @@ export default function TeachersPage() {
 
   const openEdit = (item: Teacher) => {
     setEditing(item);
-    setForm({ name: item.name, designation: item.designation, subject: item.subject, qualification: item.qualification, bio: item.bio, imageUrl: item.imageUrl, email: item.email, phone: item.phone, order: item.order });
+    setForm({ name: item.name, designation: item.designation || '', subject: item.subject || '', qualification: item.qualification || '', bio: item.bio || '', imageUrl: item.imageUrl || '', email: item.email || '', phone: item.phone || '', order: item.order ?? items.length });
     setModalOpen(true);
   };
 
