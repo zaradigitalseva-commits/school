@@ -12,6 +12,10 @@ import {
   saveSchoolInfo,
 
   fetchStudents,
+  fetchFeePayments,
+  addFeePayment,
+  updateFeePayment,
+  deleteFeePayment,
   addStudent,
   updateStudent,
   deleteStudent,
@@ -22,6 +26,7 @@ import {
   deleteClass,
 
   fetchResults,
+  backfillPublicResults,
   addResult,
   updateResult,
   deleteResult,
@@ -408,6 +413,7 @@ export default function SchoolAdminPage() {
 
     const collectionMap: Record<string, string> = {
       students: 'students',
+      fees: 'feePayments',
       classes: 'classes',
       results: 'results',
       homework: 'homework',
@@ -452,6 +458,10 @@ export default function SchoolAdminPage() {
             schoolId
           )
         );
+      }
+
+      if (section === 'fees') {
+        setItems(await fetchFeePayments(schoolId));
       }
 
       if (section === 'classes') {
@@ -632,7 +642,7 @@ export default function SchoolAdminPage() {
       const ok =
         window.confirm(
           'Are you sure you want to revoke access for ' +
-            (membership.invitedByEmail ||
+            ((membership as any).invitedByEmail ||
               membership.uid) +
             '?'
         );
@@ -672,6 +682,14 @@ export default function SchoolAdminPage() {
 
       let savedId =
         editingId;
+
+      if (activeSection === 'fees') {
+        if (editingId) {
+          await updateFeePayment(schoolId, editingId, form);
+        } else {
+          savedId = await addFeePayment(schoolId, form);
+        }
+      }
 
       if (activeSection === 'students') {
         if (editingId) {
@@ -857,6 +875,27 @@ export default function SchoolAdminPage() {
   };
 
 
+  const migrateLegacyPublicResults = async () => {
+    if (!schoolId || activeSection !== 'results') return;
+    const confirmed = window.confirm(
+      'पुराने रिजल्ट को सार्वजनिक रोल नंबर खोज में उपलब्ध कराने के लिए केवल सीमित जानकारी कॉपी होगी। क्या आगे बढ़ें?'
+    );
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setMessage('');
+      const count = await backfillPublicResults(schoolId);
+      setMessage('✅ पुराने ' + count + ' रिजल्ट सुरक्षित सार्वजनिक सूची में तैयार किए गए।');
+    } catch (err) {
+      console.error('Public results migration error:', err);
+      setMessage(err instanceof Error ? err.message : 'पुराने रिजल्ट migrate नहीं हो सके।');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
   /* =========================================================
      DELETE CURRENT MODULE ITEM
   ========================================================= */
@@ -875,6 +914,13 @@ export default function SchoolAdminPage() {
 
     try {
       setSaving(true);
+
+      if (
+        activeSection ===
+        'fees'
+      ) {
+        await deleteFeePayment(schoolId, id);
+      }
 
       if (
         activeSection ===
@@ -1091,9 +1137,7 @@ export default function SchoolAdminPage() {
               style={
                 styles.primaryButton
               }
-              onClick={
-                loadSchool
-              }
+              onClick={() => loadSchool()}
             >
               🔄 Try Again
             </button>
@@ -1338,6 +1382,13 @@ export default function SchoolAdminPage() {
           </MenuButton>
 
           <MenuButton
+            active={activeSection === 'fees'}
+            onClick={() => changeSection('fees')}
+          >
+            💵 Student Fees / छात्र फीस (Cash)
+          </MenuButton>
+
+          <MenuButton
             active={
               activeSection ===
               'students'
@@ -1577,6 +1628,7 @@ export default function SchoolAdminPage() {
           {[
             'classes',
             'students',
+            'fees',
             'homework',
             'results',
             'attendance',
@@ -1616,6 +1668,7 @@ export default function SchoolAdminPage() {
                 sectionLoading ||
                 saving
               }
+              onBackfillPublicResults={migrateLegacyPublicResults}
             />
           )}
 
@@ -2048,6 +2101,7 @@ function CrudModule({
   onSave,
   onDelete,
   loading,
+  onBackfillPublicResults,
 }: {
   section: string;
   items: AnyRecord[];
@@ -2064,6 +2118,7 @@ function CrudModule({
     id: string
   ) => void;
   loading: boolean;
+  onBackfillPublicResults: () => void;
 }) {
   const config =
     moduleConfig[section];
@@ -2097,6 +2152,27 @@ function CrudModule({
         {config.icon}{' '}
         {config.title}
       </h2>
+{section === 'fees' && (
+        <div style={{ ...styles.cardGrid, marginBottom: 18 }}>
+          <StatCard icon="💰" title="Cash Collected / नकद जमा" value={'₹' + items.reduce((sum, item) => sum + Number(item.amount || 0), 0).toLocaleString('en-IN')} />
+          <StatCard icon="🧾" title="Receipts / रसीदें" value={String(items.length)} />
+          <StatCard icon="🏫" title="Payment Mode / भुगतान" value="Cash / Offline only" />
+        </div>
+      )}
+
+
+
+      {section === 'results' && (
+        <div style={{ ...styles.infoCard, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div>
+            <strong>पुराने रिजल्ट सुरक्षित करें / Keep existing results</strong>
+            <div style={styles.smallText}>यह केवल सीमित रिजल्ट जानकारी public lookup में कॉपी करेगा। इसे एक बार चलाएँ।</div>
+          </div>
+          <button type="button" style={styles.primaryButton} onClick={onBackfillPublicResults} disabled={loading}>
+            पुराने रिजल्ट migrate करें
+          </button>
+        </div>
+      )}
 
       <div
         style={
@@ -2458,6 +2534,23 @@ const moduleConfig: Record<
       },
     ],
   },
+
+  fees: {
+    title: 'Student Fee Payments / छात्र फीस रसीदें',
+    icon: '💵',
+    fields: [
+      { key: 'studentName', label: 'Student Name / विद्यार्थी का नाम' },
+      { key: 'rollNumber', label: 'Roll Number / रोल नंबर' },
+      { key: 'className', label: 'Class / कक्षा', type: 'select', options: ['Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'] },
+      { key: 'feeHead', label: 'Fee Type / फीस का प्रकार', type: 'select', options: ['Admission Fee','Tuition Fee','Exam Fee','Transport Fee','Library Fee','Other'] },
+      { key: 'amount', label: 'Amount (₹) / राशि', type: 'number' },
+      { key: 'paymentDate', label: 'Payment Date / भुगतान तारीख', type: 'date' },
+      { key: 'receiptNumber', label: 'Receipt Number / रसीद नंबर' },
+      { key: 'remarks', label: 'Remarks / टिप्पणी', type: 'textarea' },
+    ],
+  },
+
+
 
 
   homework: {
@@ -3043,7 +3136,9 @@ function RecordRow({
     'Record';
 
   const subtitle =
-    item.rollNumber
+    section === 'fees'
+      ? `Roll No: ${item.rollNumber} • ${item.className} • ${item.feeHead} • ${item.paymentDate}`
+      : item.rollNumber
       ? `Roll No: ${item.rollNumber}`
       : item.subject
       ? `Subject: ${item.subject}`
@@ -3097,6 +3192,15 @@ function RecordRow({
             Grade:{' '}
             {item.grade ||
               '-'}
+          </div>
+        )}
+
+        {section === 'fees' && (
+          <div style={styles.smallText}>
+            <strong>₹{Number(item.amount || 0).toLocaleString('en-IN')}</strong>
+            {' • Cash / Offline'}
+            {item.receiptNumber ? ' • Receipt: ' + item.receiptNumber : ''}
+            {item.remarks ? ' • ' + item.remarks : ''}
           </div>
         )}
 
@@ -4202,7 +4306,7 @@ function StaffSection({
               >
                 <div>
                   <strong>
-                    {member.invitedByEmail ||
+                    {(member as any).invitedByEmail ||
                       member.uid}
                   </strong>
                 </div>
@@ -4330,7 +4434,7 @@ function MemberRow({
     >
       <div>
         <strong>
-          {member.invitedByEmail ||
+          {(member as any).invitedByEmail ||
             member.uid}
         </strong>
 

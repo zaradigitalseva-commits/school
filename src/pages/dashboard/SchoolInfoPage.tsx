@@ -8,8 +8,8 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 const emptyInfo: SchoolInfo = {
   name: '', tagline: '', description: '', address: '', phone: '', email: '',
   logoUrl: '', heroImageUrl: '', campusImages: [], principalName: '',
-  principalMessage: '', principalImageUrl: '', foundedYear: '', totalStudents: '',
-  totalTeachers: '', totalCourses: '',
+  principalMessage: '', principalImageUrl: '', foundedYear: '', totalStudents: 0,
+  totalTeachers: 0, totalCourses: 0,
 };
 
 export default function SchoolInfoPage() {

@@ -86,7 +86,7 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-600">{u.email}</td>
-                    <td className="px-5 py-3">{roleBadge(u.role)}</td>
+                    <td className="px-5 py-3">{roleBadge(u.role || 'user')}</td>
                     <td className="px-5 py-3 text-sm text-gray-500">{formatDate(u.lastLoginAt)}</td>
                   </tr>
                 ))}
@@ -108,7 +108,7 @@ export default function UsersPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-900 truncate">{u.displayName || 'Unknown'}</p>
                   <p className="text-xs text-gray-500 truncate">{u.email}</p>
-                  <div className="mt-1">{roleBadge(u.role)}</div>
+                  <div className="mt-1">{roleBadge(u.role || 'user')}</div>
                 </div>
               </div>
             ))}

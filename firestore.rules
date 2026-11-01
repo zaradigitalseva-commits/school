@@ -9,6 +9,7 @@ service cloud.firestore {
 
     function isPlatformAdmin() {
       return signedIn()
+        && request.auth.token.email is string
         && request.auth.token.email in ['ngogrant454@gmail.com', 'zaradigitalseva@gmail.com'];
     }
 
@@ -291,13 +292,55 @@ service cloud.firestore {
             && request.resource.data.schoolId == resource.data.schoolId);
     }
 
+    // Private, school-scoped cash/offline student fee receipts.
+    // This collection is separate from platform subscription/recharge payments.
+    match /feePayments/{paymentId} {
+      allow read: if resource.data.schoolId is string
+        && isSchoolAdmin(resource.data.schoolId);
+
+      allow create: if request.resource.data.schoolId is string
+        && isSchoolAdmin(request.resource.data.schoolId)
+        && request.resource.data.recordedByUid == request.auth.uid
+        && request.resource.data.paymentMode == 'CASH_OFFLINE'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.studentName is string
+        && request.resource.data.rollNumber is string
+        && request.resource.data.className is string
+        && request.resource.data.feeHead is string
+        && request.resource.data.paymentDate is string
+        && request.resource.data.keys().hasOnly([
+          'schoolId', 'studentName', 'rollNumber', 'className', 'feeHead',
+          'amount', 'paymentDate', 'receiptNumber', 'remarks', 'paymentMode',
+          'recordedByUid', 'createdAt', 'updatedAt'
+        ]);
+
+      allow update: if resource.data.schoolId is string
+        && isSchoolAdmin(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId
+        && request.resource.data.recordedByUid == resource.data.recordedByUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.paymentMode == 'CASH_OFFLINE'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 1000000
+        && request.resource.data.keys().hasOnly([
+          'schoolId', 'studentName', 'rollNumber', 'className', 'feeHead',
+          'amount', 'paymentDate', 'receiptNumber', 'remarks', 'paymentMode',
+          'recordedByUid', 'createdAt', 'updatedAt'
+        ]);
+
+      allow delete: if resource.data.schoolId is string
+        && isSchoolAdmin(resource.data.schoolId);
+    }
+
     match /students/{studentId} {
-      // Teachers can read only their assigned class/section.
-      // Public LIVE access remains available to non-teachers.
+      // Student records are private: only the owning School Admin,
+      // platform administrators and the student's assigned teacher may read them.
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
-        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId));
       allow update, delete: if isPlatformAdmin()
@@ -317,12 +360,11 @@ service cloud.firestore {
     }
 
     match /results/{resultId} {
-      // Teachers can read only their assigned class/section.
-      // Public LIVE access remains available to non-teachers.
+      // Full result records are private. Public lookup uses the
+      // restricted /publicResults collection below.
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
-        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
         || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
@@ -336,13 +378,46 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
+    match /publicResults/{resultId} {
+      // Only a deliberately limited result projection is publicly searchable
+      // for LIVE schools. No phone, DOB, address, attendance or internal IDs.
+      // Query-compatible public read: all client writes to this isolated
+      // collection are restricted by the create/update allowlists below.
+      allow read: if resource.data.schoolId is string
+        && liveSchool(resource.data.schoolId);
+
+      allow create: if request.resource.data.schoolId is string
+        && request.resource.data.rollNumber is string
+        && request.resource.data.studentName is string
+        && request.resource.data.className is string
+        && request.resource.data.keys().hasOnly([
+          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
+          'exam', 'subject', 'marks', 'score'
+        ])
+        && (
+          isSchoolAdmin(request.resource.data.schoolId)
+          || teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
+        );
+
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && request.resource.data.keys().hasOnly([
+          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
+          'exam', 'subject', 'marks', 'score'
+        ])
+        && (
+          isSchoolAdmin(resource.data.schoolId)
+          || teacherAssigned(resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
+        );
+
+      allow delete: if isPlatformAdmin()
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+    }
+
     match /homework/{homeworkId} {
-      // Teachers can read only their assigned class/section.
-      // Public LIVE access remains available to non-teachers.
+      // Homework is private to the school and assigned teaching staff.
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
-        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
         || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));
@@ -356,12 +431,10 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
-      // Teachers can read only their assigned class/section.
-      // Public LIVE access remains available to non-teachers.
+      // Attendance is private to the school and assigned teaching staff.
       allow read: if isPlatformAdmin()
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
-        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')))
-        || (resource.data.schoolId is string && publicLiveViewer(resource.data.schoolId));
+        || (resource.data.schoolId is string && teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', '')));
       allow create: if isPlatformAdmin()
         || (request.resource.data.schoolId is string && isSchoolAdmin(request.resource.data.schoolId))
         || (request.resource.data.schoolId is string && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', '')));

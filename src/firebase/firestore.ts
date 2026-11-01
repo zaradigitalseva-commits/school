@@ -304,7 +304,7 @@ export async function fetchSchoolById(
 ========================================================= */
 
 export async function fetchSchoolInfo(
-  schoolId: string
+  schoolId?: string
 ): Promise<SchoolInfo | null> {
   if (!schoolId) {
     return null;
@@ -538,7 +538,7 @@ export async function ensureSchoolOwnerMembership(uid: string, email: string): P
     role: 'school_admin',
     status: 'ACTIVE',
     assignments: [],
-  } as SchoolMembership;
+  } as unknown as SchoolMembership;
 }
 
 export async function fetchMyMemberships(): Promise<SchoolMembership[]> {
@@ -1829,6 +1829,57 @@ export async function deleteClass(
    RESULTS
 ========================================================= */
 
+function buildPublicResultProjection(schoolId: string, data: any): Record<string, any> {
+  return cleanData({
+    schoolId,
+    rollNumber: typeof data.rollNumber === 'string' ? data.rollNumber.trim() : '',
+    studentName: typeof data.studentName === 'string' ? data.studentName.trim() : '',
+    className: typeof data.className === 'string' ? data.className.trim() : '',
+    section: typeof data.section === 'string' ? data.section.trim() : '',
+    exam: typeof data.exam === 'string' ? data.exam.trim() : '',
+    subject: typeof data.subject === 'string' ? data.subject.trim() : '',
+    marks: data.marks,
+    score: data.score,
+  });
+}
+
+
+export async function backfillPublicResults(schoolId: string): Promise<number> {
+  if (!schoolId) throw new Error('School ID is required.');
+
+  // Read directly so permission/network errors are surfaced to the admin.
+  // fetchResults() uses a shared helper that intentionally converts read errors
+  // into an empty list, which could otherwise make a failed migration look successful.
+  const legacyQuery = query(
+    collection(db, 'results'),
+    where('schoolId', '==', schoolId)
+  );
+  const legacySnapshot = await getDocs(legacyQuery);
+  const eligibleResults = legacySnapshot.docs.map((resultDoc) => ({
+    id: resultDoc.id,
+    ...resultDoc.data(),
+  }));
+  let migrated = 0;
+
+  for (let offset = 0; offset < eligibleResults.length; offset += 450) {
+    const batch = writeBatch(db);
+    const chunk = eligibleResults.slice(offset, offset + 450);
+
+    chunk.forEach((row) => {
+      batch.set(
+        doc(db, 'publicResults', String(row.id)),
+        buildPublicResultProjection(schoolId, row)
+      );
+    });
+
+    await batch.commit();
+    migrated += chunk.length;
+  }
+
+  return migrated;
+}
+
+
 export async function fetchPublicResults(
   schoolId: string,
   rollNumber: string
@@ -1838,29 +1889,24 @@ export async function fetchPublicResults(
   }
 
   const resultsQuery = query(
-    collection(db, 'results'),
+    collection(db, 'publicResults'),
     where('schoolId', '==', schoolId),
     where('rollNumber', '==', rollNumber.trim())
   );
 
   const snapshot = await getDocs(resultsQuery);
 
-  return snapshot.docs.map(
-    (resultDoc) => ({
-      id: resultDoc.id,
-      ...resultDoc.data(),
-    })
-  );
+  return snapshot.docs.map((resultDoc) => ({
+    id: resultDoc.id,
+    ...resultDoc.data(),
+  }));
 }
 
 
 export async function fetchResults(
   schoolId: string
 ): Promise<any[]> {
-  return fetchSchoolCollection(
-    schoolId,
-    'results'
-  );
+  return fetchSchoolCollection(schoolId, 'results');
 }
 
 
@@ -1868,11 +1914,33 @@ export async function addResult(
   schoolId: string,
   data: any
 ): Promise<string> {
-  return addSchoolDocument(
-    'results',
+  if (!schoolId) throw new Error('School ID is required.');
+  if (!data) throw new Error('Result data is required.');
+
+  const resultRef = doc(collection(db, 'results'));
+  const {
+    schoolId: ignoredSchoolId,
+    id: ignoredId,
+    createdAt: ignoredCreatedAt,
+    updatedAt: ignoredUpdatedAt,
+    ...rawData
+  } = data;
+  const safeData = cleanData(rawData);
+  const batch = writeBatch(db);
+
+  batch.set(resultRef, {
+    ...safeData,
     schoolId,
-    data
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(
+    doc(db, 'publicResults', resultRef.id),
+    buildPublicResultProjection(schoolId, safeData)
   );
+
+  await batch.commit();
+  return resultRef.id;
 }
 
 
@@ -1881,12 +1949,38 @@ export async function updateResult(
   id: string,
   data: any
 ): Promise<void> {
-  return updateSchoolDocument(
-    'results',
+  if (!schoolId || !id) throw new Error('School and result IDs are required.');
+
+  const resultRef = doc(db, 'results', id);
+  const snapshot = await getDoc(resultRef);
+  if (!snapshot.exists()) throw new Error('Result not found.');
+  const existing = snapshot.data();
+  if (existing.schoolId !== schoolId) {
+    throw new Error('You are not allowed to modify this school result.');
+  }
+
+  const {
+    schoolId: ignoredSchoolId,
+    id: ignoredId,
+    createdAt: ignoredCreatedAt,
+    updatedAt: ignoredUpdatedAt,
+    ...rawData
+  } = data || {};
+  const safeData = cleanData(rawData);
+  const mergedData = { ...existing, ...safeData, schoolId };
+  const batch = writeBatch(db);
+
+  batch.update(resultRef, {
+    ...safeData,
     schoolId,
-    id,
-    data
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(
+    doc(db, 'publicResults', id),
+    buildPublicResultProjection(schoolId, mergedData)
   );
+
+  await batch.commit();
 }
 
 
@@ -1894,11 +1988,106 @@ export async function deleteResult(
   schoolId: string,
   id: string
 ): Promise<void> {
-  return deleteSchoolDocument(
-    'results',
-    schoolId,
-    id
+  if (!schoolId || !id) throw new Error('School and result IDs are required.');
+
+  const resultRef = doc(db, 'results', id);
+  const snapshot = await getDoc(resultRef);
+  if (!snapshot.exists()) throw new Error('Result not found.');
+  if (snapshot.data().schoolId !== schoolId) {
+    throw new Error('You are not allowed to delete this school result.');
+  }
+
+  const batch = writeBatch(db);
+  batch.delete(resultRef);
+  batch.delete(doc(db, 'publicResults', id));
+  await batch.commit();
+}
+
+
+/* =========================================================
+   STUDENT FEE LEDGER — CASH / OFFLINE ONLY
+========================================================= */
+
+export async function fetchFeePayments(schoolId: string): Promise<any[]> {
+  if (!schoolId) return [];
+  const paymentsQuery = query(
+    collection(db, 'feePayments'),
+    where('schoolId', '==', schoolId)
   );
+  const snapshot = await getDocs(paymentsQuery);
+  return snapshot.docs.map((paymentDoc) => ({
+    id: paymentDoc.id,
+    ...paymentDoc.data(),
+  }));
+}
+
+function normalizeFeePayment(data: any, schoolId: string): Record<string, any> {
+  const amount = Number(data?.amount);
+  if (!schoolId) throw new Error('School ID is required.');
+  if (!String(data?.studentName || '').trim()) throw new Error('Student name is required.');
+  if (!String(data?.rollNumber || '').trim()) throw new Error('Roll number is required.');
+  if (!String(data?.className || '').trim()) throw new Error('Class is required.');
+  if (!String(data?.feeHead || '').trim()) throw new Error('Fee type is required.');
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) throw new Error('Enter a valid fee amount.');
+  if (!String(data?.paymentDate || '').trim()) throw new Error('Payment date is required.');
+
+  return cleanData({
+    schoolId,
+    studentName: String(data.studentName).trim(),
+    rollNumber: String(data.rollNumber).trim(),
+    className: String(data.className).trim(),
+    feeHead: String(data.feeHead).trim(),
+    amount,
+    paymentDate: String(data.paymentDate).trim(),
+    receiptNumber: String(data.receiptNumber || '').trim(),
+    remarks: String(data.remarks || '').trim(),
+    paymentMode: 'CASH_OFFLINE',
+    recordedByUid: auth.currentUser?.uid || '',
+  });
+}
+
+export async function addFeePayment(schoolId: string, data: any): Promise<string> {
+  const ref = doc(collection(db, 'feePayments'));
+  const payment = normalizeFeePayment({
+    ...data,
+    receiptNumber: String(data?.receiptNumber || '').trim()
+      || 'FEE-' + ref.id.slice(0, 8).toUpperCase(),
+  }, schoolId);
+  await setDoc(ref, {
+    ...payment,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateFeePayment(schoolId: string, id: string, data: any): Promise<void> {
+  if (!schoolId || !id) throw new Error('School and payment IDs are required.');
+  const ref = doc(db, 'feePayments', id);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists() || snapshot.data().schoolId !== schoolId) {
+    throw new Error('Fee receipt not found for this school.');
+  }
+  await updateDoc(ref, {
+    ...normalizeFeePayment({
+      ...data,
+      receiptNumber: String(data?.receiptNumber || '').trim()
+        || String(snapshot.data().receiptNumber || ''),
+    }, schoolId),
+    // Preserve immutable audit fields when another School Admin edits the receipt.
+    recordedByUid: snapshot.data().recordedByUid,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteFeePayment(schoolId: string, id: string): Promise<void> {
+  if (!schoolId || !id) throw new Error('School and payment IDs are required.');
+  const ref = doc(db, 'feePayments', id);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists() || snapshot.data().schoolId !== schoolId) {
+    throw new Error('Fee receipt not found for this school.');
+  }
+  await deleteDoc(ref);
 }
 
 

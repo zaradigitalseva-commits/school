@@ -43,6 +43,10 @@ export default function AdminAccessPage() {
     const user = allUsers.find((u) => u.uid === selectedUid);
     if (!user) return;
     try {
+      if (!user.email) {
+        showToast('Selected user has no email address.', 'warning');
+        return;
+      }
       await addAuthorizedAdmin(selectedUid, user.email);
       showToast('Admin access granted!', 'success');
       setModalOpen(false);

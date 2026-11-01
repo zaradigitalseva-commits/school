@@ -42,6 +42,10 @@ export default function FacultyAccessPage() {
     const user = allUsers.find((u) => u.uid === selectedUid);
     if (!user) return;
     try {
+      if (!user.email) {
+        showToast('Selected user has no email address.', 'warning');
+        return;
+      }
       await addAuthorizedFaculty(selectedUid, user.email);
       showToast('Faculty access granted!', 'success');
       setModalOpen(false);
@@ -66,7 +70,7 @@ export default function FacultyAccessPage() {
   if (loading) return <LoadingSpinner label="Loading faculty..." />;
 
   const availableUsers = allUsers.filter(
-    (u) => !faculty.some((f) => f.uid === u.uid) && u.role !== 'admin'
+    (u) => !faculty.some((f) => f.uid === u.uid) && u.role !== 'platform_admin' && u.role !== 'school_admin'
   );
 
   return (

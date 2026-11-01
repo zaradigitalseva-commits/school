@@ -22,9 +22,9 @@ const defaultSchoolInfo: SchoolInfo = {
     'Our aim is to make participating school information easier to find and help authorised school teams manage their public online presence.',
   principalImageUrl: 'https://images.pexels.com/photos/5212324/pexels-photo-5212324.jpeg?auto=compress&cs=tinysrgb&w=940',
   foundedYear: '—',
-  totalStudents: '—',
-  totalTeachers: '—',
-  totalCourses: '—',
+  totalStudents: 0,
+  totalTeachers: 0,
+  totalCourses: 0,
 };
 
 export function useSchoolInfo() {

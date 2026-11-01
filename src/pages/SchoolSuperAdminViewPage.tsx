@@ -865,6 +865,7 @@ export default function SchoolSuperAdminViewPage() {
       return;
     }
 
+    const currentSchoolId = schoolId;
     let cancelled = false;
 
     async function loadSchool() {
@@ -880,12 +881,12 @@ export default function SchoolSuperAdminViewPage() {
           announcements,
           schoolEvents,
         ] = await Promise.all([
-          fetchSchoolById(schoolId),
-          fetchSchoolInfo(schoolId),
-          fetchSchoolMemberships(schoolId),
-          fetchTeachers(schoolId),
-          fetchAnnouncements(schoolId),
-          fetchEvents(schoolId),
+          fetchSchoolById(currentSchoolId),
+          fetchSchoolInfo(currentSchoolId),
+          fetchSchoolMemberships(currentSchoolId),
+          fetchTeachers(currentSchoolId),
+          fetchAnnouncements(currentSchoolId),
+          fetchEvents(currentSchoolId),
         ]);
 
         if (cancelled) {
@@ -894,7 +895,7 @@ export default function SchoolSuperAdminViewPage() {
 
         setSchoolData(
           (school || {
-            id: schoolId,
+            id: currentSchoolId,
           }) as SchoolData
         );
 
@@ -942,7 +943,7 @@ export default function SchoolSuperAdminViewPage() {
               try {
                 const records =
                   await fetchSchoolCollection(
-                    schoolId,
+                    currentSchoolId,
                     name
                   );
 
@@ -953,7 +954,7 @@ export default function SchoolSuperAdminViewPage() {
                     : [],
                 ] as const;
               } catch {
-                return [name, []] as const;
+                return [name, [] as AnyRecord[]] as const;
               }
             })
           );
@@ -1049,6 +1050,7 @@ export default function SchoolSuperAdminViewPage() {
       return;
     }
 
+    const currentSchoolId = schoolId;
     let cancelled = false;
 
     async function reloadCollection() {
@@ -1057,7 +1059,7 @@ export default function SchoolSuperAdminViewPage() {
 
         const records =
           await fetchSchoolCollection(
-            schoolId,
+            currentSchoolId,
             activeTab
           );
 
