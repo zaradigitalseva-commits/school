@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import {
@@ -11,13 +11,11 @@ import {
   LogIn,
   LogOut,
   ShieldCheck,
-  RefreshCw,
   Building2,
   Info,
   Megaphone,
   Phone,
   FileText,
-  X,
 } from 'lucide-react';
 
 import {
@@ -27,6 +25,7 @@ import {
   type PlatformAd,
 } from '@/firebase/firestore';
 import type { School } from '@/firebase/types';
+import HomePostsSection from '@/components/HomePostsSection';
 
 import { useAuth } from '@/context/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -37,8 +36,6 @@ export default function HomePage() {
 
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [error, setError] = useState('');
   const [platformAds, setPlatformAds] = useState<PlatformAd[]>([]);
 
   /* =========================================================
@@ -71,48 +68,6 @@ export default function HomePage() {
       unsubscribeAds();
     };
   }, []);
-
-  const loadSchools = () => {
-    setError('');
-    setLoading(true);
-    window.location.reload();
-  };
-
-  /* =========================================================
-     SEARCH
-  ========================================================= */
-
-  const filteredSchools = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) {
-      return schools;
-    }
-
-    return schools.filter((school) => {
-      const name = school.name?.toLowerCase() || '';
-      const slug = school.slug?.toLowerCase() || '';
-      const tagline = school.tagline?.toLowerCase() || '';
-      const address = school.address?.toLowerCase() || '';
-      const description = school.description?.toLowerCase() || '';
-      const phone = school.phone?.toLowerCase() || '';
-      const email = school.email?.toLowerCase() || '';
-
-      return (
-        name.includes(query) ||
-        slug.includes(query) ||
-        tagline.includes(query) ||
-        address.includes(query) ||
-        description.includes(query) ||
-        phone.includes(query) ||
-        email.includes(query)
-      );
-    });
-  }, [schools, search]);
-
-  /* =========================================================
-     DASHBOARD ROUTE
-  ========================================================= */
 
   const openDashboard = () => {
     if (!user) {
@@ -508,63 +463,11 @@ export default function HomePage() {
               and access school information from one simple platform.
             </p>
 
-            {/* =================================================
-                SEARCH BOX
-            ================================================== */}
-
             <div className="mx-auto mt-8 max-w-2xl">
-
-              <div className="relative">
-
-                <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    title="Clear Search"
-                    className="absolute right-4 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="School name search karein..."
-                  autoComplete="off"
-                  className="h-14 w-full rounded-2xl bg-white pl-14 pr-14 text-sm font-semibold text-gray-900 shadow-2xl outline-none placeholder:text-gray-400 focus:ring-4 focus:ring-white/30 sm:h-16 sm:text-base"
-                />
-
-              </div>
-
-              {/* SEARCH RESULT COUNT */}
-
-              <div className="mt-3 text-sm font-semibold text-white/90">
-
-                {search.trim() ? (
-                  <>
-                    <span className="text-yellow-300">
-                      {filteredSchools.length}
-                    </span>{' '}
-                    school found for{' '}
-                    <span className="font-black text-white">
-                      "{search}"
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-yellow-300">
-                      {schools.length}
-                    </span>{' '}
-                    LIVE school available
-                  </>
-                )}
-
-              </div>
-
+              <p className="mb-4 text-sm font-bold text-white/90"><span className="text-yellow-300">{schools.length}</span> LIVE schools available on SchoolConnect</p>
+              <Link to="/schools" className="btn-3d inline-flex items-center justify-center gap-3 rounded-2xl border border-white/30 bg-white px-8 py-4 text-base font-extrabold text-blue-700 shadow-2xl">
+                <SchoolIcon className="h-5 w-5" /> Browse All Schools <ArrowRight className="h-5 w-5" />
+              </Link>
             </div>
 
             {/* HERO BUTTONS */}
@@ -609,162 +512,7 @@ export default function HomePage() {
 
       </section>
 
-      {/* =====================================================
-          LIVE SCHOOL LIST
-      ====================================================== */}
-
-      <section className="py-14 sm:py-16">
-
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-
-          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-
-            <div>
-
-              <div className="inline-flex items-center gap-2 text-sm font-bold text-blue-600">
-
-                <SchoolIcon className="h-4 w-4" />
-
-                LIVE SCHOOLS
-
-              </div>
-
-              <h2 className="mt-2 text-3xl font-black text-gray-900 sm:text-4xl">
-                Schools on Our Platform
-              </h2>
-
-              <p className="mt-2 text-gray-500">
-
-                {search.trim() ? (
-                  <>
-                    Showing{' '}
-                    <strong className="text-blue-600">
-                      {filteredSchools.length}
-                    </strong>{' '}
-                    result
-                    {filteredSchools.length !== 1 ? 's' : ''}
-                  </>
-                ) : (
-                  <>
-                    {schools.length} school
-                    {schools.length !== 1 ? 's' : ''} available
-                  </>
-                )}
-
-              </p>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={loadSchools}
-              className="btn-3d inline-flex self-start items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 font-bold text-gray-700 sm:self-auto"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
-
-          </div>
-
-          {/* ERROR */}
-
-          {error && (
-            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700">
-
-              <p className="font-semibold">
-                {error}
-              </p>
-
-              <button
-                type="button"
-                onClick={loadSchools}
-                className="btn-3d mt-3 rounded-lg bg-red-600 px-4 py-2 font-semibold text-white"
-              >
-                Try Again
-              </button>
-
-            </div>
-          )}
-
-          {/* NO RESULT */}
-
-          {!error && filteredSchools.length === 0 && (
-
-            <div className="rounded-3xl border border-gray-200 bg-white p-10 text-center shadow-sm sm:p-16">
-
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50">
-
-                {search.trim() ? (
-                  <Search className="h-10 w-10 text-blue-600" />
-                ) : (
-                  <SchoolIcon className="h-10 w-10 text-blue-600" />
-                )}
-
-              </div>
-
-              {schools.length === 0 ? (
-                <>
-                  <h3 className="mt-6 text-2xl font-bold text-gray-900">
-                    Abhi koi LIVE school nahi hai
-                  </h3>
-
-                  <p className="mx-auto mt-3 max-w-lg text-gray-500">
-                    Sabse pehle apna school register karein.
-                    Payment approval ke baad school yahan LIVE dikhega.
-                  </p>
-
-                  <Link
-                    to="/register-school"
-                    className="btn-3d mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-3 font-bold text-white"
-                  >
-                    <UserPlus className="h-5 w-5" />
-                    Register Your School
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <h3 className="mt-6 text-2xl font-bold text-gray-900">
-                    School nahi mila
-                  </h3>
-
-                  <p className="mt-3 text-gray-500">
-                    "{search}" naam se koi LIVE school nahi mila.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    className="btn-3d mt-6 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 py-3 font-bold text-white"
-                  >
-                    Clear Search
-                  </button>
-                </>
-              )}
-
-            </div>
-
-          )}
-
-          {/* SCHOOL CARDS */}
-
-          {filteredSchools.length > 0 && (
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-
-              {filteredSchools.map((school) => (
-                <SchoolCard
-                  key={school.id}
-                  school={school}
-                />
-              ))}
-
-            </div>
-
-          )}
-
-        </div>
-
-      </section>
+      <HomePostsSection />
 
       {/* =====================================================
           ABOUT PLATFORM
