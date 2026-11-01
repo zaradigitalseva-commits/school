@@ -30,7 +30,10 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { user, role, signOut } = useAuth();
+  const { user, role, loading, signOut } = useAuth();
+  const canAccessDashboard = !loading && Boolean(user) && (
+    isPlatformAdminEmail(user?.email) || role === 'platform_admin' || role === 'school_admin'
+  );
 
   const [platformAds, setPlatformAds] = useState<PlatformAd[]>([]);
 
@@ -51,6 +54,12 @@ export default function HomePage() {
   const openDashboard = () => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    // Only registered School Admins and the Platform Super Admin can open a dashboard.
+    if (!canAccessDashboard) {
+      navigate('/');
       return;
     }
 
@@ -171,8 +180,8 @@ export default function HomePage() {
                 Register School
               </Link>
 
-              {user ? (
-                isPlatformAdminEmail(user.email) || role === 'platform_admin' ? (
+              {canAccessDashboard ? (
+                isPlatformAdminEmail(user?.email) || role === 'platform_admin' ? (
                   <Link
                     to="/admin"
                     className="btn-3d inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-700 px-4 py-2.5 text-sm font-bold text-white"
@@ -190,7 +199,7 @@ export default function HomePage() {
                     Dashboard
                   </button>
                 )
-              ) : (
+              ) : !user ? (
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
@@ -199,7 +208,7 @@ export default function HomePage() {
                   <LogIn className="h-4 w-4" />
                   Google Login
                 </button>
-              )}
+              ) : null}
 
               {user && (
                 <button
@@ -226,8 +235,8 @@ export default function HomePage() {
                 <UserPlus className="h-5 w-5" />
               </Link>
 
-              {user ? (
-                isPlatformAdminEmail(user.email) || role === 'platform_admin' ? (
+              {canAccessDashboard ? (
+                isPlatformAdminEmail(user?.email) || role === 'platform_admin' ? (
                   <Link
                     to="/admin"
                     title="Admin Panel"
@@ -245,7 +254,7 @@ export default function HomePage() {
                     <LogIn className="h-5 w-5" />
                   </button>
                 )
-              ) : (
+              ) : !user ? (
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
@@ -254,7 +263,7 @@ export default function HomePage() {
                 >
                   <LogIn className="h-5 w-5" />
                 </button>
-              )}
+              ) : null}
 
               {user && (
                 <button
@@ -458,7 +467,7 @@ export default function HomePage() {
                 </button>
               )}
 
-              {user && (
+              {canAccessDashboard && (
                 <button
                   type="button"
                   onClick={openDashboard}
