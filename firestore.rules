@@ -401,6 +401,33 @@ service cloud.firestore {
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
     }
 
+
+    match /homePosts/{postId} {
+      allow read: if isPlatformAdmin()
+        || resource.data.status == 'APPROVED'
+        || (signedIn() && resource.data.authorUid == request.auth.uid)
+        || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 5000
+        && ((isPlatformAdmin() && request.resource.data.status == 'APPROVED')
+          || (!isPlatformAdmin() && request.resource.data.status == 'PENDING'
+            && request.resource.data.schoolId is string
+            && isSchoolAdmin(request.resource.data.schoolId)
+            && liveSchool(request.resource.data.schoolId)));
+      allow update: if isPlatformAdmin();
+      allow delete: if isPlatformAdmin()
+        || (signedIn() && resource.data.authorUid == request.auth.uid
+          && resource.data.status == 'PENDING'
+          && resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId));
+    }
+
     match /platformSettings/{settingId} {
       allow read: if signedIn();
       allow create, update, delete: if isPlatformAdmin();
