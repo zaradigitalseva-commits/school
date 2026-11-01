@@ -86,7 +86,7 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-sm text-gray-600">{u.email}</td>
-                    <td className="px-5 py-3">{roleBadge(u.role)}</td>
+                    <td className="px-5 py-3">{roleBadge(u.role || 'user')}</td>
                     <td className="px-5 py-3 text-sm text-gray-500">{formatDate(u.lastLoginAt)}</td>
                   </tr>
                 ))}
