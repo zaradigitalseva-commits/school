@@ -3047,6 +3047,24 @@ export function subscribeToSchoolDocument(
 }
 
 
+
+/* HOMEPAGE POSTS: submissions, moderation and realtime feeds */
+export interface HomePostInput { title:string; content:string; imageUrl?:string; schoolId?:string|null; schoolName?:string; authorName?:string; authorEmail?:string; publishImmediately?:boolean; }
+export async function createHomePost(input:HomePostInput, authorUid:string):Promise<void>{
+ if(!authorUid)throw new Error('Please sign in first.');
+ const title=input.title.trim(), content=input.content.trim();
+ if(!title||title.length>120)throw new Error('Title 1 से 120 characters के बीच रखें।');
+ if(!content||content.length>5000)throw new Error('Post details 1 से 5000 characters के बीच रखें।');
+ const platform=isPlatformAdminEmail(auth.currentUser?.email);
+ if(!platform&&!input.schoolId)throw new Error('School select नहीं हुआ।');
+ await addDoc(collection(db,'homePosts'),cleanData({title,content,imageUrl:input.imageUrl?.trim()||'',schoolId:input.schoolId||null,schoolName:input.schoolName||'SchoolConnect',authorUid,authorName:input.authorName||'',authorEmail:input.authorEmail||'',status:platform&&input.publishImmediately?'APPROVED':'PENDING',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),...(platform&&input.publishImmediately?{approvedAt:serverTimestamp(),approvedByUid:authorUid}:{})}));
+}
+export async function moderateHomePost(postId:string,status:'APPROVED'|'REJECTED'):Promise<void>{if(!postId||!isPlatformAdminEmail(auth.currentUser?.email))throw new Error('Only Super Admin can moderate posts.');await updateDoc(doc(db,'homePosts',postId),{status,updatedAt:serverTimestamp(),...(status==='APPROVED'?{approvedAt:serverTimestamp(),approvedByUid:auth.currentUser?.uid||''}:{})});}
+export async function deleteHomePost(postId:string):Promise<void>{if(!postId||!isPlatformAdminEmail(auth.currentUser?.email))throw new Error('Only Super Admin can delete posts.');await deleteDoc(doc(db,'homePosts',postId));}
+function orderHomePosts(rows:HomePost[]):HomePost[]{return rows.sort((a,b)=>{const x=typeof a.createdAt?.toMillis==='function'?a.createdAt.toMillis():0;const y=typeof b.createdAt?.toMillis==='function'?b.createdAt.toMillis():0;return y-x;});}
+export function subscribeToApprovedHomePosts(onData:(rows:HomePost[])=>void,onError?:(error:Error)=>void):()=>void{return onSnapshot(query(collection(db,'homePosts'),where('status','==','APPROVED')),snap=>onData(orderHomePosts(snap.docs.map(d=>({id:d.id,...d.data()} as HomePost)))),err=>onError?.(err));}
+export function subscribeToManagedHomePosts(onData:(rows:HomePost[])=>void,schoolId?:string,onError?:(error:Error)=>void):()=>void{const q=schoolId?query(collection(db,'homePosts'),where('schoolId','==',schoolId)):collection(db,'homePosts');return onSnapshot(q,snap=>onData(orderHomePosts(snap.docs.map(d=>({id:d.id,...d.data()} as HomePost)))),err=>onError?.(err));}
+
 export function subscribeToActivePlatformAds(
   onData: (ads: PlatformAd[]) => void,
   onError?: (error: Error) => void
