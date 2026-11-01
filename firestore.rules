@@ -495,27 +495,156 @@ service cloud.firestore {
 
 
     match /homePosts/{postId} {
+      function validHomePostImage(data) {
+        return !('imageUrl' in data)
+          || data.imageUrl == ''
+          || (data.imageUrl is string
+            && data.imageUrl.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+
+
+    match /platformSettings/{settingId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /platformAds/{adId} {
+      allow read: if resource.data.active == true || isPlatformAdmin();
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /rechargeRequests/{rechargeId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+        && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.amount in [300, 600, 900, 1200, 3000]
+        && (
+          (request.resource.data.amount == 300 && request.resource.data.days == 28) ||
+          (request.resource.data.amount == 600 && request.resource.data.days == 56) ||
+          (request.resource.data.amount == 900 && request.resource.data.days == 84) ||
+          (request.resource.data.amount == 1200 && request.resource.data.days == 112) ||
+          (request.resource.data.amount == 3000 && request.resource.data.days == 280)
+        )
+        && request.resource.data.utr is string
+        && request.resource.data.utrNormalized is string;
+
+      allow update: if isPlatformAdmin()
+        || (signedIn()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']));
+
+      allow delete: if isPlatformAdmin();
+    }
+
+    match /utrReservations/{utr} {
+      /*
+       * Transaction duplicate-UTR check uses transaction.get(utrRef).
+       * A missing document must be readable, otherwise Firestore
+       * returns "Missing or insufficient permissions" before create.
+       */
+      allow get: if signedIn();
+      allow list: if isPlatformAdmin();
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && exists(/databases/$(database)/documents/schools/$(request.resource.data.schoolId))
+        && get(/databases/$(database)/documents/schools/$(request.resource.data.schoolId)).data.ownerUid == request.auth.uid;
+
+      allow update, delete: if isPlatformAdmin();
+    }
+
+    match /wallets/{schoolId} {
+      allow read: if isPlatformAdmin() || (signedIn() && isSchoolAdmin(schoolId));
+      allow write: if isPlatformAdmin();
+    }
+
+    match /walletTransactions/{transactionId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId))
+        || (signedIn() && resource.data.schoolId is string && isSchoolOwner(resource.data.schoolId));
+      allow create, update, delete: if isPlatformAdmin();
+    }
+
+    match /subscriptions/{schoolId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && isSchoolAdmin(schoolId))
+        || isSchoolOwner(schoolId);
+      allow write: if isPlatformAdmin();
+    }
+
+    match /authorizedAdmins/{uid} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /authorizedFaculty/{uid} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+})
+            && data.imageUrl.size() <= 650000);
+      }
+
       allow read: if isPlatformAdmin()
         || resource.data.status == 'APPROVED'
         || (signedIn() && resource.data.authorUid == request.auth.uid)
         || (resource.data.schoolId is string && isSchoolAdmin(resource.data.schoolId));
+
       allow create: if signedIn()
         && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'title', 'content', 'imageUrl', 'schoolId', 'schoolName',
+          'authorUid', 'authorName', 'status', 'createdAt', 'updatedAt',
+          'approvedAt', 'approvedByUid'
+        ])
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 120
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
         && request.resource.data.content.size() <= 5000
+        && validHomePostImage(request.resource.data)
         && ((isPlatformAdmin() && request.resource.data.status == 'APPROVED')
-          || (!isPlatformAdmin() && request.resource.data.status == 'PENDING'
+          || (!isPlatformAdmin()
+            && request.resource.data.status == 'PENDING'
             && request.resource.data.schoolId is string
             && isSchoolAdmin(request.resource.data.schoolId)
             && liveSchool(request.resource.data.schoolId)));
-      allow update: if isPlatformAdmin();
+
+      allow update: if isPlatformAdmin()
+        || (signedIn()
+          && resource.data.authorUid == request.auth.uid
+          && resource.data.schoolId is string
+          && isSchoolAdmin(resource.data.schoolId)
+          && resource.data.status in ['PENDING', 'REJECTED']
+          && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.schoolName == resource.data.schoolName
+          && request.resource.data.status == 'PENDING'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'title', 'content', 'imageUrl', 'status', 'updatedAt'
+          ])
+          && request.resource.data.title is string
+          && request.resource.data.title.size() > 0
+          && request.resource.data.title.size() <= 120
+          && request.resource.data.content is string
+          && request.resource.data.content.size() > 0
+          && request.resource.data.content.size() <= 5000
+          && validHomePostImage(request.resource.data));
+
       allow delete: if isPlatformAdmin()
-        || (signedIn() && resource.data.authorUid == request.auth.uid
-          && resource.data.status == 'PENDING'
+        || (signedIn()
+          && resource.data.authorUid == request.auth.uid
+          && resource.data.status in ['PENDING', 'REJECTED']
           && resource.data.schoolId is string
           && isSchoolAdmin(resource.data.schoolId));
     }
