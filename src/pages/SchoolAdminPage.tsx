@@ -12,6 +12,10 @@ import {
   saveSchoolInfo,
 
   fetchStudents,
+  fetchFeePayments,
+  addFeePayment,
+  updateFeePayment,
+  deleteFeePayment,
   addStudent,
   updateStudent,
   deleteStudent,
@@ -409,6 +413,7 @@ export default function SchoolAdminPage() {
 
     const collectionMap: Record<string, string> = {
       students: 'students',
+      fees: 'feePayments',
       classes: 'classes',
       results: 'results',
       homework: 'homework',
@@ -453,6 +458,10 @@ export default function SchoolAdminPage() {
             schoolId
           )
         );
+      }
+
+      if (section === 'fees') {
+        setItems(await fetchFeePayments(schoolId));
       }
 
       if (section === 'classes') {
@@ -673,6 +682,14 @@ export default function SchoolAdminPage() {
 
       let savedId =
         editingId;
+
+      if (activeSection === 'fees') {
+        if (editingId) {
+          await updateFeePayment(schoolId, editingId, form);
+        } else {
+          savedId = await addFeePayment(schoolId, form);
+        }
+      }
 
       if (activeSection === 'students') {
         if (editingId) {
@@ -897,6 +914,13 @@ export default function SchoolAdminPage() {
 
     try {
       setSaving(true);
+
+      if (
+        activeSection ===
+        'fees'
+      ) {
+        await deleteFeePayment(schoolId, id);
+      }
 
       if (
         activeSection ===
@@ -1360,6 +1384,13 @@ export default function SchoolAdminPage() {
           </MenuButton>
 
           <MenuButton
+            active={activeSection === 'fees'}
+            onClick={() => changeSection('fees')}
+          >
+            💵 Student Fees / छात्र फीस (Cash)
+          </MenuButton>
+
+          <MenuButton
             active={
               activeSection ===
               'students'
@@ -1599,6 +1630,7 @@ export default function SchoolAdminPage() {
           {[
             'classes',
             'students',
+            'fees',
             'homework',
             'results',
             'attendance',
