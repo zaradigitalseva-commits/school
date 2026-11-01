@@ -2153,8 +2153,8 @@ function CrudModule({
       >
         {config.icon}{' '}
         {config.title}
-
-      {section === 'fees' && (
+      </h2>
+{section === 'fees' && (
         <div style={{ ...styles.cardGrid, marginBottom: 18 }}>
           <StatCard icon="💰" title="Cash Collected / नकद जमा" value={'₹' + items.reduce((sum, item) => sum + Number(item.amount || 0), 0).toLocaleString('en-IN')} />
           <StatCard icon="🧾" title="Receipts / रसीदें" value={String(items.length)} />
@@ -2162,7 +2162,7 @@ function CrudModule({
         </div>
       )}
 
-      </h2>
+
 
       {section === 'results' && (
         <div style={{ ...styles.infoCard, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
