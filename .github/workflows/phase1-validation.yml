@@ -22,10 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      # The repository currently has pre-existing TypeScript errors across unrelated screens.
-      # Keep this diagnostic visible but do not skip the independent production build/rules checks.
-      - name: TypeScript check (known repository baseline errors)
-        continue-on-error: true
+      - name: Strict TypeScript check
         run: npm run typecheck
 
       - name: Production build
