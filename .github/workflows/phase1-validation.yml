@@ -1,4 +1,4 @@
-name: SchoolConnect privacy and fee ledger validation
+name: SchoolConnect full validation
 
 on:
   pull_request:
