@@ -1855,11 +1855,11 @@ export async function backfillPublicResults(schoolId: string): Promise<number> {
   const grouped = new Map<string, { rollNumber: string; rows: any[] }>();
 
   legacySnapshot.docs.forEach((resultDoc) => {
-    const row = { id: resultDoc.id, ...resultDoc.data() };
+    const row: Record<string, any> = { id: resultDoc.id, ...resultDoc.data() };
     const rollNumber = typeof row.rollNumber === 'string' ? row.rollNumber.trim() : '';
     if (!rollNumber) return;
     const key = publicResultLookupId(schoolId, rollNumber);
-    const group = grouped.get(key) || { rollNumber, rows: [] };
+    const group: { rollNumber: string; rows: any[] } = grouped.get(key) || { rollNumber, rows: [] };
     group.rows.push(buildPublicResultProjection(schoolId, row));
     grouped.set(key, group);
   });
