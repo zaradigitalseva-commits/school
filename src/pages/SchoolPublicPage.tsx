@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Home } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import {
   subscribeToSchoolBySlug,
