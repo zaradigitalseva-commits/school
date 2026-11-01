@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 
 import {
-  subscribeToPublicSchools,
   subscribeToActivePlatformAds,
   isPlatformAdminEmail,
   type PlatformAd,
@@ -28,45 +27,25 @@ import type { School } from '@/firebase/types';
 import HomePostsSection from '@/components/HomePostsSection';
 
 import { useAuth } from '@/context/AuthContext';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export default function HomePage() {
   const navigate = useNavigate();
   const { user, role, signOut } = useAuth();
 
-  const [schools, setSchools] = useState<School[]>([]);
-  const [loading, setLoading] = useState(true);
   const [platformAds, setPlatformAds] = useState<PlatformAd[]>([]);
 
   /* =========================================================
-     REALTIME LIVE SCHOOLS + PLATFORM ADS
+     REALTIME PLATFORM ADS
+     School directory data is loaded only on the /schools page.
   ========================================================= */
 
   useEffect(() => {
-    setLoading(true);
-    setError('');
-
-    const unsubscribeSchools = subscribeToPublicSchools(
-      (data) => {
-        setSchools(data);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Live schools error:', err);
-        setError('Schools load nahi ho pa rahe hain.');
-        setLoading(false);
-      }
-    );
-
     const unsubscribeAds = subscribeToActivePlatformAds(
       (ads) => setPlatformAds(ads),
       (err) => console.error('Live platform ads error:', err)
     );
 
-    return () => {
-      unsubscribeSchools();
-      unsubscribeAds();
-    };
+    return unsubscribeAds;
   }, []);
 
   const openDashboard = () => {
@@ -92,19 +71,6 @@ export default function HomePage() {
     // shows both choices when both roles are available.
     navigate('/dashboard');
   };
-
-  /* =========================================================
-     LOADING
-  ========================================================= */
-
-  if (loading) {
-    return (
-      <LoadingSpinner
-        fullScreen
-        label="Schools load ho rahe hain..."
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 animate-fade-in">
@@ -464,7 +430,6 @@ export default function HomePage() {
             </p>
 
             <div className="mx-auto mt-8 max-w-2xl">
-              <p className="mb-4 text-sm font-bold text-white/90"><span className="text-yellow-300">{schools.length}</span> LIVE schools available on SchoolConnect</p>
               <Link to="/schools" className="btn-3d inline-flex items-center justify-center gap-3 rounded-2xl border border-white/30 bg-white px-8 py-4 text-base font-extrabold text-blue-700 shadow-2xl">
                 <SchoolIcon className="h-5 w-5" /> Browse All Schools <ArrowRight className="h-5 w-5" />
               </Link>
