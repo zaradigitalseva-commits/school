@@ -1,4 +1,4 @@
-name: Phase 1 validation
+name: SchoolConnect privacy and fee ledger validation
 
 on:
   pull_request:
