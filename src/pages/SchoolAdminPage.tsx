@@ -1255,6 +1255,7 @@ export default function SchoolAdminPage() {
           >
             🏫 School Admin
           </button>
+          <button type="button" style={{ ...styles.roleButton, ...styles.teacherRoleButton }} onClick={() => navigate('/home-posts-admin?schoolId=' + encodeURIComponent(schoolId || ''))}>📢 Home Page Posts</button>
 
           <button
             type="button"
