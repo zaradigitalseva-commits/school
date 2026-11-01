@@ -340,7 +340,7 @@ service cloud.firestore {
       allow read: if resource.data.schoolId is string
         && liveSchool(resource.data.schoolId)
         && resource.data.keys().hasOnly([
-          'schoolId', 'rollNumber', 'studentName', 'className',
+          'schoolId', 'rollNumber', 'studentName', 'className', 'section',
           'exam', 'subject', 'marks', 'score'
         ]);
 
@@ -354,7 +354,7 @@ service cloud.firestore {
         ])
         && (
           isSchoolAdmin(request.resource.data.schoolId)
-          || teacherAssigned(request.resource.data.schoolId, request.resource.data.className, '')
+          || teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
         );
 
       allow update: if resource.data.schoolId == request.resource.data.schoolId
@@ -364,7 +364,7 @@ service cloud.firestore {
         ])
         && (
           isSchoolAdmin(resource.data.schoolId)
-          || teacherAssigned(resource.data.schoolId, resource.data.className, '')
+          || teacherAssigned(resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
         );
 
       allow delete: if isPlatformAdmin()
