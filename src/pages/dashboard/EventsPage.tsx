@@ -39,7 +39,7 @@ export default function EventsPage() {
 
   const openEdit = (item: SchoolEvent) => {
     setEditing(item);
-    setForm({ title: item.title, description: item.description, date: item.date.slice(0, 10), location: item.location, imageUrl: item.imageUrl });
+    setForm({ title: item.title || '', description: item.description || '', date: item.date?.slice(0, 10) || item.eventDate?.slice(0, 10) || '', location: item.location || '', imageUrl: item.imageUrl || '' });
     setModalOpen(true);
   };
 
