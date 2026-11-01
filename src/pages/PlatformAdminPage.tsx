@@ -758,6 +758,9 @@ export default function PlatformAdminPage() {
             AD
           </a>
         </div>
+        <div className="mb-6 flex justify-center">
+          <button type="button" onClick={() => navigate('/home-posts-admin')} className="rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 px-7 py-3 font-extrabold text-white shadow-xl">📢 Home Page Posts — Publish / Approve</button>
+        </div>
 
         {/* =================================================
             MESSAGES
