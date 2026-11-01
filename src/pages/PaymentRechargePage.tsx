@@ -75,7 +75,7 @@ export default function PaymentRechargePage() {
   const [schoolName, setSchoolName] = useState('');
   const [ownedSchools, setOwnedSchools] = useState<Array<{ id: string; name: string }>>([]);
 
-  const [selectedPackage, setSelectedPackage] = useState(
+  const [selectedPackage, setSelectedPackage] = useState<(typeof BILLING_PACKAGES)[number]>(
     BILLING_PACKAGES[1]
   );
 
