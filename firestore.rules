@@ -407,8 +407,13 @@ service cloud.firestore {
           || teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
         );
 
-      allow update: if resource.data.schoolId == request.resource.data.schoolId
+      allow update: if resource.data.schoolId is string
+        && resource.data.schoolId == request.resource.data.schoolId
+        && resource.data.rollNumber is string
         && request.resource.data.rollNumber == resource.data.rollNumber
+        && request.resource.data.studentName is string
+        && request.resource.data.className is string
+        && (!('section' in request.resource.data) || request.resource.data.section is string)
         && request.resource.data.results is list
         && request.resource.data.keys().hasOnly([
           'schoolId', 'rollNumber', 'studentName', 'className',
@@ -416,7 +421,10 @@ service cloud.firestore {
         ])
         && (
           isSchoolAdmin(resource.data.schoolId)
-          || teacherAssigned(resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
+          || (
+            teacherAssigned(resource.data.schoolId, resource.data.className, resource.data.get('section', ''))
+            && teacherAssigned(request.resource.data.schoolId, request.resource.data.className, request.resource.data.get('section', ''))
+          )
         );
 
       allow delete: if isPlatformAdmin()
