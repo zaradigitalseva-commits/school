@@ -6,10 +6,12 @@ type Props = {
   setRollNumber: (value: string) => void;
   resultSearchLoading: boolean;
   publicResults: any[];
+  resultError: string;
+  searchedRollNumber: string;
   searchPublicResults: () => void;
 };
 
-export default function ResultsSection({ school, rollNumber, setRollNumber, resultSearchLoading, publicResults, searchPublicResults }: Props) {
+export default function ResultsSection({ school, rollNumber, setRollNumber, resultSearchLoading, publicResults, resultError, searchedRollNumber, searchPublicResults }: Props) {
   return (<section id="results" className="bg-white py-20">
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
           <div className="rounded-3xl bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6 shadow-2xl sm:p-10">
@@ -47,6 +49,12 @@ export default function ResultsSection({ school, rollNumber, setRollNumber, resu
               </button>
             </form>
 
+            {resultError && (
+              <p role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-center font-bold text-red-700">
+                {resultError}
+              </p>
+            )}
+
             {publicResults.length > 0 && (
               <div className="mt-6 overflow-x-auto rounded-2xl bg-white shadow-lg">
                 <table className="w-full min-w-[560px] text-left text-sm">
@@ -75,7 +83,8 @@ export default function ResultsSection({ school, rollNumber, setRollNumber, resu
             )}
 
             {!resultSearchLoading &&
-              rollNumber.trim() &&
+              searchedRollNumber &&
+              !resultError &&
               publicResults.length === 0 && (
                 <p className="mt-5 rounded-xl bg-white p-4 text-center font-bold text-gray-500">
                   इस Roll Number का result नहीं मिला।
