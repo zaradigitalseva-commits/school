@@ -3137,12 +3137,12 @@ function RecordRow({
     'Record';
 
   const subtitle =
-    item.rollNumber
+    section === 'fees'
+      ? `Roll No: ${item.rollNumber} • ${item.className} • ${item.feeHead} • ${item.paymentDate}`
+      : item.rollNumber
       ? `Roll No: ${item.rollNumber}`
       : item.subject
       ? `Subject: ${item.subject}`
-      : item.paymentDate
-      ? `Roll No: ${item.rollNumber} • ${item.className} • ${item.feeHead} • ${item.paymentDate}`
       : item.date
       ? `Date: ${item.date}`
       : item.description
