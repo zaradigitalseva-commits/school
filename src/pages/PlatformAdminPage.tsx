@@ -202,7 +202,7 @@ export default function PlatformAdminPage() {
     useState<string | null>(null);
 
   const [rechargePackage, setRechargePackage] =
-    useState(BILLING_PACKAGES[1]);
+    useState<(typeof BILLING_PACKAGES)[number]>(BILLING_PACKAGES[1]);
 
   const [statsView, setStatsView] = useState<
     'all' | 'live' | 'pending' | 'requests' | null
