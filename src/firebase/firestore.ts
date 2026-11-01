@@ -1847,9 +1847,18 @@ function buildPublicResultProjection(schoolId: string, data: any): Record<string
 export async function backfillPublicResults(schoolId: string): Promise<number> {
   if (!schoolId) throw new Error('School ID is required.');
 
-  // School Admin-only rules protect both the source query and projection writes.
-  const legacyResults = await fetchResults(schoolId);
-  const eligibleResults = legacyResults.filter((row) => row && row.id);
+  // Read directly so permission/network errors are surfaced to the admin.
+  // fetchResults() uses a shared helper that intentionally converts read errors
+  // into an empty list, which could otherwise make a failed migration look successful.
+  const legacyQuery = query(
+    collection(db, 'results'),
+    where('schoolId', '==', schoolId)
+  );
+  const legacySnapshot = await getDocs(legacyQuery);
+  const eligibleResults = legacySnapshot.docs.map((resultDoc) => ({
+    id: resultDoc.id,
+    ...resultDoc.data(),
+  }));
   let migrated = 0;
 
   for (let offset = 0; offset < eligibleResults.length; offset += 450) {
