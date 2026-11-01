@@ -1844,6 +1844,33 @@ function buildPublicResultProjection(schoolId: string, data: any): Record<string
 }
 
 
+export async function backfillPublicResults(schoolId: string): Promise<number> {
+  if (!schoolId) throw new Error('School ID is required.');
+
+  // School Admin-only rules protect both the source query and projection writes.
+  const legacyResults = await fetchResults(schoolId);
+  const eligibleResults = legacyResults.filter((row) => row && row.id);
+  let migrated = 0;
+
+  for (let offset = 0; offset < eligibleResults.length; offset += 450) {
+    const batch = writeBatch(db);
+    const chunk = eligibleResults.slice(offset, offset + 450);
+
+    chunk.forEach((row) => {
+      batch.set(
+        doc(db, 'publicResults', String(row.id)),
+        buildPublicResultProjection(schoolId, row)
+      );
+    });
+
+    await batch.commit();
+    migrated += chunk.length;
+  }
+
+  return migrated;
+}
+
+
 export async function fetchPublicResults(
   schoolId: string,
   rollNumber: string
