@@ -1829,6 +1829,21 @@ export async function deleteClass(
    RESULTS
 ========================================================= */
 
+function buildPublicResultProjection(schoolId: string, data: any): Record<string, any> {
+  return cleanData({
+    schoolId,
+    rollNumber: typeof data.rollNumber === 'string' ? data.rollNumber.trim() : '',
+    studentName: typeof data.studentName === 'string' ? data.studentName.trim() : '',
+    className: typeof data.className === 'string' ? data.className.trim() : '',
+    section: typeof data.section === 'string' ? data.section.trim() : '',
+    exam: typeof data.exam === 'string' ? data.exam.trim() : '',
+    subject: typeof data.subject === 'string' ? data.subject.trim() : '',
+    marks: data.marks,
+    score: data.score,
+  });
+}
+
+
 export async function fetchPublicResults(
   schoolId: string,
   rollNumber: string
@@ -1838,29 +1853,24 @@ export async function fetchPublicResults(
   }
 
   const resultsQuery = query(
-    collection(db, 'results'),
+    collection(db, 'publicResults'),
     where('schoolId', '==', schoolId),
     where('rollNumber', '==', rollNumber.trim())
   );
 
   const snapshot = await getDocs(resultsQuery);
 
-  return snapshot.docs.map(
-    (resultDoc) => ({
-      id: resultDoc.id,
-      ...resultDoc.data(),
-    })
-  );
+  return snapshot.docs.map((resultDoc) => ({
+    id: resultDoc.id,
+    ...resultDoc.data(),
+  }));
 }
 
 
 export async function fetchResults(
   schoolId: string
 ): Promise<any[]> {
-  return fetchSchoolCollection(
-    schoolId,
-    'results'
-  );
+  return fetchSchoolCollection(schoolId, 'results');
 }
 
 
@@ -1868,11 +1878,33 @@ export async function addResult(
   schoolId: string,
   data: any
 ): Promise<string> {
-  return addSchoolDocument(
-    'results',
+  if (!schoolId) throw new Error('School ID is required.');
+  if (!data) throw new Error('Result data is required.');
+
+  const resultRef = doc(collection(db, 'results'));
+  const {
+    schoolId: ignoredSchoolId,
+    id: ignoredId,
+    createdAt: ignoredCreatedAt,
+    updatedAt: ignoredUpdatedAt,
+    ...rawData
+  } = data;
+  const safeData = cleanData(rawData);
+  const batch = writeBatch(db);
+
+  batch.set(resultRef, {
+    ...safeData,
     schoolId,
-    data
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(
+    doc(db, 'publicResults', resultRef.id),
+    buildPublicResultProjection(schoolId, safeData)
   );
+
+  await batch.commit();
+  return resultRef.id;
 }
 
 
@@ -1881,12 +1913,38 @@ export async function updateResult(
   id: string,
   data: any
 ): Promise<void> {
-  return updateSchoolDocument(
-    'results',
+  if (!schoolId || !id) throw new Error('School and result IDs are required.');
+
+  const resultRef = doc(db, 'results', id);
+  const snapshot = await getDoc(resultRef);
+  if (!snapshot.exists()) throw new Error('Result not found.');
+  const existing = snapshot.data();
+  if (existing.schoolId !== schoolId) {
+    throw new Error('You are not allowed to modify this school result.');
+  }
+
+  const {
+    schoolId: ignoredSchoolId,
+    id: ignoredId,
+    createdAt: ignoredCreatedAt,
+    updatedAt: ignoredUpdatedAt,
+    ...rawData
+  } = data || {};
+  const safeData = cleanData(rawData);
+  const mergedData = { ...existing, ...safeData, schoolId };
+  const batch = writeBatch(db);
+
+  batch.update(resultRef, {
+    ...safeData,
     schoolId,
-    id,
-    data
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(
+    doc(db, 'publicResults', id),
+    buildPublicResultProjection(schoolId, mergedData)
   );
+
+  await batch.commit();
 }
 
 
@@ -1894,11 +1952,19 @@ export async function deleteResult(
   schoolId: string,
   id: string
 ): Promise<void> {
-  return deleteSchoolDocument(
-    'results',
-    schoolId,
-    id
-  );
+  if (!schoolId || !id) throw new Error('School and result IDs are required.');
+
+  const resultRef = doc(db, 'results', id);
+  const snapshot = await getDoc(resultRef);
+  if (!snapshot.exists()) throw new Error('Result not found.');
+  if (snapshot.data().schoolId !== schoolId) {
+    throw new Error('You are not allowed to delete this school result.');
+  }
+
+  const batch = writeBatch(db);
+  batch.delete(resultRef);
+  batch.delete(doc(db, 'publicResults', id));
+  await batch.commit();
 }
 
 
