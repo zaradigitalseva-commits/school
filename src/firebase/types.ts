@@ -114,12 +114,12 @@ export interface School {
 // SCHOOL INFO
 // ============================================================
 
-export interface SchoolInfo extends School {
+export interface SchoolInfo extends Partial<School> {
+  name: string;
   schoolId?: string;
-  campusImages?: string[];
+  campusImages: string[];
   totalCourses?: number | string;
 }
-
 
 // ============================================================
 // SCHOOL MEMBERSHIP
