@@ -3,92 +3,22 @@ import { RefreshCcw, ArrowLeft } from 'lucide-react';
 
 export default function RefundCancellationPage() {
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-4xl mx-auto">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-xl bg-white text-blue-600 font-semibold btn-3d"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Home
-        </Link>
-
-        <div className="bg-white rounded-3xl p-6 sm:p-10 card-shadow">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
-              <RefreshCcw className="w-6 h-6 text-amber-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Refund & Cancellation Policy
-            </h1>
+    <div className="min-h-screen bg-gray-50 px-4 py-10">
+      <div className="mx-auto max-w-4xl">
+        <Link to="/" className="mb-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 font-semibold text-blue-600 shadow"><ArrowLeft className="h-4 w-4" /> Home</Link>
+        <article className="rounded-3xl bg-white p-6 shadow sm:p-10">
+          <div className="mb-7 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100"><RefreshCcw className="h-6 w-6 text-amber-700" /></div>
+            <div><h1 className="text-3xl font-black text-gray-900">Refund & Cancellation Policy</h1><p className="text-sm text-gray-500">Last updated: 1 November 2026</p></div>
           </div>
-
-          <div className="space-y-6 text-gray-600 leading-relaxed">
-            <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                1. Current Payment Status
-              </h2>
-              <p>
-                At present, this website does not provide a Razorpay Pay Now
-                payment facility. Therefore, no online payment or automatic
-                refund process is currently offered through this website.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                2. Future Payments
-              </h2>
-              <p>
-                If online payment services are introduced in the future, the
-                applicable payment, cancellation and refund conditions will be
-                clearly displayed before payment is made.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                3. Cancellation
-              </h2>
-              <p>
-                Any cancellation terms applicable to a future service or
-                subscription will be communicated clearly before the user
-                confirms the transaction.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                4. Refund Requests
-              </h2>
-              <p>
-                If a paid service is introduced later, eligible refund
-                requests will be handled according to the refund conditions
-                applicable to that particular service.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                5. Contact
-              </h2>
-              <p>
-                For any cancellation or refund-related question, please
-                contact us using the Contact Us page.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                6. Policy Changes
-              </h2>
-              <p>
-                This policy may be updated when website services or payment
-                facilities change.
-              </p>
-            </section>
+          <div className="space-y-6 leading-7 text-gray-600">
+            <section><h2 className="mb-2 text-xl font-bold text-gray-900">1. Plans and payments</h2><p>SchoolConnect may offer paid school registration, subscription or recharge plans. The plan price, duration, payment method and any applicable conditions are displayed in the relevant payment flow before the user submits payment. Please review those details carefully before paying.</p></section>
+            <section><h2 className="mb-2 text-xl font-bold text-gray-900">2. Payment verification</h2><p>Where a payment requires manual verification, submitting a transaction reference or payment proof does not by itself mean that the plan has been activated. Activation takes place after the payment is checked and the account status is updated.</p></section>
+            <section><h2 className="mb-2 text-xl font-bold text-gray-900">3. Cancellation</h2><p>Before making a payment, contact the platform team if you are unsure about the plan or need clarification. Once a plan has been activated or service access has been provided, cancellation may be limited and will be assessed based on the service status and applicable law.</p></section>
+            <section><h2 className="mb-2 text-xl font-bold text-gray-900">4. Refund requests</h2><p>If you believe you were charged incorrectly, paid more than once, or your payment was not credited after successful verification, contact us with the registered account email, transaction date, amount and transaction reference. Do not send passwords, card details or other confidential credentials. Each request will be reviewed and handled in accordance with applicable law and the terms displayed at purchase.</p></section>
+            <section><h2 className="mb-2 text-xl font-bold text-gray-900">5. Contact</h2><p>For payment, cancellation or refund questions, email <a className="font-semibold text-blue-700 underline" href="mailto:zaradigitalseva@gmail.com">zaradigitalseva@gmail.com</a>.</p></section>
           </div>
-        </div>
+        </article>
       </div>
     </div>
   );
