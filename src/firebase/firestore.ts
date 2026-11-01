@@ -36,16 +36,20 @@ import type {
 export const PLATFORM_ADMIN_EMAIL =
   'ngogrant454@gmail.com';
 
+// Keep the legacy primary constant for existing imports while recognizing
+// every approved platform administrator consistently in the client.
+export const PLATFORM_ADMIN_EMAILS = [
+  'ngogrant454@gmail.com',
+  'zaradigitalseva@gmail.com',
+] as const;
+
 export function isPlatformAdminEmail(
   email?: string | null
 ): boolean {
-  if (!email) {
-    return false;
-  }
-
-  return (
-    email.trim().toLowerCase() ===
-    PLATFORM_ADMIN_EMAIL.toLowerCase()
+  const cleanEmail = email?.trim().toLowerCase();
+  if (!cleanEmail) return false;
+  return PLATFORM_ADMIN_EMAILS.includes(
+    cleanEmail as (typeof PLATFORM_ADMIN_EMAILS)[number]
   );
 }
 
