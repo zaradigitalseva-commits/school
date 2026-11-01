@@ -1,0 +1,41 @@
+name: Phase 1 validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - phase1/student-data-privacy
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
+
+      - name: Set up Java for Firestore emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Validate Firestore Rules with emulator
+        run: |
+          printf '%s\n' '{"firestore":{"rules":"firestore.rules"},"emulators":{"firestore":{"port":8080}}}' > firebase.json
+          npx --yes firebase-tools emulators:exec --only firestore --project demo-schoolconnect "echo Firestore rules compiled successfully"
