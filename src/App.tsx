@@ -78,9 +78,11 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register-school" element={<RegisterSchoolPage />} />
             <Route path="/schools" element={<SchoolsPage />} />
-            <Route path="/school/:slug" element={<SchoolPublicPage />} />
             <Route path="/home-posts-admin" element={<ProtectedRoute allowedRoles={['school_admin', 'platform_admin']}><HomePostsAdminPage /></ProtectedRoute>} />
           </Route>
+
+          {/* Each school's public website owns its complete header and footer. */}
+          <Route path="/school/:slug" element={<SchoolPublicPage />} />
 
           <Route
             path="/payment/recharge"
