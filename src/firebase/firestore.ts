@@ -2005,6 +2005,73 @@ export async function deleteResult(
 
 
 /* =========================================================
+   STUDENT FEE LEDGER — CASH / OFFLINE ONLY
+========================================================= */
+
+export async function fetchFeePayments(schoolId: string): Promise<any[]> {
+  return fetchSchoolCollection(schoolId, 'feePayments');
+}
+
+function normalizeFeePayment(data: any, schoolId: string): Record<string, any> {
+  const amount = Number(data?.amount);
+  if (!schoolId) throw new Error('School ID is required.');
+  if (!String(data?.studentName || '').trim()) throw new Error('Student name is required.');
+  if (!String(data?.rollNumber || '').trim()) throw new Error('Roll number is required.');
+  if (!String(data?.className || '').trim()) throw new Error('Class is required.');
+  if (!String(data?.feeHead || '').trim()) throw new Error('Fee type is required.');
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) throw new Error('Enter a valid fee amount.');
+  if (!String(data?.paymentDate || '').trim()) throw new Error('Payment date is required.');
+
+  return cleanData({
+    schoolId,
+    studentName: String(data.studentName).trim(),
+    rollNumber: String(data.rollNumber).trim(),
+    className: String(data.className).trim(),
+    feeHead: String(data.feeHead).trim(),
+    amount,
+    paymentDate: String(data.paymentDate).trim(),
+    receiptNumber: String(data.receiptNumber || '').trim(),
+    remarks: String(data.remarks || '').trim(),
+    paymentMode: 'CASH_OFFLINE',
+    recordedByUid: auth.currentUser?.uid || '',
+  });
+}
+
+export async function addFeePayment(schoolId: string, data: any): Promise<string> {
+  const payment = normalizeFeePayment(data, schoolId);
+  const ref = await addDoc(collection(db, 'feePayments'), {
+    ...payment,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateFeePayment(schoolId: string, id: string, data: any): Promise<void> {
+  if (!schoolId || !id) throw new Error('School and payment IDs are required.');
+  const ref = doc(db, 'feePayments', id);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists() || snapshot.data().schoolId !== schoolId) {
+    throw new Error('Fee receipt not found for this school.');
+  }
+  await updateDoc(ref, {
+    ...normalizeFeePayment(data, schoolId),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteFeePayment(schoolId: string, id: string): Promise<void> {
+  if (!schoolId || !id) throw new Error('School and payment IDs are required.');
+  const ref = doc(db, 'feePayments', id);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists() || snapshot.data().schoolId !== schoolId) {
+    throw new Error('Fee receipt not found for this school.');
+  }
+  await deleteDoc(ref);
+}
+
+
+/* =========================================================
    HOMEWORK
 ========================================================= */
 
